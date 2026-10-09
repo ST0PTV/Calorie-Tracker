@@ -17,12 +17,12 @@ import openpyxl
 
 # Suchbegriffe (klein geschrieben) zur Erkennung der benötigten Spalten
 COLUMN_HINTS = {
-    "id": ["bls code", "bls-code", "sbls", "code"],
-    "n": ["lebensmittelbezeichnung", "bezeichnung", "name", "st"],
-    "k": ["energie (kcal)", "enercc", "kcal"],
-    "p": ["protein", "eiweiß", "eiweiss", "prot"],
-    "c": ["kohlenhydrate", "choavl", "kohlenhydrat"],
-    "f": ["fett", "fat"],
+    "id": ["bls code"],
+    "n": ["lebensmittelbezeichnung"],
+    "k": ["enercc energie (kilokalorien) [kcal/100g]"],
+    "p": ["prot625 protein (nx6,25) [g/100g]"],
+    "c": ["cho kohlenhydrate, verfügbar [g/100g]"],
+    "f": ["fat fett [g/100g]"],
 }
 
 
