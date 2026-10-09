@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.3.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -44,7 +44,8 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const num = (v) => { const n = parseFloat(String(v ?? '').replace(',', '.')); return Number.isFinite(n) ? n : null; };
 const r0 = (n) => Math.round(n || 0);
-const r1 = (n) => Math.round((n || 0) * 10) / 10;
+// Anzeige mit deutschem Dezimalkomma, ohne Tausenderpunkt (Eingabefelder lesen das Komma über num() wieder ein)
+const r1 = (n) => (Math.round((n || 0) * 10) / 10).toLocaleString('de-DE', { maximumFractionDigits: 1, useGrouping: false });
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 function isoDate(d) { const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000); return z.toISOString().slice(0, 10); }
 function addDays(iso, n) { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return isoDate(d); }
@@ -170,6 +171,7 @@ function copyEntries(fromDate, meal) {
   return src.length;
 }
 
+const openMeals = new Set();   // aufgeklappte Mahlzeiten (nur für diese Sitzung)
 function renderDiary() {
   const v = $('#view');
   const s = state.settings;
@@ -178,49 +180,55 @@ function renderDiary() {
   const t = sumEntries(entries);
   const prev = addDays(currentDate, -1);
   const prevEntries = state.days[prev] || [];
-  const pct = goal ? Math.min(100, (t.k / goal) * 100) : 0;
+  const frac = goal ? Math.min(1, t.k / goal) : 0;
   const over = goal && t.k > goal;
   const rest = goal ? goal - t.k : null;
+  const ARC = 345.6; // Länge des Halbkreises (r = 110)
+  const de = (n) => r0(n).toLocaleString('de-DE');
+  const weekday = new Date(currentDate + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
 
-  const macro = (cls, label, val, target) => `
-    <div class="macro ${cls}">
-      <div class="small muted">${label}</div>
-      <div><strong>${r0(val)}</strong>${target ? `<span class="muted small"> / ${r0(target)} g</span>` : '<span class="muted small"> g</span>'}</div>
+  const tile = (cls, label, val, target) => `
+    <div class="tile ${cls}">
+      <div class="lbl">${label}</div>
+      <div class="val">${r0(val)} <span>${target ? `/ ${r0(target)} g` : 'g'}</span></div>
       <div class="mbar"><span style="width:${target ? Math.min(100, (val / target) * 100) : 0}%"></span></div>
     </div>`;
 
   let html = `
-    <div class="datebar">
-      <button id="prevDay" aria-label="Vorheriger Tag">‹</button>
-      <div class="title"><strong>${esc(fmtDate(currentDate))}</strong><span class="small muted">${esc(new Date(currentDate + 'T12:00:00').toLocaleDateString('de-DE'))}</span></div>
-      <button id="nextDay" aria-label="Nächster Tag">›</button>
+    <div class="topbar">
+      <div><div class="sub">${esc(weekday)}</div><div class="day">${esc(fmtDate(currentDate))}</div></div>
+      <div class="nav"><button class="icon-btn" id="prevDay" aria-label="Vorheriger Tag">‹</button><button class="icon-btn" id="nextDay" aria-label="Nächster Tag">›</button></div>
     </div>`;
 
   if (backupDue()) {
     html += `<div class="card notice"><div><strong>Backup fällig</strong><div class="small muted">${backupText()} Deine Daten liegen nur auf diesem Handy.</div></div>
       <button class="btn secondary" id="quickBackup" style="flex:0 0 auto">Sichern</button></div>`;
   }
-
   if (!goal) {
-    html += `<div class="card"><h2>Willkommen!</h2><p class="muted">Trage zuerst dein tägliches Kalorienziel ein (z. B. deinen Tagesbedarf aus Garmin).</p>
+    html += `<div class="card"><h2>Willkommen!</h2><p class="muted small" style="margin-top:4px">Trage zuerst dein tägliches Kalorienziel ein, z. B. deinen Tagesbedarf aus Garmin.</p>
       <button class="btn block" id="toSettings">Ziel festlegen</button></div>`;
   }
 
   html += `
-    <div class="card summary">
-      <div class="spread">
-        <div><div class="big">${r0(t.k)}</div><div class="small muted">kcal gegessen${goal ? ` von ${r0(goal)}` : ''}</div></div>
-        ${goal ? `<div style="text-align:right"><div class="big" style="color:${over ? 'var(--warn)' : 'var(--accent)'}">${r0(Math.abs(rest))}</div><div class="small muted">${over ? 'kcal über Ziel' : 'kcal übrig'}</div></div>` : ''}
+    <div class="card hero">
+      <div class="gauge">
+        <svg viewBox="0 0 260 140" role="img" aria-label="${goal ? `${r0(frac * 100)} Prozent des Tagesziels gegessen` : 'Kein Tagesziel festgelegt'}">
+          <path class="track" d="M 20 130 A 110 110 0 0 1 240 130" fill="none" stroke-width="14" stroke-linecap="round"></path>
+          ${goal && t.k > 0 ? `<path class="fill ${over ? 'over' : ''}" d="M 20 130 A 110 110 0 0 1 240 130" fill="none" stroke-width="14" stroke-linecap="round" stroke-dasharray="${(frac * ARC).toFixed(1)} ${ARC}"></path>` : ''}
+        </svg>
+        <div class="center">
+          <div class="big ${over ? 'over' : ''}">${goal ? de(Math.abs(rest)) : de(t.k)}</div>
+          <div class="cap">${goal ? `${over ? 'kcal über Ziel' : 'kcal übrig'} · ${de(t.k)} von ${de(goal)}` : 'kcal gegessen'}</div>
+        </div>
       </div>
-      ${goal ? `<div class="bar ${over ? 'over' : ''}"><span style="width:${pct}%"></span></div>` : ''}
-      <div class="macros">
-        ${macro('p', 'Eiweiß', t.p, s.protein)}
-        ${macro('c', 'Kohlenhydrate', t.c, s.carbs)}
-        ${macro('f', 'Fett', t.f, s.fat)}
+      <div class="tiles">
+        ${tile('p', 'Eiweiß', t.p, s.protein)}
+        ${tile('c', 'Kohlenhydr.', t.c, s.carbs)}
+        ${tile('f', 'Fett', t.f, s.fat)}
       </div>
-      <div class="macros two">
-        ${macro('fi', 'Ballaststoffe', t.fi, s.fiber)}
-        ${macro('su', 'davon Zucker', t.su, s.sugar)}
+      <div class="subline">
+        <span>Ballaststoffe <strong>${r0(t.fi)}${s.fiber ? ` / ${r0(s.fiber)}` : ''} g</strong></span>
+        <span>Zucker <strong class="${s.sugar && t.su > s.sugar ? 'over' : ''}">${r0(t.su)}${s.sugar ? ` / ${r0(s.sugar)}` : ''} g</strong></span>
       </div>
     </div>`;
 
@@ -228,27 +236,39 @@ function renderDiary() {
     const list = entries.filter((e) => e.meal === m.id);
     const kcal = list.reduce((sum, e) => sum + entryTotals(e).k, 0);
     const prevMeal = prevEntries.filter((e) => e.meal === m.id);
-    const prevKcal = prevMeal.reduce((sum, e) => sum + entryTotals(e).k, 0);
-    html += `<div class="card">
-      <div class="meal-head"><div><h2>${m.label}</h2><span class="small muted">${r0(kcal)} kcal</span></div>
-      <button class="add-btn" data-add="${m.id}" aria-label="${m.label} hinzufügen">+</button></div>
-      ${list.map((e) => `<div class="entry" data-entry="${e.id}">
+    const open = openMeals.has(m.id);
+    const sub = list.length
+      ? (list.length === 1 ? `${esc(list[0].n)} · ${de(kcal)} kcal` : `${list.length} Einträge · ${de(kcal)} kcal`)
+      : (prevMeal.length ? 'Noch leer · gestern gab es etwas' : 'Noch leer');
+    html += `<div class="card meal ${list.length ? '' : 'is-empty'}">
+      <div class="meal-head">
+        <button class="meal-toggle" ${list.length ? `data-toggle="${m.id}" aria-expanded="${open}"` : 'disabled'}>
+          <h2>${m.label}${list.length ? `<span class="chev">${open ? '▴' : '▾'}</span>` : ''}</h2>
+          <div class="sub">${sub}</div>
+        </button>
+        <button class="add-btn ${list.length ? '' : 'primary'}" data-add="${m.id}" aria-label="${m.label} hinzufügen">+</button>
+      </div>
+      ${open && list.length ? `<div class="entries">${list.map((e) => `<div class="entry" data-entry="${e.id}">
         <div class="name">${esc(e.n)}<div class="small muted">${e.quick ? 'Schnelleintrag' : `${r1(e.grams)} g`}</div></div>
-        <div class="kcal">${r0(entryTotals(e).k)} kcal</div></div>`).join('')}
-      ${!list.length && prevMeal.length ? `<button class="btn ghost copy" data-copy="${m.id}">↺ Wie am Vortag (${prevMeal.length} ${prevMeal.length === 1 ? 'Eintrag' : 'Einträge'}, ${r0(prevKcal)} kcal)</button>` : ''}
+        <div class="kcal">${de(entryTotals(e).k)} kcal</div></div>`).join('')}</div>` : ''}
+      ${!list.length && prevMeal.length ? `<button class="btn ghost copy" data-copy="${m.id}">↺ Wie am Vortag (${de(prevMeal.reduce((a, e) => a + entryTotals(e).k, 0))} kcal)</button>` : ''}
     </div>`;
   }
   if (!entries.length && prevEntries.length) {
-    html += `<button class="btn secondary block" id="copyDay">Ganzen Vortag übernehmen (${r0(sumEntries(prevEntries).k)} kcal)</button>`;
+    html += `<button class="btn secondary block" id="copyDay" style="margin-top:4px">Ganzen Vortag übernehmen (${de(sumEntries(prevEntries).k)} kcal)</button>`;
   }
   v.innerHTML = html;
 
-  $('#prevDay').onclick = () => { currentDate = addDays(currentDate, -1); renderDiary(); };
-  $('#nextDay').onclick = () => { currentDate = addDays(currentDate, 1); renderDiary(); };
+  $('#prevDay').onclick = () => { currentDate = addDays(currentDate, -1); openMeals.clear(); renderDiary(); };
+  $('#nextDay').onclick = () => { currentDate = addDays(currentDate, 1); openMeals.clear(); renderDiary(); };
   const ts = $('#toSettings'); if (ts) ts.onclick = () => document.querySelector('[data-tab="settings"]').click();
   const qb = $('#quickBackup'); if (qb) qb.onclick = async () => { await exportBackup(); renderDiary(); };
-  v.querySelectorAll('[data-add]').forEach((b) => b.onclick = () => openAdd(b.dataset.add));
-  v.querySelectorAll('[data-copy]').forEach((b) => b.onclick = () => { const n = copyEntries(prev, b.dataset.copy); toast(`${n} übernommen`); renderDiary(); });
+  v.querySelectorAll('[data-toggle]').forEach((b) => b.onclick = () => {
+    const id = b.dataset.toggle; if (openMeals.has(id)) openMeals.delete(id); else openMeals.add(id);
+    const y = window.scrollY; renderDiary(); window.scrollTo(0, y);
+  });
+  v.querySelectorAll('[data-add]').forEach((b) => b.onclick = () => { openMeals.add(b.dataset.add); openAdd(b.dataset.add); });
+  v.querySelectorAll('[data-copy]').forEach((b) => b.onclick = () => { const n = copyEntries(prev, b.dataset.copy); openMeals.add(b.dataset.copy); toast(`${n} übernommen`); renderDiary(); });
   const cd = $('#copyDay'); if (cd) cd.onclick = () => { const n = copyEntries(prev, null); toast(`${n} Einträge übernommen`); renderDiary(); };
   v.querySelectorAll('[data-entry]').forEach((el) => el.onclick = () => {
     const e = entries.find((x) => x.id === el.dataset.entry);
@@ -699,7 +719,7 @@ function renderHistory() {
 
   $('#view').innerHTML = `
     <h1>Verlauf</h1>
-    <div class="seg" id="rangeSeg"><button data-r="7">7 Tage</button><button data-r="14">14 Tage</button><button data-r="30">30 Tage</button></div>
+    <div class="seg three" id="rangeSeg"><button data-r="7">7 Tage</button><button data-r="14">14 Tage</button><button data-r="30">30 Tage</button></div>
     <div class="card chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Kalorien pro Tag">${goalLine}${bars}</svg></div>
     <div class="card">
       <div class="spread"><span class="muted">Ø kcal an getrackten Tagen</span><strong>${r0(a)} kcal</strong></div>
