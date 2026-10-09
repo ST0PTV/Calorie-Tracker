@@ -193,3 +193,7 @@ h2.sec { margin: 18px 0 4px; font-size: 0.85rem; font-weight: 600; color: var(--
 .empty { text-align: center; padding: 18px 8px; color: var(--muted); }
 .sources { font-size: 0.78rem; color: var(--muted); }
 .sources a { color: var(--accent); }
+
+.list.goals li { cursor: default; align-items: center; }
+.list.goals .rm { color: var(--warn); padding: 6px; min-height: 44px; }
+input[type=date] { min-height: 48px; -webkit-appearance: none; appearance: none; }

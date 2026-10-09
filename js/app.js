@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.3.0';
+const APP_VERSION = '1.4.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -19,18 +19,38 @@ const OFF_FIELDS = 'code,product_name,product_name_de,brands,nutriments,serving_
 function emptyState() {
   return {
     settings: { goal: null, protein: null, carbs: null, fat: null, fiber: null, sugar: null },
+    goalHistory: [], // [{ from: 'JJJJ-MM-TT', goal, protein, carbs, fat, fiber, sugar }], sortiert nach Datum
     days: {}, custom: [], recent: [], favs: [], offCache: {}, lastBackup: null,
   };
+}
+const GOAL_KEYS = ['goal', 'protein', 'carbs', 'fat', 'fiber', 'sugar'];
+function normalizeState(data) {
+  const s = Object.assign(emptyState(), data);
+  s.settings = Object.assign(emptyState().settings, data.settings || {});
+  if (!Array.isArray(s.goalHistory)) s.goalHistory = [];
+  // Übernahme aus Versionen ohne Ziel-Historie: bisheriges Ziel gilt ab dem ersten Tagebuch-Tag
+  if (!s.goalHistory.length && s.settings.goal != null) {
+    const first = Object.keys(s.days).filter((d) => (s.days[d] || []).length).sort()[0] || isoDate(new Date());
+    const entry = { from: first }; GOAL_KEYS.forEach((k) => { entry[k] = s.settings[k] ?? null; });
+    s.goalHistory = [entry];
+  }
+  s.goalHistory.sort((a, b) => a.from.localeCompare(b.from));
+  return s;
+}
+// Ziele, die an einem Tag galten. Tage vor dem ersten Eintrag nutzen das erste Ziel.
+function goalsFor(iso) {
+  const h = state.goalHistory;
+  if (!h.length) return Object.assign({}, emptyState().settings);
+  let g = h[0];
+  for (const e of h) { if (e.from <= iso) g = e; else break; }
+  return g;
 }
 let state = load();
 function load() {
   try {
     const raw = localStorage.getItem(STORE_KEY);
     if (!raw) return emptyState();
-    const data = JSON.parse(raw);
-    const s = Object.assign(emptyState(), data);
-    s.settings = Object.assign(emptyState().settings, data.settings || {});
-    return s;
+    return normalizeState(JSON.parse(raw));
   } catch (e) { return emptyState(); }
 }
 function save() {
@@ -174,7 +194,7 @@ function copyEntries(fromDate, meal) {
 const openMeals = new Set();   // aufgeklappte Mahlzeiten (nur für diese Sitzung)
 function renderDiary() {
   const v = $('#view');
-  const s = state.settings;
+  const s = goalsFor(currentDate);
   const goal = s.goal;
   const entries = state.days[currentDate] || [];
   const t = sumEntries(entries);
@@ -700,22 +720,34 @@ function renderRecipe(query) {
 /* ---------- Verlauf ---------- */
 let histRange = 14;
 function renderHistory() {
-  const goal = state.settings.goal;
   const today = isoDate(new Date());
   const days = [];
-  for (let i = histRange - 1; i >= 0; i--) { const d = addDays(today, -i); days.push({ d, t: dayTotals(d), n: (state.days[d] || []).length }); }
+  for (let i = histRange - 1; i >= 0; i--) { const d = addDays(today, -i); days.push({ d, t: dayTotals(d), n: (state.days[d] || []).length, goal: goalsFor(d).goal }); }
   const tracked = days.filter((x) => x.n > 0);
   const avg = (key) => (tracked.length ? tracked.reduce((s, x) => s + x.t[key], 0) / tracked.length : 0);
-  const max = Math.max(goal || 0, ...days.map((x) => x.t.k), 1) * 1.1;
+  const withGoal = tracked.filter((x) => x.goal);
+  const avgDiff = withGoal.length ? withGoal.reduce((s, x) => s + (x.t.k - x.goal), 0) / withGoal.length : null;
+  const max = Math.max(...days.map((x) => Math.max(x.goal || 0, x.t.k)), 1) * 1.1;
   const W = 340, H = 180, pad = 22, bw = (W - pad) / days.length;
   const y = (v) => H - 18 - (v / max) * (H - 30);
   const bars = days.map((x, i) => {
     const h = (H - 18) - y(x.t.k);
     const lbl = (histRange <= 14 || i % 5 === 0) ? `<text x="${pad + i * bw + bw / 2}" y="${H - 4}" text-anchor="middle">${new Date(x.d + 'T12:00:00').getDate()}</text>` : '';
-    return `<rect class="b ${goal && x.t.k > goal ? 'over' : ''}" x="${pad + i * bw + bw * 0.15}" y="${y(x.t.k)}" width="${bw * 0.7}" height="${Math.max(0, h)}" rx="2"></rect>${lbl}`;
+    return `<rect class="b ${x.goal && x.t.k > x.goal ? 'over' : ''}" x="${pad + i * bw + bw * 0.15}" y="${y(x.t.k)}" width="${bw * 0.7}" height="${Math.max(0, h)}" rx="2"></rect>${lbl}`;
   }).join('');
-  const goalLine = goal ? `<line class="goal" x1="${pad}" x2="${W}" y1="${y(goal)}" y2="${y(goal)}"></line><text x="0" y="${y(goal) + 3}">${r0(goal)}</text>` : '';
+  // Ziel-Linie als Treppe: jeder Tag mit seinem damals gültigen Ziel
+  let path = '';
+  days.forEach((x, i) => {
+    if (!x.goal) return;
+    const x0 = pad + i * bw, x1 = x0 + bw, yy = y(x.goal).toFixed(1);
+    const prevGoal = i > 0 ? days[i - 1].goal : null;
+    path += (prevGoal ? `L ${x0.toFixed(1)} ${yy} ` : `M ${x0.toFixed(1)} ${yy} `) + `L ${x1.toFixed(1)} ${yy} `;
+  });
+  const lastGoal = days[days.length - 1].goal;
+  const firstWithGoal = days.find((x) => x.goal);
+  const goalLine = path ? `<path class="goal" d="${path}" fill="none"></path>${firstWithGoal ? `<text x="0" y="${y(firstWithGoal.goal) + 3}">${r0(firstWithGoal.goal)}</text>` : ''}` : '';
   const a = avg('k');
+  const goalChanges = new Set(days.map((x) => x.goal)).size > 1;
 
   $('#view').innerHTML = `
     <h1>Verlauf</h1>
@@ -724,10 +756,10 @@ function renderHistory() {
     <div class="card">
       <div class="spread"><span class="muted">Ø kcal an getrackten Tagen</span><strong>${r0(a)} kcal</strong></div>
       <div class="spread"><span class="muted">Getrackte Tage</span><strong>${tracked.length} / ${histRange}</strong></div>
-      ${goal ? `<div class="spread"><span class="muted">Ø Differenz zum Ziel</span><strong>${tracked.length ? (a - goal > 0 ? '+' : '') + r0(a - goal) + ' kcal' : '–'}</strong></div>` : ''}
+      ${lastGoal || withGoal.length ? `<div class="spread"><span class="muted">Ø Differenz zum Ziel</span><strong>${avgDiff != null ? (avgDiff > 0 ? '+' : '') + r0(avgDiff) + ' kcal' : '–'}</strong></div>` : ''}
       <div class="spread"><span class="muted">Ø Eiweiß / KH / Fett</span><strong>${r0(avg('p'))} / ${r0(avg('c'))} / ${r0(avg('f'))} g</strong></div>
       <div class="spread"><span class="muted">Ø Ballaststoffe / Zucker</span><strong>${r0(avg('fi'))} / ${r0(avg('su'))} g</strong></div>
-      <p class="small muted" style="margin-top:8px">Nicht getrackte Tage fließen nicht in den Durchschnitt ein. Ein Tag mit wenig Einträgen ist nicht unbedingt ein Tag mit wenig Essen.</p>
+      <p class="small muted" style="margin-top:8px">Nicht getrackte Tage fließen nicht in den Durchschnitt ein. Ein Tag mit wenig Einträgen ist nicht unbedingt ein Tag mit wenig Essen.${goalChanges ? ' Die Differenz zum Ziel nutzt für jeden Tag das damals gültige Ziel.' : ''}</p>
     </div>`;
   $('#rangeSeg').querySelectorAll('button').forEach((b) => {
     b.classList.toggle('active', +b.dataset.r === histRange);
@@ -737,7 +769,10 @@ function renderHistory() {
 
 /* ---------- Einstellungen ---------- */
 function renderSettings() {
-  const s = state.settings;
+  const today = isoDate(new Date());
+  const s = goalsFor(today);
+  const fmtD = (iso) => new Date(iso + 'T12:00:00').toLocaleDateString('de-DE');
+  const hist = state.goalHistory.slice().reverse();
   $('#view').innerHTML = `
     <h1>Einstellungen</h1>
     <div class="card">
@@ -753,8 +788,12 @@ function renderSettings() {
         <div><label for="sFi">Ballaststoffe</label><input id="sFi" inputmode="decimal" value="${s.fiber ?? ''}"></div>
         <div><label for="sSu">Zucker (max.)</label><input id="sSu" inputmode="decimal" value="${s.sugar ?? ''}"></div>
       </div>
-      <div style="height:12px"></div>
+      <label for="sFrom">Gültig ab</label><input id="sFrom" type="date" value="${today}" max="${addDays(today, 365)}">
+      <p class="small muted" style="margin-top:6px">Frühere Tage behalten ihr damaliges Ziel.</p>
+      <div style="height:6px"></div>
       <button class="btn block" id="sSave">Speichern</button>
+      ${hist.length ? `<h2 class="sec">Verlauf der Ziele</h2><ul class="list goals">${hist.map((h) => `<li><div>ab ${fmtD(h.from)}${h.from <= today && goalsFor(today) === h ? '<span class="tag">aktuell</span>' : ''}<div class="meta">${h.goal ? `${r0(h.goal).toLocaleString('de-DE')} kcal` : 'kein kcal-Ziel'}${[['protein', 'Eiweiß'], ['carbs', 'KH'], ['fat', 'Fett'], ['fiber', 'Ballastst.'], ['sugar', 'Zucker max.']].filter(([k]) => h[k]).map(([k, l]) => ` · ${l} ${r0(h[k])} g`).join('')}</div></div>
+        ${hist.length > 1 ? `<button class="btn ghost rm" data-delgoal="${h.from}" aria-label="Ziel ab ${fmtD(h.from)} löschen">✕</button>` : ''}</li>`).join('')}</ul>` : ''}
     </div>
     <div class="card">
       <h2>Backup</h2>
@@ -779,9 +818,21 @@ function renderSettings() {
   $('#sSave').onclick = () => {
     const goal = num($('#sGoal').value);
     if (goal != null && (goal < 500 || goal > 10000)) { toast('Bitte einen Wert zwischen 500 und 10.000 kcal eingeben.'); return; }
-    Object.assign(s, { goal, protein: num($('#sP').value), carbs: num($('#sC').value), fat: num($('#sF').value), fiber: num($('#sFi').value), sugar: num($('#sSu').value) });
-    save(); toast('Gespeichert');
+    const from = $('#sFrom').value || today;
+    const entry = { from, goal, protein: num($('#sP').value), carbs: num($('#sC').value), fat: num($('#sF').value), fiber: num($('#sFi').value), sugar: num($('#sSu').value) };
+    const prev = goalsFor(from);
+    if (state.goalHistory.length && GOAL_KEYS.every((k) => (prev[k] ?? null) === (entry[k] ?? null))) { toast('Keine Änderung'); return; }
+    state.goalHistory = state.goalHistory.filter((h) => h.from !== from).concat([entry]).sort((a, b) => a.from.localeCompare(b.from));
+    // „settings“ spiegelt das heute gültige Ziel (für ältere Backups/Versionen)
+    const cur = goalsFor(today); GOAL_KEYS.forEach((k) => { state.settings[k] = cur[k] ?? null; });
+    save(); toast(from === today ? 'Gespeichert – gilt ab heute' : `Gespeichert – gilt ab ${fmtD(from)}`); renderSettings();
   };
+  document.querySelectorAll('[data-delgoal]').forEach((b) => b.onclick = () => {
+    if (!confirm('Diesen Eintrag aus dem Ziel-Verlauf löschen? Die betroffenen Tage nutzen dann das vorherige Ziel.')) return;
+    state.goalHistory = state.goalHistory.filter((h) => h.from !== b.dataset.delgoal);
+    const cur = goalsFor(today); GOAL_KEYS.forEach((k) => { state.settings[k] = cur[k] ?? null; });
+    save(); toast('Gelöscht'); renderSettings();
+  });
   $('#exp').onclick = async () => { await exportBackup(); renderSettings(); };
   $('#impBtn').onclick = () => $('#imp').click();
   $('#imp').onchange = (ev) => {
@@ -792,9 +843,7 @@ function renderSettings() {
         const data = JSON.parse(rd.result);
         if (!data || typeof data !== 'object' || !data.days) throw new Error('format');
         if (!confirm('Backup importieren? Die aktuellen Daten auf diesem Gerät werden ersetzt.')) return;
-        const s2 = Object.assign(emptyState(), data);
-        s2.settings = Object.assign(emptyState().settings, data.settings || {});
-        state = s2; save(); toast('Backup importiert'); render();
+        state = normalizeState(data); save(); toast('Backup importiert'); render();
       } catch (e) { toast('Datei ist kein gültiges Backup.'); }
     };
     rd.readAsText(file);
