@@ -1,0 +1,5 @@
+# Keine persönlichen Daten oder Rohdateien ins Repository
+*.xlsx
+*.xls
+*backup*.json
+.DS_Store
