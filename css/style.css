@@ -151,3 +151,21 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin: 10px 0 
 .empty { text-align: center; padding: 18px 8px; color: var(--muted); }
 .sources { font-size: 0.8rem; color: var(--muted); }
 .sources a { color: var(--accent); }
+
+/* v1.2 */
+.macros.two { grid-template-columns: repeat(2, 1fr); margin-top: 10px; }
+.macro.fi .mbar span { background: var(--accent); }
+.macro.su .mbar span { background: var(--warn); }
+.nutri { grid-template-columns: repeat(3, 1fr); }
+.notice { display: flex; gap: 10px; align-items: center; justify-content: space-between; border-color: var(--warn); }
+.star { color: var(--c); margin-right: 4px; }
+.star-btn { font-size: 1.5rem; color: var(--c); }
+h2.sec { margin: 16px 0 4px; font-size: 0.95rem; color: var(--muted); }
+.copy { margin-top: 6px; padding-left: 0; font-size: 0.9rem; }
+.list.choice li { padding: 14px 2px; }
+.list.ingr li { align-items: center; cursor: default; }
+.list.ingr .grow { flex: 1; min-width: 0; }
+.list.ingr input.g { width: 70px; flex: 0 0 70px; padding: 8px; text-align: right; }
+.list.ingr .rm { flex: 0 0 auto; color: var(--warn); padding: 6px; }
+#rQ { margin-top: 10px; }
+#rSum { margin: 12px 0; }

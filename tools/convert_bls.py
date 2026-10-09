@@ -3,8 +3,8 @@
 Aufruf:
     python3 tools/convert_bls.py BLS_4_0_Daten_2025_DE.xlsx data/bls.json
 
-Übernommen werden nur Code, Name, Energie (kcal) sowie Eiweiß, Kohlenhydrate und Fett
-je 100 g. Die Spaltennamen werden beim ersten Lauf ausgegeben und müssen ggf. unten in
+Übernommen werden nur Code, Name, Energie (kcal), Eiweiß, Kohlenhydrate, Fett,
+Ballaststoffe und Zucker je 100 g. Die Spaltennamen werden beim ersten Lauf ausgegeben und müssen ggf. unten in
 COLUMN_HINTS angepasst werden.
 
 Quelle: Max Rubner-Institut (2025). Bundeslebensmittelschlüssel (BLS), Version 4.0.
@@ -23,6 +23,8 @@ COLUMN_HINTS = {
     "p": ["prot625 protein (nx6,25) [g/100g]"],
     "c": ["cho kohlenhydrate, verfügbar [g/100g]"],
     "f": ["fat fett [g/100g]"],
+    "fi": ["fibt ballaststoffe, gesamt [g/100g]"],
+    "su": ["sugar zucker (mono- und disaccharide), gesamt [g/100g]"],
 }
 
 
@@ -75,13 +77,15 @@ def main(src, dst):
             "p": to_num(r[cols["p"]]) or 0,
             "c": to_num(r[cols["c"]]) or 0,
             "f": to_num(r[cols["f"]]) or 0,
+            "fi": to_num(r[cols["fi"]]) or 0,
+            "su": to_num(r[cols["su"]]) or 0,
         })
 
     out = {
         "meta": {
             "source": "Max Rubner-Institut (2025). Bundeslebensmittelschlüssel (BLS), Version 4.0. Karlsruhe.",
             "doi": "10.25826/Data20251217-134202-0",
-            "note": "Auszug: nur Energie und Makronährstoffe je 100 g.",
+            "note": "Auszug: Energie, Makronährstoffe, Ballaststoffe und Zucker je 100 g.",
             "count": len(foods),
         },
         "foods": foods,

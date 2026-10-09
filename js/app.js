@@ -3,33 +3,40 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 const STORE_KEY = 'ct.v1';
+const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
   { id: 'breakfast', label: 'Frühstück' },
   { id: 'lunch', label: 'Mittagessen' },
   { id: 'dinner', label: 'Abendessen' },
   { id: 'snack', label: 'Snacks' },
 ];
+const NUTRIENTS = ['k', 'p', 'c', 'f', 'fi', 'su'];
 const OFF_FIELDS = 'code,product_name,product_name_de,brands,nutriments,serving_quantity';
 
 /* ---------- Speicher ---------- */
 function emptyState() {
-  return { settings: { goal: null, protein: null, carbs: null, fat: null }, days: {}, custom: [], recent: [], offCache: {} };
+  return {
+    settings: { goal: null, protein: null, carbs: null, fat: null, fiber: null, sugar: null },
+    days: {}, custom: [], recent: [], favs: [], offCache: {}, lastBackup: null,
+  };
 }
 let state = load();
 function load() {
   try {
     const raw = localStorage.getItem(STORE_KEY);
     if (!raw) return emptyState();
-    return Object.assign(emptyState(), JSON.parse(raw));
+    const data = JSON.parse(raw);
+    const s = Object.assign(emptyState(), data);
+    s.settings = Object.assign(emptyState().settings, data.settings || {});
+    return s;
   } catch (e) { return emptyState(); }
 }
 function save() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
   catch (e) { toast('Speichern fehlgeschlagen – bitte Backup exportieren.'); }
 }
-// Bittet iOS/Safari, den Speicher nicht automatisch zu löschen (falls unterstützt).
 if (navigator.storage && navigator.storage.persist) { navigator.storage.persist().catch(() => {}); }
 
 /* ---------- Hilfsfunktionen ---------- */
@@ -49,25 +56,33 @@ function fmtDate(iso) {
 }
 function norm(s) {
   return String(s).toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
-    .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ');
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/-/g, '').replace(/[^a-z0-9 ]/g, ' ');
 }
 let toastTimer;
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.hidden = false;
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 2600);
 }
-function entryTotals(e) {
-  const f = e.grams / 100;
-  return { k: e.k * f, p: (e.p || 0) * f, c: (e.c || 0) * f, f: (e.f || 0) * f };
+function per(food, grams) {
+  const f = grams / 100; const o = {};
+  NUTRIENTS.forEach((n) => { o[n] = (food[n] || 0) * f; });
+  return o;
 }
-function dayTotals(iso) {
-  const t = { k: 0, p: 0, c: 0, f: 0 };
-  (state.days[iso] || []).forEach((e) => { const x = entryTotals(e); t.k += x.k; t.p += x.p; t.c += x.c; t.f += x.f; });
+function entryTotals(e) { return per(e, e.grams); }
+function sumEntries(list) {
+  const t = { k: 0, p: 0, c: 0, f: 0, fi: 0, su: 0 };
+  list.forEach((e) => { const x = entryTotals(e); NUTRIENTS.forEach((n) => { t[n] += x[n]; }); });
   return t;
 }
+const dayTotals = (iso) => sumEntries(state.days[iso] || []);
+function nutrientsOf(food) { const o = {}; NUTRIENTS.forEach((n) => { o[n] = food[n] || 0; }); return o; }
+function foodSnap(food) {
+  return Object.assign({ src: food.src, id: food.ref || food.id, n: food.n, brand: food.brand || '', serving: food.serving || null }, nutrientsOf(food));
+}
+const isFav = (id) => state.favs.some((x) => x.id === id);
 
 /* ---------- BLS-Daten ---------- */
-let bls = [];       // [{id, n, k, p, c, f}]
+let bls = [];
 let blsReady = false;
 let blsMeta = null;
 async function loadBls() {
@@ -75,25 +90,43 @@ async function loadBls() {
     const res = await fetch('data/bls.json');
     const data = await res.json();
     blsMeta = data.meta || null;
-    bls = (data.foods || []).map((x) => ({ src: 'bls', id: 'bls:' + x.id, n: x.n, k: x.k, p: x.p, c: x.c, f: x.f, _n: norm(x.n) }));
+    bls = (data.foods || []).map((x) => ({ src: 'bls', id: 'bls:' + x.id, n: x.n, k: x.k, p: x.p, c: x.c, f: x.f, fi: x.fi || 0, su: x.su || 0 }));
   } catch (e) { bls = []; }
   blsReady = true;
   if (sheetMode === 'add') renderAddResults();
 }
 
-function searchFoods(q) {
+function prepFood(food) {
+  if (!food._n) food._n = norm(food.n + ' ' + (food.brand || ''));
+  if (!food._w) { food._w = food._n.split(/\s+/).filter(Boolean); food._c = food._w.join(''); }
+  return food;
+}
+function searchFoods(q, { includeRecipes = true } = {}) {
   const terms = norm(q).split(/\s+/).filter(Boolean);
   if (!terms.length) return [];
-  const custom = state.custom.map((x) => Object.assign({ _n: norm(x.n + ' ' + (x.brand || '')) }, x));
-  const pool = custom.concat(bls);
+  const own = state.custom.filter((x) => includeRecipes || x.src !== 'recipe').map((x) => prepFood(Object.assign({}, x)));
+  const favIds = new Set(state.favs.map((x) => x.id));
   const hits = [];
-  for (const food of pool) {
-    if (terms.every((t) => food._n.includes(t))) {
-      let score = food._n.length;
-      if (food._n.startsWith(terms[0])) score -= 1000;
-      if (food.src !== 'bls') score -= 2000; // eigene Lebensmittel zuerst
-      hits.push([score, food]);
+  for (const food of own.concat(bls)) {
+    prepFood(food);
+    let score = food._w.length * 40 + food._n.length;
+    let ok = true;
+    for (const t of terms) {
+      if (food._w.includes(t)) score -= 400;                      // ganzes Wort
+      else if (t.length >= 2 && food._w.some((w) => w.endsWith(t))) score -= 350; // Wortende: im Deutschen das Grundwort (Voll-milch, Hühner-ei)
+      else if (food._w.some((w) => w.startsWith(t))) score -= 150; // Wortanfang
+      else if (food._n.includes(t)) score += 0;                    // irgendwo im Wort
+      else if (food._c.includes(t)) score -= 450;                  // ohne Leerzeichen, z. B. „haferflocken“ → „Hafer Flocken“
+      else { ok = false; break; }
     }
+    if (!ok) continue;
+    const first = food._w[0], t0 = terms[0];
+    if (first === t0 || first.endsWith(t0) || (t0.length > first.length && food._c.startsWith(t0))) score -= 300;
+    // Zusammengesetzte Gerichte („… mit Milch“) nach hinten, außer man sucht explizit danach
+    if (!terms.includes('mit') && food._w.includes('mit')) score += 1500;
+    if (food.src !== 'bls') score -= 2000;
+    if (favIds.has(food.id)) score -= 3000;
+    hits.push([score, food]);
   }
   hits.sort((a, b) => a[0] - b[0]);
   return hits.slice(0, 60).map((h) => h[1]);
@@ -114,12 +147,37 @@ function render() {
   window.scrollTo(0, 0);
 }
 
+/* ---------- Backup-Erinnerung ---------- */
+function backupDue() {
+  const hasData = Object.values(state.days).some((l) => l.length) || state.custom.length;
+  if (!hasData) return false;
+  if (!state.lastBackup) return true;
+  return (Date.now() - state.lastBackup) / 86400000 >= BACKUP_REMIND_DAYS;
+}
+function backupText() {
+  if (!state.lastBackup) return 'Noch kein Backup erstellt.';
+  const d = Math.floor((Date.now() - state.lastBackup) / 86400000);
+  return `Letztes Backup: ${d === 0 ? 'heute' : d === 1 ? 'gestern' : `vor ${d} Tagen`}.`;
+}
+
 /* ---------- Tagebuch ---------- */
+function copyEntries(fromDate, meal) {
+  const src = (state.days[fromDate] || []).filter((e) => !meal || e.meal === meal);
+  if (!src.length) return 0;
+  const target = (state.days[currentDate] = state.days[currentDate] || []);
+  src.forEach((e) => target.push(Object.assign({}, e, { id: uid() })));
+  save();
+  return src.length;
+}
+
 function renderDiary() {
   const v = $('#view');
-  const goal = state.settings.goal;
-  const t = dayTotals(currentDate);
+  const s = state.settings;
+  const goal = s.goal;
   const entries = state.days[currentDate] || [];
+  const t = sumEntries(entries);
+  const prev = addDays(currentDate, -1);
+  const prevEntries = state.days[prev] || [];
   const pct = goal ? Math.min(100, (t.k / goal) * 100) : 0;
   const over = goal && t.k > goal;
   const rest = goal ? goal - t.k : null;
@@ -138,6 +196,11 @@ function renderDiary() {
       <button id="nextDay" aria-label="Nächster Tag">›</button>
     </div>`;
 
+  if (backupDue()) {
+    html += `<div class="card notice"><div><strong>Backup fällig</strong><div class="small muted">${backupText()} Deine Daten liegen nur auf diesem Handy.</div></div>
+      <button class="btn secondary" id="quickBackup" style="flex:0 0 auto">Sichern</button></div>`;
+  }
+
   if (!goal) {
     html += `<div class="card"><h2>Willkommen!</h2><p class="muted">Trage zuerst dein tägliches Kalorienziel ein (z. B. deinen Tagesbedarf aus Garmin).</p>
       <button class="btn block" id="toSettings">Ziel festlegen</button></div>`;
@@ -151,36 +214,50 @@ function renderDiary() {
       </div>
       ${goal ? `<div class="bar ${over ? 'over' : ''}"><span style="width:${pct}%"></span></div>` : ''}
       <div class="macros">
-        ${macro('p', 'Eiweiß', t.p, state.settings.protein)}
-        ${macro('c', 'Kohlenhydrate', t.c, state.settings.carbs)}
-        ${macro('f', 'Fett', t.f, state.settings.fat)}
+        ${macro('p', 'Eiweiß', t.p, s.protein)}
+        ${macro('c', 'Kohlenhydrate', t.c, s.carbs)}
+        ${macro('f', 'Fett', t.f, s.fat)}
+      </div>
+      <div class="macros two">
+        ${macro('fi', 'Ballaststoffe', t.fi, s.fiber)}
+        ${macro('su', 'davon Zucker', t.su, s.sugar)}
       </div>
     </div>`;
 
   for (const m of MEALS) {
     const list = entries.filter((e) => e.meal === m.id);
-    const kcal = list.reduce((s, e) => s + entryTotals(e).k, 0);
+    const kcal = list.reduce((sum, e) => sum + entryTotals(e).k, 0);
+    const prevMeal = prevEntries.filter((e) => e.meal === m.id);
+    const prevKcal = prevMeal.reduce((sum, e) => sum + entryTotals(e).k, 0);
     html += `<div class="card">
       <div class="meal-head"><div><h2>${m.label}</h2><span class="small muted">${r0(kcal)} kcal</span></div>
       <button class="add-btn" data-add="${m.id}" aria-label="${m.label} hinzufügen">+</button></div>
       ${list.map((e) => `<div class="entry" data-entry="${e.id}">
-        <div class="name">${esc(e.n)}<div class="small muted">${r1(e.grams)} g</div></div>
+        <div class="name">${esc(e.n)}<div class="small muted">${e.quick ? 'Schnelleintrag' : `${r1(e.grams)} g`}</div></div>
         <div class="kcal">${r0(entryTotals(e).k)} kcal</div></div>`).join('')}
+      ${!list.length && prevMeal.length ? `<button class="btn ghost copy" data-copy="${m.id}">↺ Wie am Vortag (${prevMeal.length} ${prevMeal.length === 1 ? 'Eintrag' : 'Einträge'}, ${r0(prevKcal)} kcal)</button>` : ''}
     </div>`;
+  }
+  if (!entries.length && prevEntries.length) {
+    html += `<button class="btn secondary block" id="copyDay">Ganzen Vortag übernehmen (${r0(sumEntries(prevEntries).k)} kcal)</button>`;
   }
   v.innerHTML = html;
 
   $('#prevDay').onclick = () => { currentDate = addDays(currentDate, -1); renderDiary(); };
   $('#nextDay').onclick = () => { currentDate = addDays(currentDate, 1); renderDiary(); };
   const ts = $('#toSettings'); if (ts) ts.onclick = () => document.querySelector('[data-tab="settings"]').click();
+  const qb = $('#quickBackup'); if (qb) qb.onclick = async () => { await exportBackup(); renderDiary(); };
   v.querySelectorAll('[data-add]').forEach((b) => b.onclick = () => openAdd(b.dataset.add));
+  v.querySelectorAll('[data-copy]').forEach((b) => b.onclick = () => { const n = copyEntries(prev, b.dataset.copy); toast(`${n} übernommen`); renderDiary(); });
+  const cd = $('#copyDay'); if (cd) cd.onclick = () => { const n = copyEntries(prev, null); toast(`${n} Einträge übernommen`); renderDiary(); };
   v.querySelectorAll('[data-entry]').forEach((el) => el.onclick = () => {
     const e = entries.find((x) => x.id === el.dataset.entry);
-    if (e) openAmount(e, { edit: true });
+    if (!e) return;
+    if (e.quick) openQuick(e.meal, e); else openAmount(e, { edit: true });
   });
 }
 
-/* ---------- Sheet: Lebensmittel hinzufügen ---------- */
+/* ---------- Sheet ---------- */
 let sheetMode = null;
 let addMeal = 'breakfast';
 let addTab = 'search';
@@ -207,8 +284,8 @@ function openAdd(meal) {
   openSheet(`
     <div class="sheet-head"><h1 style="margin:0">${label}</h1><button class="btn ghost" id="closeSheet">Fertig</button></div>
     <div class="seg" id="addSeg">
-      <button data-t="search">Suche</button><button data-t="recent">Zuletzt</button>
-      <button data-t="scan">Barcode</button><button data-t="custom">Eigenes</button>
+      <button data-t="search">Suche</button><button data-t="mine">Meine</button>
+      <button data-t="scan">Barcode</button><button data-t="custom">Neu</button>
     </div>
     <div id="addBody"></div>`);
   $('#closeSheet').onclick = closeSheet;
@@ -227,48 +304,65 @@ function renderAddTab() {
     q.oninput = () => { addQuery = q.value; renderAddResults(); };
     renderAddResults();
     if (!addQuery) setTimeout(() => q.focus(), 50);
-  } else if (addTab === 'recent') {
-    const items = state.recent.slice(0, 40);
-    body.innerHTML = items.length ? `<ul class="list">${items.map((f, i) => foodLi(f, i)).join('')}</ul>`
-      : '<div class="empty">Noch nichts eingetragen.</div>';
-    body.querySelectorAll('li').forEach((li) => li.onclick = () => openAmount(items[+li.dataset.i]));
+  } else if (addTab === 'mine') {
+    renderMine();
   } else if (addTab === 'scan') {
     renderScan();
   } else {
-    renderCustomForm();
+    renderNew();
   }
 }
 
 function foodLi(f, i) {
-  const tag = f.src === 'off' ? '<span class="tag">Barcode</span>' : f.src === 'custom' ? '<span class="tag">Eigenes</span>' : '';
-  return `<li data-i="${i}"><div>${esc(f.n)}${tag}<div class="meta">${f.brand ? esc(f.brand) + ' · ' : ''}${r0(f.k)} kcal / 100 g</div></div><div class="meta">›</div></li>`;
+  const tag = { off: 'Barcode', custom: 'Eigenes', recipe: 'Rezept' }[f.src];
+  const star = isFav(f.id) ? '<span class="star">★</span>' : '';
+  return `<li data-i="${i}"><div>${star}${esc(f.n)}${tag ? `<span class="tag">${tag}</span>` : ''}<div class="meta">${f.brand ? esc(f.brand) + ' · ' : ''}${r0(f.k)} kcal / 100 g</div></div><div class="meta">›</div></li>`;
+}
+function bindList(root, items, onPick) {
+  root.querySelectorAll('li[data-i]').forEach((li) => li.onclick = () => onPick(items[+li.dataset.i]));
 }
 
 function renderAddResults() {
   const ul = $('#results'); if (!ul) return;
   if (!addQuery.trim()) {
-    ul.innerHTML = `<div class="empty">${!blsReady ? 'Lade Lebensmitteldaten…' : bls.length ? `${bls.length.toLocaleString('de-DE')} Lebensmittel aus dem BLS verfügbar.` : 'Lebensmitteldatenbank noch nicht enthalten – nutze Barcode oder „Eigenes“.'}</div>`;
+    ul.innerHTML = `<div class="empty">${!blsReady ? 'Lade Lebensmitteldaten…' : bls.length ? `${bls.length.toLocaleString('de-DE')} Lebensmittel aus dem BLS verfügbar.` : 'Lebensmitteldatenbank nicht geladen – nutze Barcode oder „Neu“.'}</div>`;
     return;
   }
   const hits = searchFoods(addQuery);
   ul.innerHTML = hits.length ? hits.map((f, i) => foodLi(f, i)).join('')
-    : '<div class="empty">Nichts gefunden. Unter „Eigenes“ kannst du es selbst anlegen.</div>';
-  ul.querySelectorAll('li').forEach((li) => li.onclick = () => openAmount(hits[+li.dataset.i]));
+    : '<div class="empty">Nichts gefunden. Unter „Neu“ kannst du es selbst anlegen.</div>';
+  bindList(ul, hits, (f) => openAmount(f));
+}
+
+function renderMine() {
+  const favs = state.favs;
+  const recent = state.recent.filter((r) => !isFav(r.id)).slice(0, 30);
+  const own = state.custom;
+  const sec = (title, items, key) => items.length ? `<h2 class="sec">${title}</h2><ul class="list" data-sec="${key}">${items.map((f, i) => foodLi(f, i)).join('')}</ul>` : '';
+  $('#addBody').innerHTML = (favs.length || recent.length || own.length)
+    ? sec('★ Favoriten', favs, 'fav') + sec('Zuletzt verwendet', recent, 'recent') + sec('Eigene Lebensmittel & Rezepte', own, 'own')
+    : '<div class="empty">Noch nichts vorhanden. Favoriten markierst du mit dem Stern beim Eintragen.</div>';
+  const map = { fav: favs, recent, own };
+  document.querySelectorAll('#addBody [data-sec]').forEach((ul) => bindList(ul, map[ul.dataset.sec], (f) => openAmount(f)));
 }
 
 /* ---------- Mengen-Dialog ---------- */
 function openAmount(food, opts = {}) {
   stopScanner();
   const edit = !!opts.edit;
-  const prevMode = sheetMode;
   sheetMode = 'amount';
-  const defGrams = edit ? food.grams : (food.lastGrams || food.serving || 100);
+  const foodId = food.ref || food.id;
+  const recentHit = state.recent.find((r) => r.id === foodId);
+  const defGrams = edit ? food.grams : ((recentHit && recentHit.lastGrams) || food.serving || 100);
   const mealSel = edit ? food.meal : addMeal;
+  const ownFood = state.custom.find((x) => x.id === foodId);
+  const fav = isFav(foodId);
   openSheet(`
-    <div class="sheet-head"><button class="btn ghost" id="back">‹ Zurück</button><span></span></div>
+    <div class="sheet-head"><button class="btn ghost" id="back">‹ Zurück</button>
+      <button class="btn ghost star-btn" id="favBtn" aria-label="Favorit">${fav ? '★' : '☆'}</button></div>
     <h1>${esc(food.n)}</h1>
     ${food.brand ? `<p class="muted">${esc(food.brand)}</p>` : ''}
-    <p class="small muted">Pro 100 g: ${r0(food.k)} kcal · E ${r1(food.p)} g · KH ${r1(food.c)} g · F ${r1(food.f)} g</p>
+    <p class="small muted">Pro 100 g: ${r0(food.k)} kcal · E ${r1(food.p)} g · KH ${r1(food.c)} g · F ${r1(food.f)} g · Ballastst. ${r1(food.fi)} g · Zucker ${r1(food.su)} g</p>
     <label for="grams">Menge in Gramm</label>
     <input id="grams" type="text" inputmode="decimal" value="${r1(defGrams)}">
     ${food.serving ? `<button class="btn ghost" id="serving">1 Portion = ${r1(food.serving)} g</button>` : ''}
@@ -277,35 +371,43 @@ function openAmount(food, opts = {}) {
     <select id="meal">${MEALS.map((m) => `<option value="${m.id}" ${m.id === mealSel ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
     <div style="height:14px"></div>
     <button class="btn block" id="save">${edit ? 'Speichern' : 'Hinzufügen'}</button>
-    ${edit ? '<div style="height:10px"></div><button class="btn danger block" id="del">Eintrag löschen</button>' : ''}`);
+    ${edit ? '<div style="height:10px"></div><button class="btn danger block" id="del">Eintrag löschen</button>' : ''}
+    ${!edit && ownFood ? `<div style="height:10px"></div><button class="btn ghost block" id="editOwn">${ownFood.src === 'recipe' ? 'Rezept bearbeiten' : 'Lebensmittel bearbeiten'}</button>` : ''}`);
 
   const g = $('#grams');
   const upd = () => {
-    const grams = num(g.value) || 0;
-    const x = entryTotals(Object.assign({}, food, { grams }));
+    const x = per(food, num(g.value) || 0);
     $('#nutri').innerHTML = `<div><strong>${r0(x.k)}</strong><span>kcal</span></div><div><strong>${r1(x.p)}</strong><span>Eiweiß</span></div>
-      <div><strong>${r1(x.c)}</strong><span>KH</span></div><div><strong>${r1(x.f)}</strong><span>Fett</span></div>`;
+      <div><strong>${r1(x.c)}</strong><span>KH</span></div><div><strong>${r1(x.f)}</strong><span>Fett</span></div>
+      <div><strong>${r1(x.fi)}</strong><span>Ballastst.</span></div><div><strong>${r1(x.su)}</strong><span>Zucker</span></div>`;
   };
   g.oninput = upd; upd();
   const sv = $('#serving'); if (sv) sv.onclick = () => { g.value = r1(food.serving); upd(); };
-  $('#back').onclick = () => { if (edit) closeSheet(); else { sheetMode = prevMode; openAdd(addMeal); } };
+  const back = () => { if (edit) closeSheet(); else openAdd(addMeal); };
+  $('#back').onclick = back;
+  $('#favBtn').onclick = () => {
+    if (isFav(foodId)) { state.favs = state.favs.filter((x) => x.id !== foodId); $('#favBtn').textContent = '☆'; toast('Aus Favoriten entfernt'); }
+    else { state.favs.unshift(foodSnap(food)); $('#favBtn').textContent = '★'; toast('Zu Favoriten hinzugefügt'); }
+    save();
+  };
+  const eo = $('#editOwn');
+  if (eo) eo.onclick = () => { if (ownFood.src === 'recipe') openRecipe(ownFood); else openFoodForm(ownFood); };
 
   $('#save').onclick = () => {
     const grams = num(g.value);
     if (!grams || grams <= 0) { toast('Bitte eine Menge eingeben.'); return; }
     const meal = $('#meal').value;
     if (edit) {
-      const list = state.days[currentDate] || [];
-      const e = list.find((x) => x.id === food.id);
+      const e = (state.days[currentDate] || []).find((x) => x.id === food.id);
       if (e) { e.grams = grams; e.meal = meal; }
     } else {
-      const entry = { id: uid(), meal, grams, ref: food.id, src: food.src, n: food.n, brand: food.brand || '', k: food.k, p: food.p, c: food.c, f: food.f };
+      const entry = Object.assign({ id: uid(), meal, grams, ref: foodId, src: food.src, n: food.n, brand: food.brand || '' }, nutrientsOf(food));
       (state.days[currentDate] = state.days[currentDate] || []).push(entry);
-      rememberRecent(food, grams);
+      state.recent = [Object.assign(foodSnap(food), { lastGrams: grams })].concat(state.recent.filter((x) => x.id !== foodId)).slice(0, 60);
     }
     save();
     toast(edit ? 'Gespeichert' : 'Hinzugefügt');
-    if (edit) closeSheet(); else { sheetMode = prevMode; openAdd(addMeal); }
+    back();
   };
   const del = $('#del');
   if (del) del.onclick = () => {
@@ -314,9 +416,39 @@ function openAmount(food, opts = {}) {
   };
 }
 
-function rememberRecent(food, grams) {
-  const item = { src: food.src, id: food.id, n: food.n, brand: food.brand || '', k: food.k, p: food.p, c: food.c, f: food.f, serving: food.serving || null, lastGrams: grams };
-  state.recent = [item].concat(state.recent.filter((x) => x.id !== food.id)).slice(0, 60);
+/* ---------- Schnelleintrag ---------- */
+function openQuick(meal, entry) {
+  sheetMode = 'quick';
+  const e = entry || {};
+  openSheet(`
+    <div class="sheet-head"><button class="btn ghost" id="back">‹ Zurück</button><span></span></div>
+    <h1>Schnelleintrag</h1>
+    <p class="small muted">Für Restaurant oder Unterwegs: nur die Gesamtwerte eintragen.</p>
+    <label for="qN">Bezeichnung (optional)</label><input id="qN" type="text" value="${esc(e.n && e.n !== 'Schnelleintrag' ? e.n : '')}" placeholder="z. B. Pizza beim Italiener">
+    <label for="qK">Kalorien (kcal)</label><input id="qK" inputmode="decimal" value="${e.k ?? ''}">
+    <div class="row">
+      <div><label for="qP">Eiweiß g</label><input id="qP" inputmode="decimal" value="${e.p || ''}"></div>
+      <div><label for="qC">KH g</label><input id="qC" inputmode="decimal" value="${e.c || ''}"></div>
+      <div><label for="qF">Fett g</label><input id="qF" inputmode="decimal" value="${e.f || ''}"></div>
+    </div>
+    <label for="qMeal">Mahlzeit</label>
+    <select id="qMeal">${MEALS.map((m) => `<option value="${m.id}" ${m.id === (e.meal || meal) ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
+    <div style="height:14px"></div>
+    <button class="btn block" id="qSave">${entry ? 'Speichern' : 'Hinzufügen'}</button>
+    ${entry ? '<div style="height:10px"></div><button class="btn danger block" id="qDel">Eintrag löschen</button>' : ''}`);
+  const back = () => { if (entry) closeSheet(); else openAdd(addMeal); };
+  $('#back').onclick = back;
+  $('#qSave').onclick = () => {
+    const k = num($('#qK').value);
+    if (k == null || k < 0) { toast('Bitte Kalorien eingeben.'); return; }
+    // Schnelleinträge werden als „100 g“ mit Absolutwerten gespeichert, damit die Rechnung einheitlich bleibt.
+    const vals = { quick: true, grams: 100, n: $('#qN').value.trim() || 'Schnelleintrag', k, p: num($('#qP').value) || 0, c: num($('#qC').value) || 0, f: num($('#qF').value) || 0, fi: 0, su: 0, meal: $('#qMeal').value, src: 'quick' };
+    if (entry) Object.assign((state.days[currentDate] || []).find((x) => x.id === entry.id) || {}, vals);
+    else (state.days[currentDate] = state.days[currentDate] || []).push(Object.assign({ id: uid() }, vals));
+    save(); toast(entry ? 'Gespeichert' : 'Hinzugefügt'); back();
+  };
+  const qd = $('#qDel');
+  if (qd) qd.onclick = () => { state.days[currentDate] = (state.days[currentDate] || []).filter((x) => x.id !== entry.id); save(); toast('Gelöscht'); closeSheet(); };
 }
 
 /* ---------- Barcode ---------- */
@@ -330,7 +462,6 @@ function renderScan() {
   $('#lookup').onclick = () => { const c = ($('#code').value || '').replace(/\D/g, ''); if (c) lookupBarcode(c); };
   startScanner();
 }
-
 function startScanner() {
   if (!window.ZXing || !navigator.mediaDevices) { $('#scanResult').innerHTML = '<p class="muted">Kamera nicht verfügbar – bitte Barcode eintippen.</p>'; return; }
   const hints = new Map();
@@ -346,16 +477,14 @@ function startScanner() {
       $('#code').value = code;
       lookupBarcode(code);
     }
-  }).catch(() => { $('#scanResult').innerHTML = '<p class="muted">Kein Kamerazugriff. Erlaube die Kamera in den Safari-Einstellungen oder tippe den Barcode ein.</p>'; });
+  }).catch(() => { const r = $('#scanResult'); if (r) r.innerHTML = '<p class="muted">Kein Kamerazugriff. Erlaube die Kamera in den Safari-Einstellungen oder tippe den Barcode ein.</p>'; });
 }
 function stopScanner() { if (scanner) { try { scanner.reset(); } catch (e) {} scanner = null; } }
 
 async function lookupBarcode(code) {
   const out = $('#scanResult');
-  // 1. Eigene Lebensmittel mit diesem Barcode
   const own = state.custom.find((x) => x.barcode === code);
   if (own) { openAmount(own); return; }
-  // 2. Lokaler Zwischenspeicher früherer Abfragen
   if (state.offCache[code]) { openAmount(state.offCache[code]); return; }
   out.innerHTML = '<p class="muted">Suche bei Open Food Facts…</p>';
   try {
@@ -368,7 +497,7 @@ async function lookupBarcode(code) {
     if (!p || data.status !== 1 || k == null) {
       out.innerHTML = `<div class="card" style="margin-top:12px"><p>Produkt ${esc(code)} nicht gefunden oder ohne Nährwerte.</p>
         <button class="btn secondary block" id="createOwn">Als eigenes Lebensmittel anlegen</button></div>`;
-      $('#createOwn').onclick = () => { addTab = 'custom'; renderAddTab(); $('#cBarcode').value = code; };
+      $('#createOwn').onclick = () => openFoodForm({ barcode: code });
       return;
     }
     const food = {
@@ -376,6 +505,7 @@ async function lookupBarcode(code) {
       n: p.product_name_de || p.product_name || ('Produkt ' + code),
       brand: (p.brands || '').split(',')[0].trim(),
       k, p: num(nm.proteins_100g) || 0, c: num(nm.carbohydrates_100g) || 0, f: num(nm.fat_100g) || 0,
+      fi: num(nm.fiber_100g) || 0, su: num(nm.sugars_100g) || 0,
       serving: num(p.serving_quantity) || null,
     };
     state.offCache[code] = food; save();
@@ -385,39 +515,166 @@ async function lookupBarcode(code) {
   }
 }
 
-/* ---------- Eigene Lebensmittel ---------- */
-function renderCustomForm() {
+/* ---------- Neu: Schnelleintrag, Lebensmittel, Rezept ---------- */
+function renderNew() {
   $('#addBody').innerHTML = `
+    <ul class="list choice">
+      <li id="newQuick"><div><strong>Schnelleintrag</strong><div class="meta">Nur kcal eintragen, z. B. im Restaurant</div></div><div class="meta">›</div></li>
+      <li id="newFood"><div><strong>Eigenes Lebensmittel</strong><div class="meta">Nährwerte pro 100 g, z. B. von der Verpackung</div></div><div class="meta">›</div></li>
+      <li id="newRecipe"><div><strong>Rezept</strong><div class="meta">Aus mehreren Zutaten zusammenstellen</div></div><div class="meta">›</div></li>
+    </ul>`;
+  $('#newQuick').onclick = () => openQuick(addMeal);
+  $('#newFood').onclick = () => openFoodForm();
+  $('#newRecipe').onclick = () => openRecipe();
+}
+
+function openFoodForm(existing) {
+  sheetMode = 'food';
+  const e = existing || {};
+  const isEdit = !!e.id;
+  const v = (x) => (x == null || x === 0 && !isEdit ? '' : x);
+  openSheet(`
+    <div class="sheet-head"><button class="btn ghost" id="back">‹ Zurück</button><span></span></div>
+    <h1>${isEdit ? 'Lebensmittel bearbeiten' : 'Eigenes Lebensmittel'}</h1>
     <p class="small muted">Werte pro 100 g, z. B. von der Verpackung.</p>
-    <label for="cName">Name</label><input id="cName" type="text">
-    <label for="cBrand">Marke (optional)</label><input id="cBrand" type="text">
+    <label for="cName">Name</label><input id="cName" type="text" value="${esc(e.n || '')}">
+    <label for="cBrand">Marke (optional)</label><input id="cBrand" type="text" value="${esc(e.brand || '')}">
     <div class="row">
-      <div><label for="cK">kcal</label><input id="cK" inputmode="decimal"></div>
-      <div><label for="cP">Eiweiß g</label><input id="cP" inputmode="decimal"></div>
+      <div><label for="cK">kcal</label><input id="cK" inputmode="decimal" value="${v(e.k)}"></div>
+      <div><label for="cP">Eiweiß g</label><input id="cP" inputmode="decimal" value="${v(e.p)}"></div>
     </div>
     <div class="row">
-      <div><label for="cC">KH g</label><input id="cC" inputmode="decimal"></div>
-      <div><label for="cF">Fett g</label><input id="cF" inputmode="decimal"></div>
+      <div><label for="cC">KH g</label><input id="cC" inputmode="decimal" value="${v(e.c)}"></div>
+      <div><label for="cF">Fett g</label><input id="cF" inputmode="decimal" value="${v(e.f)}"></div>
     </div>
     <div class="row">
-      <div><label for="cServ">Portion g (optional)</label><input id="cServ" inputmode="decimal"></div>
-      <div><label for="cBarcode">Barcode (optional)</label><input id="cBarcode" inputmode="numeric"></div>
+      <div><label for="cFi">Ballaststoffe g</label><input id="cFi" inputmode="decimal" value="${v(e.fi)}"></div>
+      <div><label for="cSu">davon Zucker g</label><input id="cSu" inputmode="decimal" value="${v(e.su)}"></div>
+    </div>
+    <div class="row">
+      <div><label for="cServ">Portion g (optional)</label><input id="cServ" inputmode="decimal" value="${e.serving || ''}"></div>
+      <div><label for="cBarcode">Barcode (optional)</label><input id="cBarcode" inputmode="numeric" value="${esc(e.barcode || '')}"></div>
     </div>
     <div style="height:14px"></div>
-    <button class="btn block" id="cSave">Speichern & auswählen</button>
-    ${state.custom.length ? `<h2 style="margin-top:20px">Meine Lebensmittel</h2><ul class="list" id="ownList">${state.custom.map((f, i) => foodLi(f, i)).join('')}</ul>` : ''}`;
+    <button class="btn block" id="cSave">${isEdit ? 'Speichern' : 'Speichern & auswählen'}</button>
+    ${isEdit ? '<div style="height:10px"></div><button class="btn danger block" id="cDel">Lebensmittel löschen</button>' : ''}`);
+  $('#back').onclick = () => { if (isEdit) openAmount(e); else openAdd(addMeal); };
   $('#cSave').onclick = () => {
     const n = $('#cName').value.trim(); const k = num($('#cK').value);
     if (!n || k == null) { toast('Name und kcal sind Pflicht.'); return; }
     const food = {
-      src: 'custom', id: 'custom:' + uid(), n, brand: $('#cBrand').value.trim(), k,
+      src: 'custom', id: e.id || 'custom:' + uid(), n, brand: $('#cBrand').value.trim(), k,
       p: num($('#cP').value) || 0, c: num($('#cC').value) || 0, f: num($('#cF').value) || 0,
+      fi: num($('#cFi').value) || 0, su: num($('#cSu').value) || 0,
       serving: num($('#cServ').value) || null, barcode: ($('#cBarcode').value || '').replace(/\D/g, '') || null,
     };
-    state.custom.push(food); save(); openAmount(food);
+    saveOwnFood(food);
+    if (isEdit) { toast('Gespeichert'); openAmount(food); } else openAmount(food);
   };
-  const own = $('#ownList');
-  if (own) own.querySelectorAll('li').forEach((li) => li.onclick = () => openAmount(state.custom[+li.dataset.i]));
+  const cd = $('#cDel');
+  if (cd) cd.onclick = () => deleteOwnFood(e);
+}
+
+function saveOwnFood(food) {
+  const i = state.custom.findIndex((x) => x.id === food.id);
+  if (i >= 0) state.custom[i] = food; else state.custom.push(food);
+  // Favoriten/Zuletzt-Kopien aktualisieren (bereits eingetragene Tage bleiben unverändert)
+  state.favs = state.favs.map((x) => (x.id === food.id ? foodSnap(food) : x));
+  state.recent = state.recent.map((x) => (x.id === food.id ? Object.assign(foodSnap(food), { lastGrams: x.lastGrams }) : x));
+  save();
+}
+function deleteOwnFood(food) {
+  if (!confirm(`„${food.n}“ löschen? Bereits eingetragene Mahlzeiten bleiben erhalten.`)) return;
+  state.custom = state.custom.filter((x) => x.id !== food.id);
+  state.favs = state.favs.filter((x) => x.id !== food.id);
+  state.recent = state.recent.filter((x) => x.id !== food.id);
+  save(); toast('Gelöscht'); addTab = 'mine'; openAdd(addMeal);
+}
+
+/* ---------- Rezepte ---------- */
+let draft = null;
+function openRecipe(existing) {
+  sheetMode = 'recipe';
+  draft = existing
+    ? { id: existing.id, n: existing.n, items: existing.items.map((x) => Object.assign({}, x)), finalWeight: existing.finalWeight || null, portions: existing.portions || null }
+    : { id: null, n: '', items: [], finalWeight: null, portions: null };
+  renderRecipe('');
+}
+function recipeCalc(d) {
+  const raw = d.items.reduce((s, x) => s + (x.grams || 0), 0);
+  const tot = { k: 0, p: 0, c: 0, f: 0, fi: 0, su: 0 };
+  d.items.forEach((x) => { const v = per(x.food, x.grams || 0); NUTRIENTS.forEach((n) => { tot[n] += v[n]; }); });
+  const weight = d.finalWeight || raw;
+  const per100 = {}; NUTRIENTS.forEach((n) => { per100[n] = weight ? (tot[n] / weight) * 100 : 0; });
+  return { raw, weight, tot, per100 };
+}
+function renderRecipe(query) {
+  const d = draft;
+  const calc = recipeCalc(d);
+  openSheet(`
+    <div class="sheet-head"><button class="btn ghost" id="back">‹ Zurück</button><span></span></div>
+    <h1>${d.id ? 'Rezept bearbeiten' : 'Neues Rezept'}</h1>
+    <label for="rName">Name</label><input id="rName" type="text" value="${esc(d.n)}" placeholder="z. B. Overnight Oats">
+    <h2 class="sec">Zutaten (roh)</h2>
+    ${d.items.length ? `<ul class="list ingr">${d.items.map((x, i) => `<li><div class="grow">${esc(x.food.n)}<div class="meta">${r0(per(x.food, x.grams || 0).k)} kcal</div></div>
+      <input class="g" data-g="${i}" inputmode="decimal" value="${r1(x.grams)}" aria-label="Gramm"><span class="meta">g</span>
+      <button class="btn ghost rm" data-rm="${i}" aria-label="Entfernen">✕</button></li>`).join('')}</ul>` : '<div class="empty">Noch keine Zutaten.</div>'}
+    <input id="rQ" type="search" placeholder="Zutat suchen und antippen" autocomplete="off" value="${esc(query)}">
+    <ul class="list" id="rResults"></ul>
+    <div class="row">
+      <div><label for="rW">Endgewicht g (optional)</label><input id="rW" inputmode="decimal" value="${d.finalWeight || ''}" placeholder="${r0(calc.raw)}"></div>
+      <div><label for="rPo">Portionen (optional)</label><input id="rPo" inputmode="decimal" value="${d.portions || ''}"></div>
+    </div>
+    <p class="small muted" style="margin-top:6px">Endgewicht = Gewicht nach dem Kochen (z. B. Topf wiegen minus Topf). Ohne Angabe wird das Rohgewicht verwendet.</p>
+    <div class="card" id="rSum"></div>
+    <button class="btn block" id="rSave">Rezept speichern</button>
+    ${d.id ? '<div style="height:10px"></div><button class="btn danger block" id="rDel">Rezept löschen</button>' : ''}`);
+
+  const sum = () => {
+    const c = recipeCalc(draft);
+    const portion = draft.portions ? c.weight / draft.portions : null;
+    $('#rSum').innerHTML = `<div class="spread"><span class="muted">Gesamt</span><strong>${r0(c.tot.k)} kcal · ${r0(c.weight)} g</strong></div>
+      <div class="spread"><span class="muted">Pro 100 g</span><strong>${r0(c.per100.k)} kcal</strong></div>
+      ${portion ? `<div class="spread"><span class="muted">Pro Portion (${r0(portion)} g)</span><strong>${r0(c.tot.k / draft.portions)} kcal</strong></div>` : ''}`;
+  };
+  sum();
+  $('#rName').oninput = (ev) => { draft.n = ev.target.value; };
+  $('#rW').oninput = (ev) => { draft.finalWeight = num(ev.target.value); sum(); };
+  $('#rPo').oninput = (ev) => { draft.portions = num(ev.target.value); sum(); };
+  document.querySelectorAll('[data-g]').forEach((inp) => inp.oninput = () => { draft.items[+inp.dataset.g].grams = num(inp.value) || 0; sum(); });
+  document.querySelectorAll('[data-rm]').forEach((b) => b.onclick = () => { draft.items.splice(+b.dataset.rm, 1); renderRecipe($('#rQ').value); });
+
+  const q = $('#rQ');
+  const showResults = () => {
+    const hits = q.value.trim() ? searchFoods(q.value, { includeRecipes: false }).slice(0, 20) : [];
+    $('#rResults').innerHTML = hits.map((f, i) => foodLi(f, i)).join('');
+    bindList($('#rResults'), hits, (f) => {
+      draft.items.push({ food: Object.assign(nutrientsOf(f), { id: f.id, n: f.n, src: f.src }), grams: 100 });
+      renderRecipe('');
+      toast('Zutat mit 100 g hinzugefügt – Menge anpassen');
+    });
+  };
+  q.oninput = showResults; showResults();
+
+  $('#back').onclick = () => { draft = null; if (d.id) { const f = state.custom.find((x) => x.id === d.id); if (f) { openAmount(f); return; } } addTab = 'custom'; openAdd(addMeal); };
+  $('#rSave').onclick = () => {
+    draft.n = $('#rName').value.trim();
+    if (!draft.n) { toast('Bitte einen Namen eingeben.'); return; }
+    if (!draft.items.length) { toast('Bitte mindestens eine Zutat hinzufügen.'); return; }
+    const c = recipeCalc(draft);
+    if (!c.weight) { toast('Gewicht der Zutaten fehlt.'); return; }
+    const food = Object.assign({
+      src: 'recipe', id: draft.id || 'recipe:' + uid(), n: draft.n, brand: '',
+      serving: draft.portions ? c.weight / draft.portions : null,
+      items: draft.items, finalWeight: draft.finalWeight || null, portions: draft.portions || null,
+    }, c.per100);
+    saveOwnFood(food);
+    draft = null;
+    toast('Rezept gespeichert');
+    openAmount(food);
+  };
+  const rd = $('#rDel');
+  if (rd) rd.onclick = () => { const f = state.custom.find((x) => x.id === d.id); if (f) deleteOwnFood(f); };
 }
 
 /* ---------- Verlauf ---------- */
@@ -426,27 +683,30 @@ function renderHistory() {
   const goal = state.settings.goal;
   const today = isoDate(new Date());
   const days = [];
-  for (let i = histRange - 1; i >= 0; i--) { const d = addDays(today, -i); days.push({ d, k: dayTotals(d).k, n: (state.days[d] || []).length }); }
+  for (let i = histRange - 1; i >= 0; i--) { const d = addDays(today, -i); days.push({ d, t: dayTotals(d), n: (state.days[d] || []).length }); }
   const tracked = days.filter((x) => x.n > 0);
-  const avg = tracked.length ? tracked.reduce((s, x) => s + x.k, 0) / tracked.length : 0;
-  const max = Math.max(goal || 0, ...days.map((x) => x.k), 1) * 1.1;
+  const avg = (key) => (tracked.length ? tracked.reduce((s, x) => s + x.t[key], 0) / tracked.length : 0);
+  const max = Math.max(goal || 0, ...days.map((x) => x.t.k), 1) * 1.1;
   const W = 340, H = 180, pad = 22, bw = (W - pad) / days.length;
   const y = (v) => H - 18 - (v / max) * (H - 30);
   const bars = days.map((x, i) => {
-    const h = (H - 18) - y(x.k);
+    const h = (H - 18) - y(x.t.k);
     const lbl = (histRange <= 14 || i % 5 === 0) ? `<text x="${pad + i * bw + bw / 2}" y="${H - 4}" text-anchor="middle">${new Date(x.d + 'T12:00:00').getDate()}</text>` : '';
-    return `<rect class="b ${goal && x.k > goal ? 'over' : ''}" x="${pad + i * bw + bw * 0.15}" y="${y(x.k)}" width="${bw * 0.7}" height="${Math.max(0, h)}" rx="2"></rect>${lbl}`;
+    return `<rect class="b ${goal && x.t.k > goal ? 'over' : ''}" x="${pad + i * bw + bw * 0.15}" y="${y(x.t.k)}" width="${bw * 0.7}" height="${Math.max(0, h)}" rx="2"></rect>${lbl}`;
   }).join('');
   const goalLine = goal ? `<line class="goal" x1="${pad}" x2="${W}" y1="${y(goal)}" y2="${y(goal)}"></line><text x="0" y="${y(goal) + 3}">${r0(goal)}</text>` : '';
+  const a = avg('k');
 
   $('#view').innerHTML = `
     <h1>Verlauf</h1>
     <div class="seg" id="rangeSeg"><button data-r="7">7 Tage</button><button data-r="14">14 Tage</button><button data-r="30">30 Tage</button></div>
     <div class="card chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Kalorien pro Tag">${goalLine}${bars}</svg></div>
     <div class="card">
-      <div class="spread"><span class="muted">Ø an getrackten Tagen</span><strong>${r0(avg)} kcal</strong></div>
+      <div class="spread"><span class="muted">Ø kcal an getrackten Tagen</span><strong>${r0(a)} kcal</strong></div>
       <div class="spread"><span class="muted">Getrackte Tage</span><strong>${tracked.length} / ${histRange}</strong></div>
-      ${goal ? `<div class="spread"><span class="muted">Ø Differenz zum Ziel</span><strong>${tracked.length ? (avg - goal > 0 ? '+' : '') + r0(avg - goal) + ' kcal' : '–'}</strong></div>` : ''}
+      ${goal ? `<div class="spread"><span class="muted">Ø Differenz zum Ziel</span><strong>${tracked.length ? (a - goal > 0 ? '+' : '') + r0(a - goal) + ' kcal' : '–'}</strong></div>` : ''}
+      <div class="spread"><span class="muted">Ø Eiweiß / KH / Fett</span><strong>${r0(avg('p'))} / ${r0(avg('c'))} / ${r0(avg('f'))} g</strong></div>
+      <div class="spread"><span class="muted">Ø Ballaststoffe / Zucker</span><strong>${r0(avg('fi'))} / ${r0(avg('su'))} g</strong></div>
       <p class="small muted" style="margin-top:8px">Nicht getrackte Tage fließen nicht in den Durchschnitt ein. Ein Tag mit wenig Einträgen ist nicht unbedingt ein Tag mit wenig Essen.</p>
     </div>`;
   $('#rangeSeg').querySelectorAll('button').forEach((b) => {
@@ -463,18 +723,22 @@ function renderSettings() {
     <div class="card">
       <h2>Tagesziel</h2>
       <label for="sGoal">Kalorien pro Tag (kcal)</label><input id="sGoal" inputmode="decimal" value="${s.goal ?? ''}" placeholder="z. B. Tagesbedarf aus Garmin">
-      <p class="small muted" style="margin-top:6px">Optional: Makro-Ziele in Gramm</p>
+      <p class="small muted" style="margin-top:6px">Optional: Ziele in Gramm</p>
       <div class="row">
         <div><label for="sP">Eiweiß</label><input id="sP" inputmode="decimal" value="${s.protein ?? ''}"></div>
         <div><label for="sC">KH</label><input id="sC" inputmode="decimal" value="${s.carbs ?? ''}"></div>
         <div><label for="sF">Fett</label><input id="sF" inputmode="decimal" value="${s.fat ?? ''}"></div>
+      </div>
+      <div class="row">
+        <div><label for="sFi">Ballaststoffe</label><input id="sFi" inputmode="decimal" value="${s.fiber ?? ''}"></div>
+        <div><label for="sSu">Zucker (max.)</label><input id="sSu" inputmode="decimal" value="${s.sugar ?? ''}"></div>
       </div>
       <div style="height:12px"></div>
       <button class="btn block" id="sSave">Speichern</button>
     </div>
     <div class="card">
       <h2>Backup</h2>
-      <p class="small muted">Deine Daten liegen nur auf diesem Gerät. Exportiere regelmäßig ein Backup (z. B. in die Dateien-App).</p>
+      <p class="small muted">Deine Daten liegen nur auf diesem Gerät. ${backupText()} Du wirst nach ${BACKUP_REMIND_DAYS} Tagen erinnert.</p>
       <div class="row"><button class="btn secondary" id="exp">Exportieren</button><button class="btn secondary" id="impBtn">Importieren</button></div>
       <input type="file" id="imp" accept="application/json,.json" hidden>
       <div style="height:10px"></div>
@@ -484,7 +748,7 @@ function renderSettings() {
       <h2 style="color:var(--ink)">Quellen & Lizenzen</h2>
       <p>Lebensmitteldaten: Max Rubner-Institut (2025). Bundeslebensmittelschlüssel (BLS), Version 4.0. Karlsruhe.
         DOI: <a href="https://doi.org/10.25826/Data20251217-134202-0" target="_blank" rel="noopener">10.25826/Data20251217-134202-0</a>.
-        ${blsMeta ? `In dieser App: ${esc(blsMeta.count)} Lebensmittel, nur Energie und Makronährstoffe.` : 'In dieser Version noch nicht enthalten.'}</p>
+        ${blsMeta ? `In dieser App: ${esc(blsMeta.count)} Lebensmittel; Energie, Makronährstoffe, Ballaststoffe und Zucker.` : ''}</p>
       <p>Barcode-Daten: <a href="https://world.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a>, Datenbank unter der
         <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">Open Database License (ODbL)</a>,
         Inhalte unter der Database Contents License (DbCL). Werte von Open Food Facts stammen von Freiwilligen – bitte mit der Verpackung abgleichen.</p>
@@ -495,10 +759,10 @@ function renderSettings() {
   $('#sSave').onclick = () => {
     const goal = num($('#sGoal').value);
     if (goal != null && (goal < 500 || goal > 10000)) { toast('Bitte einen Wert zwischen 500 und 10.000 kcal eingeben.'); return; }
-    s.goal = goal; s.protein = num($('#sP').value); s.carbs = num($('#sC').value); s.fat = num($('#sF').value);
+    Object.assign(s, { goal, protein: num($('#sP').value), carbs: num($('#sC').value), fat: num($('#sF').value), fiber: num($('#sFi').value), sugar: num($('#sSu').value) });
     save(); toast('Gespeichert');
   };
-  $('#exp').onclick = exportBackup;
+  $('#exp').onclick = async () => { await exportBackup(); renderSettings(); };
   $('#impBtn').onclick = () => $('#imp').click();
   $('#imp').onchange = (ev) => {
     const file = ev.target.files[0]; if (!file) return;
@@ -508,13 +772,15 @@ function renderSettings() {
         const data = JSON.parse(rd.result);
         if (!data || typeof data !== 'object' || !data.days) throw new Error('format');
         if (!confirm('Backup importieren? Die aktuellen Daten auf diesem Gerät werden ersetzt.')) return;
-        state = Object.assign(emptyState(), data); save(); toast('Backup importiert'); render();
+        const s2 = Object.assign(emptyState(), data);
+        s2.settings = Object.assign(emptyState().settings, data.settings || {});
+        state = s2; save(); toast('Backup importiert'); render();
       } catch (e) { toast('Datei ist kein gültiges Backup.'); }
     };
     rd.readAsText(file);
   };
   $('#wipe').onclick = () => {
-    if (confirm('Wirklich alle Einträge, eigenen Lebensmittel und Einstellungen löschen?')) {
+    if (confirm('Wirklich alle Einträge, eigenen Lebensmittel, Rezepte und Einstellungen löschen?')) {
       state = emptyState(); save(); toast('Alle Daten gelöscht'); render();
     }
   };
@@ -523,13 +789,18 @@ function renderSettings() {
 async function exportBackup() {
   const name = `kalorien-backup-${isoDate(new Date())}.json`;
   const blob = new Blob([JSON.stringify(state)], { type: 'application/json' });
+  const markDone = () => { state.lastBackup = Date.now(); save(); toast('Backup erstellt'); };
   try {
     const file = new File([blob], name, { type: 'application/json' });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: name }); return; }
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: name });
+      markDone(); return;
+    }
   } catch (e) { if (e && e.name === 'AbortError') return; }
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  markDone();
 }
 
 /* ---------- Start ---------- */
