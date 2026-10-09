@@ -1,6 +1,6 @@
 /* Service Worker: macht die App offline nutzbar. Speichert nur die App-Dateien,
    keine Nutzerdaten. Bei jeder Änderung an den Dateien CACHE-Version erhöhen. */
-const CACHE = 'ct-cache-v3';
+const CACHE = 'ct-cache-v4';
 const ASSETS = [
   './',
   'index.html',
@@ -12,6 +12,9 @@ const ASSETS = [
   'icons/icon-192.png',
   'icons/icon-512.png',
   'icons/apple-touch-icon.png',
+  'fonts/sora-latin-300-normal.woff2',
+  'fonts/sora-latin-400-normal.woff2',
+  'fonts/sora-latin-600-normal.woff2',
 ];
 
 self.addEventListener('install', (e) => {
