@@ -13,12 +13,15 @@ Ein schlanker Kalorien-Tracker als Web-App (PWA) fürs iPhone. Er läuft komplet
 
 ## Funktionen
 
-- Tagebuch mit vier Mahlzeiten, Tagesziel und Makroübersicht
+- Tagebuch mit vier Mahlzeiten, Tagesziel, Makros, Ballaststoffen und Zucker
 - Lebensmittelsuche im Bundeslebensmittelschlüssel (offline)
 - Barcode-Scan über die Kamera (Open Food Facts)
-- Eigene Lebensmittel, zuletzt verwendete Lebensmittel
+- Favoriten, zuletzt verwendete und eigene Lebensmittel
+- Eigene Rezepte aus mehreren Zutaten (mit Endgewicht und Portionen)
+- Schnelleintrag (nur kcal)
+- Mahlzeit oder ganzen Tag vom Vortag übernehmen
 - Verlauf über 7, 14 oder 30 Tage
-- Backup-Export und -Import
+- Backup-Export und -Import mit Erinnerung nach 7 Tagen
 
 ## Installation auf dem iPhone
 
@@ -28,6 +31,6 @@ Ein schlanker Kalorien-Tracker als Web-App (PWA) fürs iPhone. Er läuft komplet
 
 ## Quellen und Lizenzen
 
-- **Lebensmitteldaten:** Max Rubner-Institut (2025). Bundeslebensmittelschlüssel (BLS), Version 4.0. Karlsruhe. DOI: [10.25826/Data20251217-134202-0](https://doi.org/10.25826/Data20251217-134202-0). Die Datei `data/bls.json` ist ein Auszug (nur Energie und Makronährstoffe je 100 g), erzeugt mit `tools/convert_bls.py`.
+- **Lebensmitteldaten:** Max Rubner-Institut (2025). Bundeslebensmittelschlüssel (BLS), Version 4.0. Karlsruhe. DOI: [10.25826/Data20251217-134202-0](https://doi.org/10.25826/Data20251217-134202-0). Die Datei `data/bls.json` ist ein Auszug (Energie, Makronährstoffe, Ballaststoffe und Zucker je 100 g), erzeugt mit `tools/convert_bls.py`.
 - **Barcode-Daten:** [Open Food Facts](https://world.openfoodfacts.org). Datenbank unter der [Open Database License (ODbL) 1.0](https://opendatacommons.org/licenses/odbl/1-0/), einzelne Inhalte unter der Database Contents License (DbCL) 1.0. Die Daten werden zur Laufzeit abgefragt und nur auf dem Gerät zwischengespeichert.
 - **Barcode-Erkennung:** [ZXing](https://github.com/zxing-js/library) (`vendor/zxing.min.js`), Apache License 2.0, siehe `vendor/ZXING-LICENSE`.
