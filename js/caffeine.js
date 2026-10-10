@@ -280,7 +280,7 @@ function openCaffeine(iso, entry) {
     const ml = num($('#cMl').value), kcal = num($('#cKc').value);
     if (ml == null || ml <= 0) { toast('Bitte die Menge in ml eingeben.'); return; }
     if ((ml != null && (ml < 0 || ml > 3000)) || (kcal != null && (kcal < 0 || kcal > 2000))) { toast('Bitte Menge (0–3000 ml) und kcal (0–2000) prüfen.'); return; }
-    const vals = { min, mg: Math.round(mg * 10) / 10, n: name || 'Koffein', dur, ml: ml || 0, kcal: kcal || 0, tr: entry && entry.tr != null ? entry.tr : c.track };
+    const vals = { min, mg: Math.round(mg * 10) / 10, n: name || 'Koffein', dur, ml: ml || 0, kcal: kcal || 0, tr: entry && entry.tr != null ? entry.tr : true };
     const list = (c.log[iso] = c.log[iso] || []);
     let ent = entry && list.find((x) => x.id === entry.id);
     if (ent) Object.assign(ent, vals); else { ent = Object.assign({ id: uid() }, vals); list.push(ent); }
@@ -395,7 +395,6 @@ function caffSettingsHtml() {
   return `<div class="card">
     <h2>Koffein</h2>
     <label class="switch"><input type="checkbox" id="cfOn" ${c.enabled ? 'checked' : ''}> Koffein-Tracker anzeigen</label>
-    <label class="switch"><input type="checkbox" id="cfTr" ${c.track ? 'checked' : ''}> Neue Getränke standardmäßig in Tagebuch (kcal) und Wasserzähler (ml) eintragen</label>
     <div class="row">
       <div><label for="cfBed">Bettzeit</label><input id="cfBed" type="time" value="${esc(c.bed)}"></div>
       <div><label for="cfWake">Aufstehen</label><input id="cfWake" type="time" value="${esc(c.wake)}"></div>
@@ -410,7 +409,6 @@ function caffSettingsHtml() {
 }
 function caffSettingsBind() {
   const c = state.caffeine;
-  $('#cfTr').onchange = (ev) => { c.track = ev.target.checked; save(); };
   $('#cfOn').onchange = (ev) => { c.enabled = ev.target.checked; save(); };
   const time = (id, key, label) => { $(id).onchange = (ev) => { if (ev.target.value) { c[key] = ev.target.value; save(); toast(`${label} ${ev.target.value} Uhr`); } }; };
   time('#cfBed', 'bed', 'Bettzeit'); time('#cfWake', 'wake', 'Aufstehen');

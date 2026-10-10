@@ -1,6 +1,6 @@
 /* Service Worker: macht die App offline nutzbar. Speichert nur die App-Dateien,
    keine Nutzerdaten. Bei jeder Änderung an den Dateien CACHE-Version erhöhen. */
-const CACHE = 'ct-cache-v23';
+const CACHE = 'ct-cache-v24';
 const ASSETS = [
   './',
   'index.html',
