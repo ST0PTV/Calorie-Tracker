@@ -107,7 +107,7 @@ Standardziel 1,5 l Getränke pro Tag (Richtwert der DGE, zitiert nach [Verbrauch
 
 - Erkennung als Flüssigkeit bei BLS-Daten nach Warengruppe und Name (Getränke, Milch/Kefir/Buttermilch, Säfte/Nektare, Pflanzendrinks; Pulver, Konserven, Konzentrate und Kondensmilch ausgenommen). Die Regeln sind Heuristiken – Einzelfälle können falsch eingeordnet sein.
 - kcal pro 100 ml: Kaffee, Espresso, Cola aus der BLS 4.0; **Energy Drink 45 kcal/100 ml stammt nur aus einer Quelle (wikifit.de, Red Bull, zuckerhaltig) und ist nicht gegengeprüft**; zuckerfreie Sorten haben deutlich weniger. Werte sind im Eingabedialog änderbar.
-- Ob Kaffee/Energy zur Flüssigkeitszufuhr zählen, ist eine Entscheidung des Nutzers (per Schalter änderbar). Geplante Getränke in der Zukunft zählen sofort mit.
+- Ob Kaffee/Energy zur Flüssigkeitszufuhr zählen, ist eine Entscheidung des Nutzers. Geplante Getränke in der Zukunft zählen sofort mit.
 
 ## Koffein: Modell, Annahmen und Quellen
 
