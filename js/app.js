@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.14.0';
+const APP_VERSION = '1.14.1';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -1329,7 +1329,7 @@ function renderHistory() {
     const over = has && x.goal && x.t.k > x.goal;
     const frac = has ? (x.goal ? Math.min(x.t.k / x.goal, 1) : 1) : 0;
     const col = over ? 'var(--warn)' : 'var(--accent)';
-    const ring = has ? `<span class="hc-ring" style="background:conic-gradient(${col} ${Math.round(frac * 360)}deg, rgba(255,255,255,0.08) 0)"></span><span class="hc-in"></span>` : '<span class="hc-ring empty"></span>';
+    const ring = has ? `<span class="hc-ring" style="background:conic-gradient(${col} ${Math.round(frac * 360)}deg, rgba(255,255,255,0.08) 0)"></span><span class="hc-in"></span>` : '<span class="hc-ring none"></span>';
     cells += `<button class="hc-d ${histSel && inSel(i) ? 'sel' : ''} ${x.fut ? 'fut' : ''} ${x.d === today ? 'today' : ''}" data-i="${i}" ${x.fut ? 'disabled' : ''} aria-label="${x.d}${has ? ', ' + r0(x.t.k) + ' kcal' : ''}">${ring}<span class="hc-n ${has ? '' : 'dim'}">${i + 1}</span></button>`;
   });
   const calCard = `<div class="card hc"><div class="hc-grid">${cells}</div>
