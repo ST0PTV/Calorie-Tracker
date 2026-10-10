@@ -144,7 +144,7 @@ h2.sec { margin: 18px 0 4px; font-size: 0.85rem; font-weight: 600; color: var(--
   position: fixed; left: 12px; right: 12px; z-index: 10;
   bottom: calc(10px + env(safe-area-inset-bottom));
   max-width: 536px; margin: 0 auto;
-  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 6px;
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 6px;
   border-radius: 20px; border: 1px solid var(--line);
   background: rgba(22, 30, 45, 0.82);
   -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
@@ -324,3 +324,14 @@ input[type=time] { min-height: 48px; -webkit-appearance: none; appearance: none;
 .cs-bar i { display: block; height: 100%; border-radius: 3px; background: var(--caf); }
 .cs-bar i.ok { background: var(--good); } .cs-bar i.over { background: var(--warn); }
 .cs-s { font-size: 0.68rem; color: var(--muted); }
+
+/* Zahnrad und Einstellungen */
+.hero { position: relative; }
+.gear { position: absolute; top: 12px; right: 12px; z-index: 2; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.05); color: var(--muted); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.gear:active { background: var(--accent-soft); color: var(--accent); }
+body.in-settings .tabbar { display: none; }
+.set-top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px; padding: calc(8px + env(safe-area-inset-top)) 0 8px; margin-bottom: 4px; background: linear-gradient(var(--bg, #0D1320) 75%, transparent); }
+.set-top h1 { margin: 0; }
+.set-back { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.05); color: var(--ink); font-size: 1.5rem; line-height: 1; cursor: pointer; padding: 0 0 3px; }
+.set-h { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.set-ico { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 10px; color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); border: 1px solid color-mix(in srgb, var(--c) 30%, transparent); }
