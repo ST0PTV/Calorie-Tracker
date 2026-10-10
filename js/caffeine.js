@@ -217,7 +217,6 @@ function openCaffeine(iso, entry) {
       <div><label for="cMl">Menge (ml)</label><input id="cMl" inputmode="decimal" value="${entry && entry.ml ? entry.ml : ''}"></div>
       <div><label for="cKc">Energie (kcal)</label><input id="cKc" inputmode="decimal" value="${entry && entry.kcal != null ? entry.kcal : ''}"></div>
     </div>
-    <label class="switch"><input type="checkbox" id="cTr" ${(entry ? entry.tr : c.track) ? 'checked' : ''}> In Tagebuch (kcal) und Wasserzähler (ml) eintragen</label>
     <label for="cTime">Uhrzeit (spätere Zeit = Vorschau/Planung)</label>
     <input id="cTime" type="time" value="${entry ? minToHm(entry.min) : isToday ? nowRounded() : '08:00'}">
     ${isToday ? `<div class="chips portions" id="cWhen">${[['Jetzt', 0], ['+30 min', 30], ['+1 h', 60], ['+2 h', 120]].map(([l, m]) => `<button type="button" class="chip" data-add="${m}">${l}</button>`).join('')}</div>` : ''}
@@ -279,8 +278,9 @@ function openCaffeine(iso, entry) {
     if (mg == null || mg <= 0 || mg > 1000) { toast('Bitte eine Koffein-Menge zwischen 1 und 1000 mg eingeben.'); return; }
     if (min == null) { toast('Bitte eine Uhrzeit wählen.'); return; }
     const ml = num($('#cMl').value), kcal = num($('#cKc').value);
+    if (ml == null || ml <= 0) { toast('Bitte die Menge in ml eingeben.'); return; }
     if ((ml != null && (ml < 0 || ml > 3000)) || (kcal != null && (kcal < 0 || kcal > 2000))) { toast('Bitte Menge (0–3000 ml) und kcal (0–2000) prüfen.'); return; }
-    const vals = { min, mg: Math.round(mg * 10) / 10, n: name || 'Koffein', dur, ml: ml || 0, kcal: kcal || 0, tr: $('#cTr').checked };
+    const vals = { min, mg: Math.round(mg * 10) / 10, n: name || 'Koffein', dur, ml: ml || 0, kcal: kcal || 0, tr: entry && entry.tr != null ? entry.tr : c.track };
     const list = (c.log[iso] = c.log[iso] || []);
     let ent = entry && list.find((x) => x.id === entry.id);
     if (ent) Object.assign(ent, vals); else { ent = Object.assign({ id: uid() }, vals); list.push(ent); }
