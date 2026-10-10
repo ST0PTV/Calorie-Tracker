@@ -484,3 +484,16 @@ label.sw input:checked::after { transform: translateX(18px); }
 .tp-st { text-align: right; font-size: 0.8rem; }
 .tp-st .ok { color: #6FE0C1; } .acc { color: var(--accent); }
 .row.four { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+/* Zucker / Ballaststoffe unter den Makro-Kacheln */
+.sf-row { display: flex; gap: 8px; margin-top: 8px; }
+.sf { flex: 1; min-width: 0; border-radius: 12px; background: rgba(255, 255, 255, 0.04); padding: 8px 10px; }
+.sf-h { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; font-size: 0.66rem; color: var(--muted); }
+.sf-st { font-size: 0.6rem; white-space: nowrap; }
+.sf-st.warn { color: var(--warn); } .sf-st.ok { color: #6FE0C1; }
+.sf.fi .sf-st:not(.ok) { color: var(--fi); }
+.sf-v { display: flex; align-items: baseline; gap: 4px; margin: 2px 0 5px; }
+.sf-v strong { font-size: 0.85rem; } .sf-v span { font-size: 0.66rem; color: var(--muted); }
+.sf-bar { height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.sf-bar span { display: block; height: 100%; border-radius: 2px; }
+.sf.su .sf-bar span { background: var(--su); } .sf.fi .sf-bar span { background: var(--fi); }
