@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.13.1';
+const APP_VERSION = '1.14.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -1297,56 +1297,130 @@ function renderRecipe(query) {
 }
 
 /* ---------- Verlauf ---------- */
-let histRange = 14;
+let histMonth = null;   // 'YYYY-MM'; null = aktueller Monat
+let histSel = null;     // null = ganzer Monat, sonst {a, b} (ISO, a <= b)
+let histPick = false;   // true: nächster Kalender-Tipp setzt das Ende
+const HIST_MON = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
 function renderHistory() {
   const today = isoDate(new Date());
-  const days = [];
-  for (let i = histRange - 1; i >= 0; i--) { const d = addDays(today, -i); days.push({ d, t: dayTotals(d), n: (state.days[d] || []).length, goal: goalsFor(d).goal }); }
-  const tracked = days.filter((x) => x.n > 0);
+  const curMonth = today.slice(0, 7);
+  if (!histMonth) histMonth = curMonth;
+  const [Y, M] = histMonth.split('-').map(Number);
+  const nDays = new Date(Y, M, 0).getDate();
+  const mdays = [];
+  for (let i = 1; i <= nDays; i++) { const d = `${histMonth}-${String(i).padStart(2, '0')}`; mdays.push({ d, t: dayTotals(d), n: (state.days[d] || []).length, goal: goalsFor(d).goal, fut: d > today }); }
+  const ia = histSel ? Math.max(0, mdays.findIndex((x) => x.d === histSel.a)) : 0;
+  const ib = histSel ? Math.max(ia, mdays.findIndex((x) => x.d === histSel.b)) : nDays - 1;
+  const inSel = (i) => i >= ia && i <= ib;
+  const sel = mdays.slice(ia, ib + 1).filter((x) => !x.fut);
+  const tracked = sel.filter((x) => x.n > 0);
   const avg = (key) => (tracked.length ? tracked.reduce((s, x) => s + x.t[key], 0) / tracked.length : 0);
   const withGoal = tracked.filter((x) => x.goal);
   const avgDiff = withGoal.length ? withGoal.reduce((s, x) => s + (x.t.k - x.goal), 0) / withGoal.length : null;
-  const max = Math.max(...days.map((x) => Math.max(x.goal || 0, x.t.k)), 1) * 1.1;
-  const W = 340, H = 180, pad = 22, bw = (W - pad) / days.length;
+  const dl = (iso) => { const dt = new Date(iso + 'T12:00:00'); return `${dt.getDate()}.${dt.getMonth() + 1}.`; };
+  const selLabel = !histSel || (ia === 0 && ib === nDays - 1) ? `${HIST_MON[M - 1]} ${Y}` : ia === ib ? dl(mdays[ia].d) : `${dl(mdays[ia].d)}–${dl(mdays[ib].d)}`;
+  const endIdx = histMonth === curMonth ? mdays.findIndex((x) => x.d === today) : nDays - 1;
+
+  // 1) Kalender mit Zielerreichung
+  const off = (new Date(Y, M - 1, 1).getDay() + 6) % 7;
+  let cells = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((w) => `<div class="hc-w">${w}</div>`).join('') + '<div></div>'.repeat(off);
+  mdays.forEach((x, i) => {
+    const has = x.n > 0;
+    const over = has && x.goal && x.t.k > x.goal;
+    const frac = has ? (x.goal ? Math.min(x.t.k / x.goal, 1) : 1) : 0;
+    const col = over ? 'var(--warn)' : 'var(--accent)';
+    const ring = has ? `<span class="hc-ring" style="background:conic-gradient(${col} ${Math.round(frac * 360)}deg, rgba(255,255,255,0.08) 0)"></span><span class="hc-in"></span>` : '<span class="hc-ring empty"></span>';
+    cells += `<button class="hc-d ${histSel && inSel(i) ? 'sel' : ''} ${x.fut ? 'fut' : ''} ${x.d === today ? 'today' : ''}" data-i="${i}" ${x.fut ? 'disabled' : ''} aria-label="${x.d}${has ? ', ' + r0(x.t.k) + ' kcal' : ''}">${ring}<span class="hc-n ${has ? '' : 'dim'}">${i + 1}</span></button>`;
+  });
+  const calCard = `<div class="card hc"><div class="hc-grid">${cells}</div>
+    <div class="hc-leg small muted"><span><i style="background:var(--accent)"></i>bis Ziel</span><span><i style="background:var(--warn)"></i>über Ziel</span><span><i class="e"></i>nicht getrackt</span></div></div>`;
+
+  // 2) Kalorien pro Tag mit Auswahlfenster
+  const max = Math.max(...mdays.map((x) => Math.max(x.goal || 0, x.t.k)), 1) * 1.1;
+  const W = 340, H = 170, pad = 22, bw = (W - pad) / nDays;
   const y = (v) => H - 18 - (v / max) * (H - 30);
-  const bars = days.map((x, i) => {
+  const bars = mdays.map((x, i) => {
     const h = (H - 18) - y(x.t.k);
-    const lbl = (histRange <= 14 || i % 5 === 0) ? `<text x="${pad + i * bw + bw / 2}" y="${H - 4}" text-anchor="middle">${new Date(x.d + 'T12:00:00').getDate()}</text>` : '';
-    return `<rect class="b ${x.goal && x.t.k > x.goal ? 'over' : ''}" x="${pad + i * bw + bw * 0.15}" y="${y(x.t.k)}" width="${bw * 0.7}" height="${Math.max(0, h)}" rx="2"></rect>${lbl}`;
+    const lbl = (i % 5 === 0 || i === nDays - 1) ? `<text x="${pad + i * bw + bw / 2}" y="${H - 4}" text-anchor="middle">${i + 1}</text>` : '';
+    return `<rect class="b ${x.goal && x.t.k > x.goal ? 'over' : ''}" style="opacity:${!histSel || inSel(i) ? 1 : 0.3}" x="${pad + i * bw + bw * 0.15}" y="${y(x.t.k)}" width="${bw * 0.7}" height="${Math.max(0, h)}" rx="2"></rect>${lbl}`;
   }).join('');
-  // Ziel-Linie als Treppe: jeder Tag mit seinem damals gültigen Ziel
   let path = '';
-  days.forEach((x, i) => {
+  mdays.forEach((x, i) => {
     if (!x.goal) return;
     const x0 = pad + i * bw, x1 = x0 + bw, yy = y(x.goal).toFixed(1);
-    const prevGoal = i > 0 ? days[i - 1].goal : null;
-    path += (prevGoal ? `L ${x0.toFixed(1)} ${yy} ` : `M ${x0.toFixed(1)} ${yy} `) + `L ${x1.toFixed(1)} ${yy} `;
+    path += (i > 0 && mdays[i - 1].goal ? `L ${x0.toFixed(1)} ${yy} ` : `M ${x0.toFixed(1)} ${yy} `) + `L ${x1.toFixed(1)} ${yy} `;
   });
-  const lastGoal = days[days.length - 1].goal;
-  const firstWithGoal = days.find((x) => x.goal);
-  const goalLine = path ? `<path class="goal" d="${path}" fill="none"></path>${firstWithGoal ? `<text x="0" y="${y(firstWithGoal.goal) + 3}">${r0(firstWithGoal.goal)}</text>` : ''}` : '';
-  const a = avg('k');
-  const goalChanges = new Set(days.map((x) => x.goal)).size > 1;
+  const fg = mdays.find((x) => x.goal);
+  const goalLine = path ? `<path class="goal" d="${path}" fill="none"></path>${fg ? `<text x="0" y="${y(fg.goal) + 3}">${r0(fg.goal)}</text>` : ''}` : '';
+  const pct = (v) => (v / W * 100).toFixed(2);
+  const brush = `<div class="hb" id="hBrush" style="left:${pct(pad + ia * bw)}%;width:${pct((ib - ia + 1) * bw)}%"><span class="hb-h l" data-h="l"></span><span class="hb-h r" data-h="r"></span></div>`;
+  const chips = [['Monat', null]];
+  const mk = (n) => ({ a: mdays[Math.max(0, endIdx - n + 1)].d, b: mdays[endIdx].d });
+  chips.push(['14 Tage', mk(14)], ['7 Tage', mk(7)]);
+  if (histMonth === curMonth) chips.push(['Heute', { a: today, b: today }]);
+  const same = (s) => (s === null ? histSel === null : histSel && histSel.a === s.a && histSel.b === s.b);
+  const chipHtml = chips.map(([t, s], i) => `<button class="hch ${same(s) ? 'active' : ''}" data-ch="${i}">${t}</button>`).join('');
+  const barCard = `<div class="card chart"><div class="spread"><h2 style="margin:0">Kalorien pro Tag</h2><span class="small muted">${selLabel}</span></div>
+    <div class="hch-row">${chipHtml}</div>
+    <div class="hb-wrap" id="hWrap"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Kalorien pro Tag">${goalLine}${bars}</svg>${brush}</div>
+    <p class="small muted" style="margin:6px 0 0">Ziehe die Griffe, um den Zeitraum zu ändern. Die Auswahl gilt für alle Werte darunter.</p></div>`;
 
+  // 3) Ø Makros im Zeitraum
+  const ep = avg('p') * 4, ec = avg('c') * 4, ef = avg('f') * 9, es = ep + ec + ef || 1;
+  const sh = (v) => Math.round(v / es * 100);
+  const macroCard = `<div class="card"><div class="spread"><h2 style="margin:0">Ø Makros</h2><span class="small muted">${tracked.length ? 'Anteil an der Energie' : 'keine Daten'}</span></div>
+    <div class="mbar"><span style="flex:${ep};background:var(--p)"></span><span style="flex:${ec};background:var(--c)"></span><span style="flex:${ef};background:var(--f)"></span></div>
+    <div class="mlab"><span style="color:var(--p)">Eiweiß ${r0(avg('p'))} g · ${tracked.length ? sh(ep) : 0} %</span><span style="color:var(--c)">KH ${r0(avg('c'))} g · ${tracked.length ? sh(ec) : 0} %</span><span style="color:var(--f)">Fett ${r0(avg('f'))} g · ${tracked.length ? sh(ef) : 0} %</span></div></div>`;
+
+  // 5) übrige Daten
+  const wd = sel.map((x) => waterOf(x.d)).filter((v) => v > 0);
+  const goalChanges = new Set(sel.map((x) => x.goal)).size > 1;
+  const otherCard = `<div class="card">
+    <div class="spread"><h2 style="margin:0">Weitere Werte</h2><span class="small muted">${selLabel}</span></div>
+    <div class="spread" style="margin-top:8px"><span class="muted">Ø kcal an getrackten Tagen</span><strong>${r0(avg('k'))} kcal</strong></div>
+    <div class="spread"><span class="muted">Getrackte Tage</span><strong>${tracked.length} / ${sel.length}</strong></div>
+    ${withGoal.length ? `<div class="spread"><span class="muted">Ø Differenz zum Ziel</span><strong>${avgDiff > 0 ? '+' : ''}${r0(avgDiff)} kcal</strong></div>` : ''}
+    <div class="spread"><span class="muted">Ø Ballaststoffe / Zucker</span><strong>${r0(avg('fi'))} / ${r0(avg('su'))} g</strong></div>
+    ${state.water.enabled ? `<div class="spread"><span class="muted">Ø Wasser (an ${wd.length} Tagen erfasst)</span><strong>${wd.length ? litres(wd.reduce((a, b) => a + b, 0) / wd.length) + ' l' : '–'}</strong></div>` : ''}
+    <p class="small muted" style="margin-top:8px">Nicht getrackte Tage fließen nicht in den Durchschnitt ein. Ein Tag mit wenig Einträgen ist nicht unbedingt ein Tag mit wenig Essen.${goalChanges ? ' Die Differenz zum Ziel nutzt für jeden Tag das damals gültige Ziel.' : ''}</p></div>`;
+
+  const cDays = sel.map((x) => x.d);
+  const nextOff = histMonth >= curMonth;
   $('#view').innerHTML = `
-    <h1>Verlauf</h1>
-    <div class="seg three" id="rangeSeg"><button data-r="7">7 Tage</button><button data-r="14">14 Tage</button><button data-r="30">30 Tage</button></div>
-    <div class="card chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Kalorien pro Tag">${goalLine}${bars}</svg></div>
-    <div class="card">
-      <div class="spread"><span class="muted">Ø kcal an getrackten Tagen</span><strong>${r0(a)} kcal</strong></div>
-      <div class="spread"><span class="muted">Getrackte Tage</span><strong>${tracked.length} / ${histRange}</strong></div>
-      ${lastGoal || withGoal.length ? `<div class="spread"><span class="muted">Ø Differenz zum Ziel</span><strong>${avgDiff != null ? (avgDiff > 0 ? '+' : '') + r0(avgDiff) + ' kcal' : '–'}</strong></div>` : ''}
-      <div class="spread"><span class="muted">Ø Eiweiß / KH / Fett</span><strong>${r0(avg('p'))} / ${r0(avg('c'))} / ${r0(avg('f'))} g</strong></div>
-      <div class="spread"><span class="muted">Ø Ballaststoffe / Zucker</span><strong>${r0(avg('fi'))} / ${r0(avg('su'))} g</strong></div>
-      ${state.water.enabled ? (() => { const wd = days.map((x) => waterOf(x.d)).filter((v) => v > 0); return `<div class="spread"><span class="muted">Ø Wasser (an ${wd.length} Tagen erfasst)</span><strong>${wd.length ? litres(wd.reduce((a, b) => a + b, 0) / wd.length) + ' l' : '–'}</strong></div>`; })() : ''}
-      <p class="small muted" style="margin-top:8px">Nicht getrackte Tage fließen nicht in den Durchschnitt ein. Ein Tag mit wenig Einträgen ist nicht unbedingt ein Tag mit wenig Essen.${goalChanges ? ' Die Differenz zum Ziel nutzt für jeden Tag das damals gültige Ziel.' : ''}</p>
-    </div>
-    ${caffHistoryHtml(days.map((x) => x.d), histRange)}`;
-  caffHistoryBind(days.map((x) => x.d), histRange, () => { const y = window.scrollY; renderHistory(); window.scrollTo(0, y); });
-  $('#rangeSeg').querySelectorAll('button').forEach((b) => {
-    b.classList.toggle('active', +b.dataset.r === histRange);
-    b.onclick = () => { histRange = +b.dataset.r; renderHistory(); };
+    <div class="spread hm-head"><h1 style="margin:0">Verlauf</h1>
+      <div class="hm-nav"><button class="hm-b" id="hmPrev" aria-label="Vorheriger Monat">‹</button><span class="hm-t">${HIST_MON[M - 1]} ${Y}</span><button class="hm-b" id="hmNext" aria-label="Nächster Monat" ${nextOff ? 'disabled' : ''}>›</button></div></div>
+    ${calCard}${barCard}${macroCard}${cDays.length ? caffHistoryHtml(cDays, cDays.length >= 15 ? 30 : 7) : ''}${otherCard}`;
+  caffHistoryBind(cDays, cDays.length >= 15 ? 30 : 7, () => { const sy = window.scrollY; renderHistory(); window.scrollTo(0, sy); });
+
+  const rerender = () => { const sy = window.scrollY; renderHistory(); window.scrollTo(0, sy); };
+  $('#hmPrev').onclick = () => { const d = new Date(Y, M - 2, 1); histMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; histSel = null; histPick = false; renderHistory(); };
+  $('#hmNext').onclick = () => { const d = new Date(Y, M, 1); histMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; histSel = null; histPick = false; renderHistory(); };
+  document.querySelectorAll('.hc-d').forEach((b) => b.onclick = () => {
+    const i = +b.dataset.i, d = mdays[i].d;
+    if (histPick && histSel) { const a = histSel.a; histSel = a <= d ? { a, b: d } : { a: d, b: a }; histPick = false; }
+    else { histSel = { a: d, b: d }; histPick = true; }
+    rerender();
   });
+  document.querySelectorAll('.hch').forEach((b) => b.onclick = () => { const c = chips[+b.dataset.ch][1]; histSel = c; histPick = false; rerender(); });
+  // Auswahlfenster ziehen
+  const wrap = $('#hWrap'), br = $('#hBrush');
+  const idxAt = (cx) => { const r = wrap.getBoundingClientRect(); const x = (cx - r.left) / r.width * W; return Math.max(0, Math.min(nDays - 1, Math.floor((x - pad) / bw))); };
+  br.querySelectorAll('.hb-h').forEach((h) => {
+    h.onpointerdown = (e) => {
+      e.preventDefault(); e.stopPropagation(); h.setPointerCapture(e.pointerId);
+      let a = ia, b = ib; const side = h.dataset.h;
+      const paint = () => { br.style.left = pct(pad + a * bw) + '%'; br.style.width = pct((b - a + 1) * bw) + '%'; };
+      h.onpointermove = (ev) => { const i = idxAt(ev.clientX); if (side === 'l') a = Math.min(i, b); else b = Math.max(i, a); paint(); };
+      h.onpointerup = h.onpointercancel = () => { h.onpointermove = h.onpointerup = h.onpointercancel = null; histSel = (a === 0 && b === nDays - 1) ? null : { a: mdays[a].d, b: mdays[b].d }; histPick = false; rerender(); };
+    };
+  });
+  br.onpointerdown = (e) => {
+    if (e.target.classList.contains('hb-h')) return;
+    e.preventDefault(); br.setPointerCapture(e.pointerId);
+    const len = ib - ia, start = idxAt(e.clientX); let a = ia, b = ib;
+    br.onpointermove = (ev) => { a = Math.max(0, Math.min(nDays - 1 - len, ia + idxAt(ev.clientX) - start)); b = a + len; br.style.left = pct(pad + a * bw) + '%'; };
+    br.onpointerup = br.onpointercancel = () => { br.onpointermove = br.onpointerup = br.onpointercancel = null; histSel = (a === 0 && b === nDays - 1) ? null : { a: mdays[a].d, b: mdays[b].d }; histPick = false; rerender(); };
+  };
 }
 
 /* ---------- Einstellungen ---------- */
