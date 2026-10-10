@@ -197,3 +197,17 @@ h2.sec { margin: 18px 0 4px; font-size: 0.85rem; font-weight: 600; color: var(--
 .list.goals li { cursor: default; align-items: center; }
 .list.goals .rm { color: var(--warn); padding: 6px; min-height: 44px; }
 input[type=date] { min-height: 48px; -webkit-appearance: none; appearance: none; }
+
+/* Makro-Presets */
+.seg button { padding-left: 2px; padding-right: 2px; }
+.macro-preview { margin: 10px 0 4px; padding: 10px; background: transparent; }
+.macro-preview .tiles { margin-top: 0; }
+.macro-preview .lbl:last-child { font-size: 0.68rem; }
+.warn { color: var(--warn); margin: 8px 0 0; }
+details.why { margin: 6px 0 2px; border: 1px solid var(--line); border-radius: 14px; padding: 0 12px; }
+details.why summary { cursor: pointer; padding: 12px 0; color: var(--accent); font-size: 0.85rem; min-height: 44px; box-sizing: border-box; }
+details.why[open] { padding-bottom: 10px; }
+ul.refs { margin: 6px 0 8px; padding-left: 16px; font-size: 0.74rem; color: var(--muted); }
+ul.refs li { margin-bottom: 6px; }
+ul.refs a { color: var(--accent); word-break: break-all; }
+#presetSeg { grid-template-columns: repeat(2, minmax(0, 1fr)); }

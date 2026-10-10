@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.5.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -23,7 +23,59 @@ function emptyState() {
     days: {}, custom: [], recent: [], favs: [], offCache: {}, lastBackup: null,
   };
 }
-const GOAL_KEYS = ['goal', 'protein', 'carbs', 'fat', 'fiber', 'sugar'];
+const GOAL_KEYS = ['goal', 'protein', 'carbs', 'fat', 'fiber', 'sugar', 'weight', 'preset', 'pf', 'ff'];
+
+/* ---------- Makro-Presets ----------
+   Eiweiß und Fett = Faktor (g/kg Körpergewicht) × Gewicht, Kohlenhydrate = verbleibende Energie / 4.
+   Energiefaktoren: 4 kcal/g Eiweiß und KH, 9 kcal/g Fett (Atwater). fatRange = empfohlener Fettanteil in % der Energie,
+   gegen den die App das Ergebnis prüft (Fett wird in der Literatur meist in % der Energie angegeben, nicht in g/kg). */
+const PRESETS = {
+  dge: {
+    label: 'Ausgewogen', long: 'Ausgewogene Mischkost (DGE)', pf: 0.8, ff: 1.0, fatRange: [30, 35],
+    why: 'Eiweiß 0,8 g/kg ist die DGE-Empfehlung für Erwachsene von 19 bis unter 65 Jahren (ab 65: 1,0 g/kg). Fett: DGE-Richtwert 30 % der Energie, bei hoher Aktivität bis 35 %.',
+    refs: ['dgeProtein', 'dgeFat'],
+  },
+  muscle: {
+    label: 'Muskelaufbau', long: 'Muskelaufbau / Krafttraining', pf: 1.6, ff: 1.0, fatRange: [20, 35],
+    why: 'Meta-Analyse aus 49 RCTs: Über ca. 1,6 g/kg/Tag (95-%-KI 1,03–2,20) kein weiterer Zuwachs an fettfreier Masse durch Krafttraining. Die ISSN nennt 1,4–2,0 g/kg. Fett: 20–35 % der Energie (ACSM/AND/DC).',
+    refs: ['morton', 'issn', 'acsm'],
+  },
+  cut: {
+    label: 'Fettabbau', long: 'Fettabbau im Kaloriendefizit', pf: 2.2, ff: 0.8, fatRange: [15, 30],
+    why: 'Im Defizit steigt der Eiweißbedarf, um Muskelmasse zu erhalten: 2,3–3,1 g/kg fettfreie Masse bei trainierten, schlanken Personen (≈ 2,0–2,6 g/kg Körpergewicht). Im RCT führten 2,4 g/kg zu mehr Magermasse und mehr Fettverlust als 1,2 g/kg. Fett: 15–30 % der Energie. Das Kalorienziel muss dafür unter dem Bedarf liegen (Ziel: 0,5–1 % Körpergewicht pro Woche).',
+    refs: ['helms2014', 'longland', 'helmsPrep'],
+  },
+  custom: { label: 'Eigene', long: 'Eigene Faktoren', pf: null, ff: null, fatRange: [20, 35], why: 'Eigene Faktoren. Die Prüfung des Fettanteils nutzt den allgemeinen Bereich von 20–35 % der Energie (ACSM/AND/DC).', refs: ['acsm'] },
+};
+const REFS = {
+  morton: { text: 'Morton RW et al. (2018). A systematic review, meta-analysis and meta-regression of the effect of protein supplementation on resistance training-induced gains in muscle mass and strength in healthy adults. Br J Sports Med 52(6):376–384.', doi: '10.1136/bjsports-2017-097608' },
+  issn: { text: 'Jäger R et al. (2017). International Society of Sports Nutrition Position Stand: protein and exercise. J Int Soc Sports Nutr 14:20.', doi: '10.1186/s12970-017-0177-8' },
+  acsm: { text: 'Thomas DT, Erdman KA, Burke LM (2016). American College of Sports Medicine Joint Position Statement: Nutrition and Athletic Performance. Med Sci Sports Exerc 48(3):543–568.', doi: '10.1249/MSS.0000000000000852' },
+  helms2014: { text: 'Helms ER et al. (2014). A systematic review of dietary protein during caloric restriction in resistance trained lean athletes: a case for higher intakes. Int J Sport Nutr Exerc Metab 24(2):127–138.', doi: '10.1123/ijsnem.2013-0054' },
+  longland: { text: 'Longland TM et al. (2016). Higher compared with lower dietary protein during an energy deficit combined with intense exercise promotes greater lean mass gain and fat mass loss: a randomized trial. Am J Clin Nutr 103(3):738–746.', doi: '10.3945/ajcn.115.119339' },
+  helmsPrep: { text: 'Helms ER, Aragon AA, Fitschen PJ (2014). Evidence-based recommendations for natural bodybuilding contest preparation: nutrition and supplementation. J Int Soc Sports Nutr 11:20.', doi: '10.1186/1550-2783-11-20' },
+  dgeProtein: { text: 'Deutsche Gesellschaft für Ernährung (2017). Referenzwerte für die Proteinzufuhr – Pressemeldung 08/2017. Bonn.', url: 'https://www.dge.de/fileadmin/dok/presse/meldungen/2011-2018/DGE-Pressemeldung-aktuell-08-2017-Referenzwert-Protein.pdf' },
+  dgeFat: { text: 'Deutsche Gesellschaft für Ernährung (2011). DGE-Position: Richtwerte für die Energiezufuhr aus Kohlenhydraten und Fett. Bonn.', url: 'https://www.dge.de/fileadmin/dok/wissenschaft/positionen/DGE-Positionspapier-Richtwerte-Energiezufuhr-KH-und-Fett.pdf' },
+};
+function refHtml(key) {
+  const r = REFS[key];
+  const href = r.doi ? `https://doi.org/${r.doi}` : r.url;
+  return `<li>${esc(r.text)} <a href="${href}" target="_blank" rel="noopener">${r.doi ? 'doi:' + esc(r.doi) : 'PDF'}</a></li>`;
+}
+function calcMacros(kcal, weight, pf, ff) {
+  if (!weight || pf == null || ff == null) return null;
+  const protein = Math.round(pf * weight);
+  const fat = Math.round(ff * weight);
+  const carbsRaw = kcal ? (kcal - protein * 4 - fat * 9) / 4 : null;
+  return {
+    protein, fat,
+    carbs: carbsRaw == null ? null : Math.max(0, Math.round(carbsRaw)),
+    carbsNegative: carbsRaw != null && carbsRaw < 0,
+    pctP: kcal ? (protein * 4 / kcal) * 100 : null,
+    pctF: kcal ? (fat * 9 / kcal) * 100 : null,
+    pctC: kcal && carbsRaw != null ? (Math.max(0, carbsRaw) * 4 / kcal) * 100 : null,
+  };
+}
 function normalizeState(data) {
   const s = Object.assign(emptyState(), data);
   s.settings = Object.assign(emptyState().settings, data.settings || {});
@@ -778,21 +830,24 @@ function renderSettings() {
     <div class="card">
       <h2>Tagesziel</h2>
       <label for="sGoal">Kalorien pro Tag (kcal)</label><input id="sGoal" inputmode="decimal" value="${s.goal ?? ''}" placeholder="z. B. Tagesbedarf aus Garmin">
-      <p class="small muted" style="margin-top:6px">Optional: Ziele in Gramm</p>
+      <label for="sW">Körpergewicht (kg)</label><input id="sW" inputmode="decimal" value="${s.weight != null ? r1(s.weight) : ''}" placeholder="z. B. 80">
+      <label>Ernährungsziel</label>
+      <div class="seg" id="presetSeg">${Object.entries(PRESETS).map(([k, p]) => `<button type="button" data-preset="${k}">${p.label}</button>`).join('')}</div>
       <div class="row">
-        <div><label for="sP">Eiweiß</label><input id="sP" inputmode="decimal" value="${s.protein ?? ''}"></div>
-        <div><label for="sC">KH</label><input id="sC" inputmode="decimal" value="${s.carbs ?? ''}"></div>
-        <div><label for="sF">Fett</label><input id="sF" inputmode="decimal" value="${s.fat ?? ''}"></div>
+        <div><label for="sPf">Eiweiß (g/kg)</label><input id="sPf" inputmode="decimal"></div>
+        <div><label for="sFf">Fett (g/kg)</label><input id="sFf" inputmode="decimal"></div>
       </div>
+      <div class="card macro-preview" id="macroPreview"></div>
+      <details class="why"><summary>Warum diese Werte? Quellen</summary><div id="presetWhy"></div></details>
       <div class="row">
-        <div><label for="sFi">Ballaststoffe</label><input id="sFi" inputmode="decimal" value="${s.fiber ?? ''}"></div>
-        <div><label for="sSu">Zucker (max.)</label><input id="sSu" inputmode="decimal" value="${s.sugar ?? ''}"></div>
+        <div><label for="sFi">Ballaststoffe (g)</label><input id="sFi" inputmode="decimal" value="${s.fiber ?? ''}" placeholder="DGE: mind. 30"></div>
+        <div><label for="sSu">Zucker max. (g)</label><input id="sSu" inputmode="decimal" value="${s.sugar ?? ''}"></div>
       </div>
       <label for="sFrom">Gültig ab</label><input id="sFrom" type="date" value="${today}" max="${addDays(today, 365)}">
       <p class="small muted" style="margin-top:6px">Frühere Tage behalten ihr damaliges Ziel.</p>
       <div style="height:6px"></div>
       <button class="btn block" id="sSave">Speichern</button>
-      ${hist.length ? `<h2 class="sec">Verlauf der Ziele</h2><ul class="list goals">${hist.map((h) => `<li><div>ab ${fmtD(h.from)}${h.from <= today && goalsFor(today) === h ? '<span class="tag">aktuell</span>' : ''}<div class="meta">${h.goal ? `${r0(h.goal).toLocaleString('de-DE')} kcal` : 'kein kcal-Ziel'}${[['protein', 'Eiweiß'], ['carbs', 'KH'], ['fat', 'Fett'], ['fiber', 'Ballastst.'], ['sugar', 'Zucker max.']].filter(([k]) => h[k]).map(([k, l]) => ` · ${l} ${r0(h[k])} g`).join('')}</div></div>
+      ${hist.length ? `<h2 class="sec">Verlauf der Ziele</h2><ul class="list goals">${hist.map((h) => `<li><div>ab ${fmtD(h.from)}${h.from <= today && goalsFor(today) === h ? '<span class="tag">aktuell</span>' : ''}<div class="meta">${h.goal ? `${r0(h.goal).toLocaleString('de-DE')} kcal` : 'kein kcal-Ziel'}${h.preset && PRESETS[h.preset] ? ` · ${PRESETS[h.preset].label}` : ''}${h.weight ? ` · ${r1(h.weight)} kg` : ''}${[['protein', 'Eiweiß'], ['carbs', 'KH'], ['fat', 'Fett'], ['fiber', 'Ballastst.'], ['sugar', 'Zucker max.']].filter(([k]) => h[k]).map(([k, l]) => ` · ${l} ${r0(h[k])} g`).join('')}</div></div>
         ${hist.length > 1 ? `<button class="btn ghost rm" data-delgoal="${h.from}" aria-label="Ziel ab ${fmtD(h.from)} löschen">✕</button>` : ''}</li>`).join('')}</ul>` : ''}
     </div>
     <div class="card">
@@ -811,15 +866,65 @@ function renderSettings() {
       <p>Barcode-Daten: <a href="https://world.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a>, Datenbank unter der
         <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">Open Database License (ODbL)</a>,
         Inhalte unter der Database Contents License (DbCL). Werte von Open Food Facts stammen von Freiwilligen – bitte mit der Verpackung abgleichen.</p>
-      <p>Barcode-Erkennung: ZXing (Apache-2.0).</p>
+      <p>Barcode-Erkennung: ZXing (Apache-2.0). Schrift: Sora (SIL OFL 1.1).</p>
+      <p style="margin-top:10px"><strong style="color:var(--ink)">Makro-Presets</strong></p>
+      <ul class="refs">${Object.keys(REFS).map(refHtml).join('')}</ul>
       <p>Version ${APP_VERSION}</p>
     </div>`;
+
+  let preset = s.preset && PRESETS[s.preset] ? s.preset : 'dge';
+  const pfIn = $('#sPf'), ffIn = $('#sFf');
+  pfIn.value = r1(s.pf ?? PRESETS[preset].pf ?? PRESETS.dge.pf);
+  ffIn.value = r1(s.ff ?? PRESETS[preset].ff ?? PRESETS.dge.ff);
+  const pct = (x) => `${r0(x)} %`;
+  const showPreset = () => {
+    document.querySelectorAll('#presetSeg button').forEach((b) => b.classList.toggle('active', b.dataset.preset === preset));
+    const P = PRESETS[preset];
+    $('#presetWhy').innerHTML = `<p class="small">${esc(P.why)}</p><ul class="refs">${P.refs.map(refHtml).join('')}</ul>
+      <p class="small muted">Hinweis: Die Faktoren beziehen sich auf das Körpergewicht. Bei höherem Körperfettanteil überschätzt das den Eiweißbedarf; dann eher das Zielgewicht eintragen.</p>`;
+  };
+  const preview = () => {
+    const kcal = num($('#sGoal').value), w = num($('#sW').value), pf = num(pfIn.value), ff = num(ffIn.value);
+    const m = calcMacros(kcal, w, pf, ff);
+    const box = $('#macroPreview');
+    if (!m) { box.innerHTML = '<p class="small muted" style="margin:0">Körpergewicht eintragen, dann werden Eiweiß, Fett und Kohlenhydrate berechnet.</p>'; return; }
+    const [lo, hi] = PRESETS[preset].fatRange;
+    const fatOk = m.pctF == null || (m.pctF >= lo - 0.5 && m.pctF <= hi + 0.5);
+    box.innerHTML = `<div class="tiles">
+        <div class="tile p"><div class="lbl">Eiweiß</div><div class="val">${m.protein} <span>g</span></div><div class="lbl">${m.pctP != null ? pct(m.pctP) + ' der kcal' : ''}</div></div>
+        <div class="tile c"><div class="lbl">Kohlenhydr.</div><div class="val">${m.carbs ?? '–'} <span>g</span></div><div class="lbl">${m.pctC != null ? pct(m.pctC) + ' der kcal' : 'kcal fehlt'}</div></div>
+        <div class="tile f"><div class="lbl">Fett</div><div class="val">${m.fat} <span>g</span></div><div class="lbl">${m.pctF != null ? pct(m.pctF) + ' der kcal' : ''}</div></div>
+      </div>
+      ${m.carbsNegative ? '<p class="small warn">Eiweiß und Fett liefern schon mehr Energie als das Kalorienziel – Faktoren oder Kalorienziel prüfen.</p>' : ''}
+      ${!fatOk ? `<p class="small warn">Fettanteil ${pct(m.pctF)} liegt außerhalb der Empfehlung für dieses Ziel (${lo}–${hi} % der Energie).</p>` : ''}
+      ${preset === 'cut' ? '<p class="small muted">Für Fettabbau muss das Kalorienziel unter deinem Bedarf liegen – die Presets ändern nur die Makro-Verteilung, nicht die Kalorien.</p>' : ''}`;
+  };
+  document.querySelectorAll('#presetSeg button').forEach((b) => b.onclick = () => {
+    preset = b.dataset.preset;
+    const P = PRESETS[preset];
+    if (P.pf != null) { pfIn.value = r1(P.pf); ffIn.value = r1(P.ff); }
+    showPreset(); preview();
+  });
+  const toCustom = () => {
+    const P = PRESETS[preset];
+    if (preset !== 'custom' && (num(pfIn.value) !== P.pf || num(ffIn.value) !== P.ff)) { preset = 'custom'; showPreset(); }
+    preview();
+  };
+  pfIn.oninput = toCustom; ffIn.oninput = toCustom;
+  $('#sGoal').oninput = preview; $('#sW').oninput = preview;
+  showPreset(); preview();
 
   $('#sSave').onclick = () => {
     const goal = num($('#sGoal').value);
     if (goal != null && (goal < 500 || goal > 10000)) { toast('Bitte einen Wert zwischen 500 und 10.000 kcal eingeben.'); return; }
+    const weight = num($('#sW').value);
+    if (weight != null && (weight < 30 || weight > 300)) { toast('Bitte ein Gewicht zwischen 30 und 300 kg eingeben.'); return; }
+    const pf = num(pfIn.value), ff = num(ffIn.value);
+    if ((pf != null && (pf < 0 || pf > 4)) || (ff != null && (ff < 0 || ff > 3))) { toast('Faktoren bitte prüfen (Eiweiß 0–4, Fett 0–3 g/kg).'); return; }
+    const m = calcMacros(goal, weight, pf, ff);
+    if (m && m.carbsNegative) { toast('Eiweiß und Fett übersteigen das Kalorienziel.'); return; }
     const from = $('#sFrom').value || today;
-    const entry = { from, goal, protein: num($('#sP').value), carbs: num($('#sC').value), fat: num($('#sF').value), fiber: num($('#sFi').value), sugar: num($('#sSu').value) };
+    const entry = { from, goal, weight, preset, pf, ff, protein: m ? m.protein : null, carbs: m ? m.carbs : null, fat: m ? m.fat : null, fiber: num($('#sFi').value), sugar: num($('#sSu').value) };
     const prev = goalsFor(from);
     if (state.goalHistory.length && GOAL_KEYS.every((k) => (prev[k] ?? null) === (entry[k] ?? null))) { toast('Keine Änderung'); return; }
     state.goalHistory = state.goalHistory.filter((h) => h.from !== from).concat([entry]).sort((a, b) => a.from.localeCompare(b.from));
