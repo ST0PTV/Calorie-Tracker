@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.15.3';
+const APP_VERSION = '1.16.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -26,6 +26,8 @@ function emptyState() {
     sugRatings: {}, // Bewertung je Lebensmittel-ID: -3 … +3; ab -2 nicht mehr vorgeschlagen
     water: { enabled: true, goal: 1500, log: {} }, // log: { 'JJJJ-MM-TT': [ml, ml, …] }
     supp: SUPP_DEFAULTS(),
+    timeline: TL_DEFAULTS(),
+    profile: { weight: null },
     caffeine: CAFF_DEFAULTS(), // log: { 'JJJJ-MM-TT': [{ id, min (Minuten seit 0 Uhr), mg, n, dur (Minuten) }] }
   };
 }
@@ -93,6 +95,8 @@ function normalizeState(data) {
   s.water = Object.assign(emptyState().water, data.water || {});
   if (!s.water.log || typeof s.water.log !== 'object') s.water.log = {};
   s.supp = suppNormalize(data.supp);
+  s.timeline = tlNormalize(data.timeline);
+  s.profile = Object.assign({ weight: null }, data.profile || {});
   s.caffeine = Object.assign(CAFF_DEFAULTS(), data.caffeine || {});
   if (!s.caffeine.log || typeof s.caffeine.log !== 'object') s.caffeine.log = {};
   // Übernahme aus Versionen ohne Ziel-Historie: bisheriges Ziel gilt ab dem ersten Tagebuch-Tag
@@ -102,6 +106,7 @@ function normalizeState(data) {
     s.goalHistory = [entry];
   }
   s.goalHistory.sort((a, b) => a.from.localeCompare(b.from));
+  if (s.profile.weight == null) { const wh = s.goalHistory.slice().reverse().find((h) => h.weight); if (wh) s.profile.weight = wh.weight; }
   return s;
 }
 // Ziele, die an einem Tag galten. Tage vor dem ersten Eintrag nutzen das erste Ziel.
@@ -247,10 +252,13 @@ document.querySelectorAll('.tabbar button').forEach((b) => b.addEventListener('c
 }));
 function goTab(t) { tab = t; render(); }
 function render() {
+  if (tab === 'timeline' && !state.timeline.enabled) tab = 'diary';
+  tlTabbar();
   document.body.classList.toggle('in-settings', tab === 'settings');
   document.querySelectorAll('.tabbar button').forEach((x) => x.classList.toggle('active', x.dataset.tab === tab));
   if (tab === 'diary') renderDiary();
   else if (tab === 'history') renderHistory();
+  else if (tab === 'timeline') renderTimeline();
   else renderSettings();
   window.scrollTo(0, 0);
 }
@@ -355,11 +363,12 @@ function renderDiary() {
           <h2>${m.label}${list.length ? `<span class="chev">${open ? '▴' : '▾'}</span>` : ''}</h2>
           <div class="sub">${sub}</div>
         </button>
+        ${list.length && state.timeline.enabled ? `<button class="mtime ${(state.timeline.times[currentDate] || {})[m.id] ? 'set' : ''}" data-mtime="${m.id}" aria-label="Uhrzeit ${m.label}">${tlHM(tlMealTime(currentDate, m.id).h)}</button>` : ''}
         <button class="add-btn ${list.length ? '' : 'primary'}" data-add="${m.id}" aria-label="${m.label} hinzufügen">+</button>
       </div>
       ${open && list.length ? `<div class="entries">${list.map((e) => `<div class="entry" data-entry="${e.id}">
         <div class="name">${esc(e.n)}<div class="small muted">${e.quick ? 'Schnelleintrag' : `${r1(e.grams)} ${unitOf(e)}`}</div></div>
-        <div class="kcal">${de(entryTotals(e).k)} kcal</div></div>`).join('')}</div>` : ''}
+        <div class="kcal">${de(entryTotals(e).k)} kcal${e.t ? `<div class="small etime">${esc(e.t)}</div>` : ''}</div></div>`).join('')}</div>` : ''}
       ${!list.length && prevMeal.length ? `<button class="btn ghost copy" data-copy="${m.id}">↺ Wie am Vortag (${de(prevMeal.reduce((a, e) => a + entryTotals(e).k, 0))} kcal)</button>` : ''}
     </div>`;
   }
@@ -381,6 +390,7 @@ function renderDiary() {
     const id = b.dataset.toggle; if (openMeals.has(id)) openMeals.delete(id); else openMeals.add(id);
     const y = window.scrollY; renderDiary(); window.scrollTo(0, y);
   });
+  v.querySelectorAll('[data-mtime]').forEach((b) => b.onclick = () => tlTimeSheet(currentDate, b.dataset.mtime, () => { const y = window.scrollY; renderDiary(); window.scrollTo(0, y); }));
   v.querySelectorAll('[data-add]').forEach((b) => b.onclick = () => { openMeals.add(b.dataset.add); openAdd(b.dataset.add); });
   v.querySelectorAll('[data-copy]').forEach((b) => b.onclick = () => { const n = copyEntries(prev, b.dataset.copy); openMeals.add(b.dataset.copy); toast(`${n} übernommen`); renderDiary(); });
   const cd = $('#copyDay'); if (cd) cd.onclick = () => { const n = copyEntries(prev, null); toast(`${n} Einträge übernommen`); renderDiary(); };
@@ -923,6 +933,7 @@ function openAmount(food, opts = {}) {
     <div class="nutri" id="nutri"></div>
     <label for="meal">Mahlzeit</label>
     <select id="meal">${MEALS.map((m) => `<option value="${m.id}" ${m.id === mealSel ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
+    ${state.timeline.enabled ? `<label for="eTime">Eigene Uhrzeit (optional)</label><input id="eTime" type="time" value="${edit && food.t ? esc(food.t) : ''}"><p class="small muted" style="margin-top:4px">Leer lassen = Uhrzeit der Mahlzeit.</p>` : ''}
     <div style="height:14px"></div>
     <button class="btn block" id="save">${edit ? 'Speichern' : 'Hinzufügen'}</button>
     ${edit ? '<div style="height:10px"></div><button class="btn danger block" id="del">Eintrag löschen</button>' : ''}
@@ -964,9 +975,10 @@ function openAmount(food, opts = {}) {
     const meal = $('#meal').value;
     if (edit) {
       const e = (state.days[currentDate] || []).find((x) => x.id === food.id);
-      if (e) { e.grams = grams; e.meal = meal; }
+      if (e) { e.grams = grams; e.meal = meal; const tv = $('#eTime') && $('#eTime').value; if (tv) e.t = tv; else delete e.t; }
     } else {
       const entry = Object.assign({ id: uid(), meal, grams, ref: foodId, src: food.src, n: food.n, brand: food.brand || '', liq: isLiq(food) }, nutrientsOf(food));
+      const tv = $('#eTime') && $('#eTime').value; if (tv) entry.t = tv;
       (state.days[currentDate] = state.days[currentDate] || []).push(entry);
       state.recent = [Object.assign(foodSnap(food), { lastGrams: grams })].concat(state.recent.filter((x) => x.id !== foodId)).slice(0, 60);
     }
@@ -998,6 +1010,7 @@ function openQuick(meal, entry) {
     </div>
     <label for="qMeal">Mahlzeit</label>
     <select id="qMeal">${MEALS.map((m) => `<option value="${m.id}" ${m.id === (e.meal || meal) ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
+    ${state.timeline.enabled ? `<label for="qT">Eigene Uhrzeit (optional)</label><input id="qT" type="time" value="${e.t ? esc(e.t) : ''}">` : ''}
     <div style="height:14px"></div>
     <button class="btn block" id="qSave">${entry ? 'Speichern' : 'Hinzufügen'}</button>
     ${entry ? '<div style="height:10px"></div><button class="btn danger block" id="qDel">Eintrag löschen</button>' : ''}`);
@@ -1008,6 +1021,7 @@ function openQuick(meal, entry) {
     if (k == null || k < 0) { toast('Bitte Kalorien eingeben.'); return; }
     // Schnelleinträge werden als „100 g“ mit Absolutwerten gespeichert, damit die Rechnung einheitlich bleibt.
     const vals = { quick: true, grams: 100, n: $('#qN').value.trim() || 'Schnelleintrag', k, p: num($('#qP').value) || 0, c: num($('#qC').value) || 0, f: num($('#qF').value) || 0, fi: 0, su: 0, meal: $('#qMeal').value, src: 'quick' };
+    const qt = $('#qT') && $('#qT').value; if (qt) vals.t = qt; else if (entry) { const ex = (state.days[currentDate] || []).find((x) => x.id === entry.id); if (ex) delete ex.t; }
     if (entry) Object.assign((state.days[currentDate] || []).find((x) => x.id === entry.id) || {}, vals);
     else (state.days[currentDate] = state.days[currentDate] || []).push(Object.assign({ id: uid() }, vals));
     save(); toast(entry ? 'Gespeichert' : 'Hinzugefügt'); back();
@@ -1428,6 +1442,8 @@ const SET_ICONS = {
   'Wasser': ['#7AB8FF', '<path d="M12 3s6 6.2 6 10.5A6 6 0 0 1 6 13.5C6 9.2 12 3 12 3z"/>'],
   'Supplements': ['#6FE0C1', '<g transform="rotate(-35 12 12)"><rect x="3" y="7.5" width="18" height="9" rx="4.5"/><path d="M12 7.5v9"/></g>'],
   'Koffein': ['#E2B36B', '<path d="M5 9h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5V9z"/><path d="M16 10h1.5a2.5 2.5 0 0 1 0 5H16"/><path d="M9 3v3M12.5 3v3"/>'],
+  'Timeline': ['#5BE7F5', '<path d="M4 12h16"/><circle cx="7" cy="12" r="2"/><circle cx="13" cy="12" r="2"/><path d="M17 8v8"/>'],
+  'Schlaf & Körper': ['#B9A6FF', '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>'],
   'Abend-Vorschläge': ['#B9A6FF', '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>'],
   'Ernährung & Allergien': ['#6FE0C1', '<path d="M5 19c0-8 5-13 14-14 0 9-5 14-14 14z"/><path d="M5 19l8-8"/>'],
 };
@@ -1462,7 +1478,7 @@ function renderSettingsInner() {
     <div class="card">
       <h2>Tagesziel</h2>
       <label for="sGoal">Kalorien pro Tag (kcal)</label><input id="sGoal" inputmode="decimal" value="${s.goal ?? ''}" placeholder="z. B. Tagesbedarf aus Garmin">
-      <label for="sW">Körpergewicht (kg)</label><input id="sW" inputmode="decimal" value="${s.weight != null ? r1(s.weight) : ''}" placeholder="z. B. 80">
+      <label for="sW">Körpergewicht (kg)</label><input id="sW" inputmode="decimal" value="${s.weight != null ? r1(s.weight) : (state.profile.weight != null ? r1(state.profile.weight) : '')}" placeholder="z. B. 80">
       <label>Ernährungsziel</label>
       <div class="seg" id="presetSeg">${Object.entries(PRESETS).map(([k, p]) => `<button type="button" data-preset="${k}">${p.label}</button>`).join('')}</div>
       <div class="row">
@@ -1482,6 +1498,7 @@ function renderSettingsInner() {
       ${hist.length ? `<h2 class="sec">Verlauf der Ziele</h2><ul class="list goals">${hist.map((h) => `<li><div>ab ${fmtD(h.from)}${h.from <= today && goalsFor(today) === h ? '<span class="tag">aktuell</span>' : ''}<div class="meta">${h.goal ? `${r0(h.goal).toLocaleString('de-DE')} kcal` : 'kein kcal-Ziel'}${h.preset && PRESETS[h.preset] ? ` · ${PRESETS[h.preset].label}` : ''}${h.weight ? ` · ${r1(h.weight)} kg` : ''}${[['protein', 'Eiweiß'], ['carbs', 'KH'], ['fat', 'Fett'], ['fiber', 'Ballastst.'], ['sugar', 'Zucker max.']].filter(([k]) => h[k]).map(([k, l]) => ` · ${l} ${r0(h[k])} g`).join('')}</div></div>
         ${hist.length > 1 ? `<button class="btn ghost rm" data-delgoal="${h.from}" aria-label="Ziel ab ${fmtD(h.from)} löschen">✕</button>` : ''}</li>`).join('')}</ul>` : ''}
     </div>
+    ${bodySettingsHtml()}
     <div class="card">
       <h2>Wasser</h2>
       <label class="switch"><input type="checkbox" id="wOn" ${state.water.enabled ? 'checked' : ''}> Wasserzähler im Journal anzeigen</label>
@@ -1490,6 +1507,7 @@ function renderSettingsInner() {
     </div>
     ${caffSettingsHtml()}
     ${suppSettingsHtml()}
+    ${tlSettingsHtml()}
     <div class="card">
       <h2>Abend-Vorschläge</h2>
       <label class="switch"><input type="checkbox" id="sgOn" ${state.sug.enabled ? 'checked' : ''}> Vorschläge anzeigen, wenn das Ziel noch offen ist</label>
@@ -1539,6 +1557,12 @@ function renderSettingsInner() {
       <ul class="refs">${Object.keys(REFS).map(refHtml).join('')}</ul>
       <p style="margin-top:10px"><strong style="color:var(--ink)">Analytics: woher die Werte kommen</strong></p>
       <p class="small muted">Mittelwerte (Ø) zählen nur Tage mit Einträgen; Tage ohne Eintrag und zukünftige Tage bleiben außen vor. Ein Tag mit wenig Einträgen ist nicht unbedingt ein Tag mit wenig Essen. Beim Wasser zählen Tage mit mindestens 1 ml, beim Koffein Tage mit Koffein- oder Essenseinträgen. Die Differenz zum Ziel nutzt für jeden Tag das damals gültige Ziel. Die Koffein-Pegel sind Modellwerte (Halbwertszeit in den Koffein-Einstellungen), keine Messungen. Die Makro-Anteile beziehen sich auf die Energie aus Eiweiß, Kohlenhydraten und Fett (4/4/9 kcal pro g).</p>
+      <p style="margin-top:10px"><strong style="color:var(--ink)">Timeline</strong></p>
+      <p class="small muted">Die Magen-Füllung ist ein grobes Modell: Restanteil 2^(−(t/T½)²) mit T½ ≈ 1,75 h für eine kleine fettarme Mahlzeit (ergibt nach 1/2/4 h etwa 80/40/3 % – innerhalb der Normalwerte der Szintigrafie). Längere Zeiten für große und fettreiche Mahlzeiten sowie die Darmphase (+3 h) sind Annahmen, keine Messwerte. Der Plan-Vorschlag ist eine Faustregel, keine belegte „beste“ Verteilung.</p>
+      <ul class="refs"><li>Abell TL et al. (2008). Consensus recommendations for gastric emptying scintigraphy. J Nucl Med Technol 36(1):44–54. doi:10.2967/jnmt.107.048116</li>
+        <li>Katz PO et al. (2022). ACG Clinical Guideline for the Diagnosis and Management of GERD. Am J Gastroenterol 117(1):27–56 (Mahlzeiten 2–3 h vor dem Schlafen meiden; Empfehlung für Refluxkranke). doi:10.14309/ajg.0000000000001538</li>
+        <li>Schoenfeld BJ, Aragon AA (2018). How much protein can the body use in a single meal for muscle-building? J Int Soc Sports Nutr 15:10. doi:10.1186/s12970-018-0215-1</li>
+        <li>Ruddick-Collins LC et al. (2022). Timing of daily calorie loading affects appetite and hunger responses without changes in energy metabolism. Cell Metab 34(10):1472–1485 (n = 30; gleiche Gewichtsabnahme, morgens weniger Hunger). doi:10.1016/j.cmet.2022.08.001</li></ul>
       <p>Version ${APP_VERSION}</p>
     </div>`;
 
@@ -1600,6 +1624,7 @@ function renderSettingsInner() {
     state.goalHistory = state.goalHistory.filter((h) => h.from !== from).concat([entry]).sort((a, b) => a.from.localeCompare(b.from));
     // „settings“ spiegelt das heute gültige Ziel (für ältere Backups/Versionen)
     const cur = goalsFor(today); GOAL_KEYS.forEach((k) => { state.settings[k] = cur[k] ?? null; });
+    if (weight != null && from <= today) state.profile.weight = weight;
     save(); toast(from === today ? 'Gespeichert – gilt ab heute' : `Gespeichert – gilt ab ${fmtD(from)}`); renderSettings();
   };
   document.querySelectorAll('[data-delgoal]').forEach((b) => b.onclick = () => {
@@ -1611,6 +1636,8 @@ function renderSettingsInner() {
   const keepScroll = () => { const y = window.scrollY; renderSettings(); window.scrollTo(0, y); };
   caffSettingsBind();
   suppSettingsBind();
+  bodySettingsBind();
+  tlSettingsBind(keepScroll);
   $('#sgOn').onchange = (ev) => { state.sug.enabled = ev.target.checked; save(); };
   $('#wOn').onchange = (ev) => { state.water.enabled = ev.target.checked; save(); };
   $('#wGoal').onchange = (ev) => {

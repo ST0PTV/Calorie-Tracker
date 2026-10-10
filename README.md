@@ -29,6 +29,7 @@ Ein schlanker Kalorien-Tracker als Web-App (PWA) fürs iPhone. Er läuft komplet
 - Eigene Rezepte aus mehreren Zutaten (mit Endgewicht und Portionen)
 - Schnelleintrag (nur kcal)
 - Mahlzeit oder ganzen Tag vom Vortag übernehmen
+- Timeline: wann was gegessen wurde, Magen-Füllung als grobes Modell mit Schlafzone und Phasen-Balken, Plan-Vorschlag für Uhrzeiten und Portionsgrößen (Verteilung einstellbar); Uhrzeit pro Mahlzeit und optional pro Eintrag
 - Analytics: Monatsansicht mit Kalender (Zielerreichung), Auswahlfenster, Ø Makros, Koffein-Heatmap und weiteren Durchschnittswerten
 - Backup-Export und -Import mit Erinnerung nach 7 Tagen
 
