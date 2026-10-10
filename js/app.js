@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.5.0';
+const APP_VERSION = '1.6.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -13,7 +13,7 @@ const MEALS = [
   { id: 'snack', label: 'Snacks' },
 ];
 const NUTRIENTS = ['k', 'p', 'c', 'f', 'fi', 'su'];
-const OFF_FIELDS = 'code,product_name,product_name_de,brands,nutriments,serving_quantity';
+const OFF_FIELDS = 'code,product_name,product_name_de,brands,nutriments,serving_quantity,allergens_tags,ingredients_analysis_tags';
 
 /* ---------- Speicher ---------- */
 function emptyState() {
@@ -21,6 +21,9 @@ function emptyState() {
     settings: { goal: null, protein: null, carbs: null, fat: null, fiber: null, sugar: null },
     goalHistory: [], // [{ from: 'JJJJ-MM-TT', goal, protein, carbs, fat, fiber, sugar }], sortiert nach Datum
     days: {}, custom: [], recent: [], favs: [], offCache: {}, lastBackup: null,
+    sug: { enabled: true, time: '16:00', count: 2, priority: 'protein', minKcal: 200 },
+    diet: { type: 'all', allergens: [] },
+    sugRatings: {}, // Bewertung je Lebensmittel-ID: -3 … +3; ab -2 nicht mehr vorgeschlagen
   };
 }
 const GOAL_KEYS = ['goal', 'protein', 'carbs', 'fat', 'fiber', 'sugar', 'weight', 'preset', 'pf', 'ff'];
@@ -80,6 +83,10 @@ function normalizeState(data) {
   const s = Object.assign(emptyState(), data);
   s.settings = Object.assign(emptyState().settings, data.settings || {});
   if (!Array.isArray(s.goalHistory)) s.goalHistory = [];
+  s.sug = Object.assign(emptyState().sug, data.sug || {});
+  s.diet = Object.assign(emptyState().diet, data.diet || {});
+  if (!Array.isArray(s.diet.allergens)) s.diet.allergens = [];
+  if (!s.sugRatings || typeof s.sugRatings !== 'object') s.sugRatings = {};
   // Übernahme aus Versionen ohne Ziel-Historie: bisheriges Ziel gilt ab dem ersten Tagebuch-Tag
   if (!s.goalHistory.length && s.settings.goal != null) {
     const first = Object.keys(s.days).filter((d) => (s.days[d] || []).length).sort()[0] || isoDate(new Date());
@@ -156,6 +163,7 @@ const isFav = (id) => state.favs.some((x) => x.id === id);
 
 /* ---------- BLS-Daten ---------- */
 let bls = [];
+let blsMap = new Map();
 let blsReady = false;
 let blsMeta = null;
 async function loadBls() {
@@ -163,10 +171,12 @@ async function loadBls() {
     const res = await fetch('data/bls.json');
     const data = await res.json();
     blsMeta = data.meta || null;
-    bls = (data.foods || []).map((x) => ({ src: 'bls', id: 'bls:' + x.id, n: x.n, k: x.k, p: x.p, c: x.c, f: x.f, fi: x.fi || 0, su: x.su || 0 }));
+    bls = (data.foods || []).map((x) => ({ src: 'bls', id: 'bls:' + x.id, n: x.n, k: x.k, p: x.p, c: x.c, f: x.f, fi: x.fi || 0, su: x.su || 0, d: x.d, a: x.a, b: x.b }));
+    blsMap = new Map(bls.map((f) => [f.id, f]));
   } catch (e) { bls = []; }
   blsReady = true;
   if (sheetMode === 'add') renderAddResults();
+  else if (!sheetMode && tab === 'diary') renderDiary();
 }
 
 function prepFood(food) {
@@ -303,6 +313,7 @@ function renderDiary() {
         <span>Zucker <strong class="${s.sugar && t.su > s.sugar ? 'over' : ''}">${r0(t.su)}${s.sugar ? ` / ${r0(s.sugar)}` : ''} g</strong></span>
       </div>
     </div>`;
+  html += suggestionCardHtml(currentDate);
 
   for (const m of MEALS) {
     const list = entries.filter((e) => e.meal === m.id);
@@ -330,6 +341,7 @@ function renderDiary() {
     html += `<button class="btn secondary block" id="copyDay" style="margin-top:4px">Ganzen Vortag übernehmen (${de(sumEntries(prevEntries).k)} kcal)</button>`;
   }
   v.innerHTML = html;
+  bindSuggestionCard(currentDate, () => { const y = window.scrollY; renderDiary(); window.scrollTo(0, y); });
 
   $('#prevDay').onclick = () => { currentDate = addDays(currentDate, -1); openMeals.clear(); renderDiary(); };
   $('#nextDay').onclick = () => { currentDate = addDays(currentDate, 1); openMeals.clear(); renderDiary(); };
@@ -347,6 +359,282 @@ function renderDiary() {
     if (!e) return;
     if (e.quick) openQuick(e.meal, e); else openAmount(e, { edit: true });
   });
+}
+
+/* ---------- Ernährungsform & Allergene ---------- */
+// Allergene nach LMIV (EU-VO 1169/2011) Anhang II, ohne Sulfite (aus Namen nicht erkennbar)
+const ALLERGENS = [
+  ['gl', 'Gluten'], ['mi', 'Milch/Laktose'], ['ei', 'Ei'], ['nu', 'Schalenfrüchte'], ['er', 'Erdnuss'], ['so', 'Soja'],
+  ['fi', 'Fisch'], ['kr', 'Krebstiere'], ['we', 'Weichtiere'], ['se', 'Sellerie'], ['sf', 'Senf'], ['sa', 'Sesam'], ['lu', 'Lupine'],
+];
+const OFF_ALLERGEN = {
+  'en:gluten': 'gl', 'en:milk': 'mi', 'en:eggs': 'ei', 'en:nuts': 'nu', 'en:peanuts': 'er', 'en:soybeans': 'so', 'en:fish': 'fi',
+  'en:crustaceans': 'kr', 'en:molluscs': 'we', 'en:celery': 'se', 'en:mustard': 'sf', 'en:sesame-seeds': 'sa', 'en:lupin': 'lu',
+};
+function offDiet(p) {
+  const t = p.ingredients_analysis_tags || [];
+  let d = null;
+  if (t.includes('en:vegan')) d = 2;
+  else if (t.includes('en:vegetarian')) d = 1;
+  else if (t.includes('en:non-vegetarian')) d = 0;
+  const a = (p.allergens_tags || []).map((x) => OFF_ALLERGEN[x]).filter(Boolean);
+  return { d, a: d == null ? null : a };
+}
+// Liefert { d, a, group } – d/a = null bedeutet unbekannt
+function foodInfo(id, depth = 0) {
+  if (!id || depth > 3) return { d: null, a: null, group: null };
+  if (id.startsWith('bls:')) {
+    const b = blsMap.get(id);
+    return { d: b && b.d != null ? b.d : null, a: b && b.d != null ? (b.a || []) : null, group: id[4] };
+  }
+  if (id.startsWith('off:')) {
+    const o = state.offCache[id.slice(4)];
+    return { d: o && o.d != null ? o.d : null, a: o && o.d != null ? (o.a || []) : null, group: null };
+  }
+  const own = state.custom.find((x) => x.id === id);
+  if (!own) return { d: null, a: null, group: null };
+  if (own.src === 'recipe') {
+    let d = 2; const a = new Set();
+    for (const it of own.items || []) {
+      const inf = foodInfo(it.food.id, depth + 1);
+      if (inf.d == null) return { d: null, a: null, group: null };
+      d = Math.min(d, inf.d); inf.a.forEach((x) => a.add(x));
+    }
+    return { d, a: [...a], group: null };
+  }
+  return { d: own.d != null ? own.d : null, a: own.d != null ? (own.a || []) : null, group: null };
+}
+function dietFiltersActive() { return state.diet.type !== 'all' || state.diet.allergens.length > 0; }
+function dietAllows(info) {
+  if (!dietFiltersActive()) return true;
+  if (info.d == null || info.a == null) return false; // unbekannt -> im Zweifel nicht vorschlagen
+  if (state.diet.type === 'veg' && info.d < 1) return false;
+  if (state.diet.type === 'vegan' && info.d < 2) return false;
+  return !info.a.some((x) => state.diet.allergens.includes(x));
+}
+
+/* ---------- Abend-Vorschläge ----------
+   Sucht 1–3 Lebensmittel und Mengen, die die offenen Tagesziele möglichst gut treffen.
+   Methode: gewichtete quadratische Abweichung (relativ zum offenen Rest) von kcal und Makros,
+   Mengen per Koordinaten-Gittersuche in 5- bzw. 10-g-Schritten innerhalb sinnvoller Portionsgrenzen.
+   Bevorzugt werden Lebensmittel aus früheren Einträgen, dann die Basisliste gängiger Kochzutaten. */
+const SUG_GROUPS = 'CEFGHKMTUV'; // BLS-Gruppen mit Kochzutaten (keine Getränke, Süßwaren, Gerichte, Brot …)
+const SUG_WEIGHTS = {
+  kcal: { kU: 4, kO: 8, pU: 0.5, pO: 0.5, c: 0.3, f: 0.3 },
+  protein: { kU: 2, kO: 6, pU: 8, pO: 0.3, c: 0.3, f: 0.3 },
+  balanced: { kU: 3, kO: 6, pU: 1.5, pO: 1.5, c: 1.5, f: 1.5 },
+};
+// Realistische Portionsgrenzen [min, max, Schritt] in g, grob nach Energiedichte und Eiweißgehalt
+function sugBounds(f) {
+  if (f.k >= 600) return [5, 40, 5];          // Öle, Nüsse
+  if (f.k >= 300) return [30, 150, 10];       // trockene Getreide/Hülsenfrüchte, Hartkäse
+  if (f.f >= 20) return [30, 150, 10];        // fettreicher Käse u. Ä.
+  if (f.p >= 15) return [80, 250, 10];        // Fleisch, Fisch, Tofu, Quark
+  if (f.k >= 100) return [50, 250, 10];       // z. B. Avocado, Hülsenfrüchte gegart, Kartoffelprodukte
+  return [50, 400, 10];                       // Gemüse, Obst
+}
+function remainingFor(iso) {
+  const g = goalsFor(iso);
+  if (!g.goal) return null;
+  const t = dayTotals(iso);
+  const R = { k: g.goal - t.k };
+  if (g.protein) R.p = Math.max(0, g.protein - t.p);
+  if (g.carbs) R.c = Math.max(0, g.carbs - t.c);
+  if (g.fat) R.f = Math.max(0, g.fat - t.f);
+  return R;
+}
+function sugCandidates() {
+  const ratings = state.sugRatings;
+  const hist = new Map();
+  for (const [d, list] of Object.entries(state.days)) {
+    for (const e of list) {
+      if (e.quick) continue;
+      const id = e.ref || e.id;
+      let cur = hist.get(id);
+      if (!cur) {
+        const live = id.startsWith('bls:') ? blsMap.get(id) : state.custom.find((x) => x.id === id) || (id.startsWith('off:') ? state.offCache[id.slice(4)] : null);
+        const base = live || e;
+        cur = Object.assign({ id, n: base.n, src: base.src || e.src, count: 0, dinner: 0, last: d }, nutrientsOf(base));
+        hist.set(id, cur);
+      }
+      cur.count++; if (e.meal === 'dinner') cur.dinner++; if (d > cur.last) cur.last = d;
+    }
+  }
+  const ok = (f) => {
+    if ((ratings[f.id] || 0) <= -2) return false;
+    if (!f.k || f.k < 10) return false;
+    const inf = foodInfo(f.id);
+    if (f.id.startsWith('bls:') && !SUG_GROUPS.includes(inf.group)) return false;
+    return dietAllows(inf);
+  };
+  const fromHist = [...hist.values()].filter(ok)
+    .sort((a, b) => (b.count + 2 * b.dinner) - (a.count + 2 * a.dinner)).slice(0, 40)
+    .map((f) => Object.assign(f, { fromHistory: true }));
+  const have = new Set(fromHist.map((f) => f.id));
+  const basics = bls.filter((f) => f.b && !have.has(f.id) && ok(f)).map((f) => Object.assign({}, f, { fromHistory: false, count: 0, dinner: 0 }));
+  return fromHist.concat(basics);
+}
+function sugError(tot, R, W) {
+  const ek = (tot.k - R.k) / R.k;
+  let E = (ek > 0 ? W.kO : W.kU) * ek * ek;
+  if (R.p != null) { const e = (tot.p - R.p) / Math.max(R.p, 15); E += (e < 0 ? W.pU : W.pO) * e * e; }
+  if (R.c != null) { const e = (tot.c - R.c) / Math.max(R.c, 15); E += W.c * e * e; }
+  if (R.f != null) { const e = (tot.f - R.f) / Math.max(R.f, 15); E += W.f * e * e; }
+  return E;
+}
+function optimizeCombo(foods, R, W) {
+  const bnd = foods.map(sugBounds);
+  const g = bnd.map((b) => b[0]);
+  const totalOf = () => {
+    const t = { k: 0, p: 0, c: 0, f: 0 };
+    foods.forEach((f, i) => { const x = g[i] / 100; t.k += f.k * x; t.p += f.p * x; t.c += f.c * x; t.f += f.f * x; });
+    return t;
+  };
+  let best = sugError(totalOf(), R, W);
+  for (let round = 0; round < 3; round++) {
+    let changed = false;
+    for (let i = 0; i < foods.length; i++) {
+      const [lo, hi, step] = bnd[i];
+      let bestG = g[i];
+      for (let v = lo; v <= hi; v += step) {
+        g[i] = v;
+        const e = sugError(totalOf(), R, W);
+        if (e < best - 1e-9) { best = e; bestG = v; changed = true; }
+      }
+      g[i] = bestG;
+    }
+    if (!changed) break;
+  }
+  return { grams: g.slice(), err: best, tot: totalOf() };
+}
+function sugPref(foods) {
+  let p = 0;
+  for (const f of foods) {
+    p += -0.06 * (state.sugRatings[f.id] || 0) - 0.04 * Math.log(1 + (f.count || 0)) - 0.08 * Math.log(1 + (f.dinner || 0)) + (f.fromHistory ? 0 : 0.12);
+    if (f.fromHistory && !f.dinner && f.count >= 2) p += 0.2;    // bisher nur zu anderen Mahlzeiten gegessen
+  }
+  const groups = foods.map((f) => (f.id.startsWith('bls:') ? f.id[4] : f.id));
+  if (new Set(groups).size < groups.length) p += 0.15;           // zwei aus derselben Gruppe
+  if (foods.filter((f) => f.k < 60).length >= 2) p += 0.3;       // zwei kalorienarme Gemüse füllen kaum auf
+  if (foods.filter((f) => f.c >= 50).length >= 2) p += 0.15;     // zwei Sättigungsbeilagen (z. B. Reis + Nudeln)
+  if (foods.filter((f) => f.p >= 15).length >= 2) p += 0.1;      // zwei Hauptkomponenten Fleisch/Fisch/Tofu
+  return p;
+}
+let sugCache = { key: null, list: [] };
+function computeSuggestions(iso) {
+  const R = remainingFor(iso);
+  if (!R || R.k <= 0) return [];
+  const S = state.sug;
+  const key = JSON.stringify([iso, R, S.count, S.priority, state.diet, state.sugRatings, Object.keys(state.days).length, state.custom.length, bls.length]);
+  if (sugCache.key === key) return sugCache.list;
+  const W = SUG_WEIGHTS[S.priority] || SUG_WEIGHTS.protein;
+  const pool = sugCandidates();
+  const results = [];
+  const n = Math.max(1, Math.min(3, S.count || 2));
+  const pairsOrSingles = [];
+  if (n === 1) {
+    pool.forEach((a) => pairsOrSingles.push([a]));
+  } else {
+    for (let i = 0; i < pool.length; i++) for (let j = i + 1; j < pool.length; j++) pairsOrSingles.push([pool[i], pool[j]]);
+  }
+  for (const foods of pairsOrSingles) {
+    const o = optimizeCombo(foods, R, W);
+    results.push({ foods, ...o, score: o.err + sugPref(foods) });
+  }
+  results.sort((a, b) => a.score - b.score);
+  let final = results;
+  if (n === 3) {
+    const triples = [];
+    for (const base of results.slice(0, 25)) {
+      for (const c of pool) {
+        if (base.foods.some((f) => f.id === c.id)) continue;
+        const foods = base.foods.concat([c]);
+        const o = optimizeCombo(foods, R, W);
+        triples.push({ foods, ...o, score: o.err + sugPref(foods) });
+      }
+    }
+    triples.sort((a, b) => a.score - b.score);
+    final = triples;
+  }
+  // bis zu 5 unterschiedliche Vorschläge; jedes Lebensmittel höchstens in 2 Vorschlägen
+  const chosen = []; const used = new Map(); const seen = new Set();
+  for (const r of final) {
+    const k = r.foods.map((f) => f.id).sort().join('|');
+    if (seen.has(k) || r.foods.some((f) => (used.get(f.id) || 0) >= 2)) continue;
+    seen.add(k); r.foods.forEach((f) => used.set(f.id, (used.get(f.id) || 0) + 1));
+    chosen.push(Object.assign({ R }, r));
+    if (chosen.length >= 5) break;
+  }
+  sugCache = { key, list: chosen };
+  return chosen;
+}
+function sugDue(iso) {
+  const S = state.sug;
+  if (!S.enabled || iso !== isoDate(new Date())) return false;
+  const now = new Date();
+  const [h, m] = (S.time || '16:00').split(':').map(Number);
+  if (now.getHours() * 60 + now.getMinutes() < h * 60 + m) return false;
+  const R = remainingFor(iso);
+  return !!R && R.k >= (S.minKcal || 200);
+}
+let sugIndex = 0;
+function suggestionCardHtml(iso) {
+  if (!sugDue(iso)) return '';
+  if (!blsReady) return '<div class="card sug"><h2>Vorschlag für heute Abend</h2><p class="small muted">Lade Lebensmitteldaten…</p></div>';
+  const list = computeSuggestions(iso);
+  const R = remainingFor(iso);
+  const de = (x) => r0(x).toLocaleString('de-DE');
+  const open = `${de(R.k)} kcal${R.p != null ? ` · Eiweiß ${de(R.p)} g` : ''}${R.c != null ? ` · KH ${de(R.c)} g` : ''}${R.f != null ? ` · Fett ${de(R.f)} g` : ''}`;
+  const prio = `<div class="seg three sug-prio">${[['kcal', 'Kalorien'], ['protein', 'Eiweiß zuerst'], ['balanced', 'Ausgewogen']].map(([k, l]) => `<button type="button" data-sugprio="${k}" class="${state.sug.priority === k ? 'active' : ''}">${l}</button>`).join('')}</div>`;
+  if (!list.length) {
+    return `<div class="card sug"><h2>Vorschlag für heute Abend</h2><p class="small muted">Noch offen: ${open}</p>${prio}
+      <p class="small muted">Keine passenden Lebensmittel gefunden. ${dietFiltersActive() ? 'Deine Ernährungs- und Allergie-Filter schließen viele Lebensmittel aus; eigene Lebensmittel brauchen dafür Angaben zu Ernährungsform und Allergenen.' : ''}</p></div>`;
+  }
+  const i = sugIndex % list.length;
+  const s = list[i];
+  const after = { k: R.k - s.tot.k, p: R.p != null ? R.p - s.tot.p : null };
+  const rows = s.foods.map((f, j) => {
+    const x = per(f, s.grams[j]);
+    const r = state.sugRatings[f.id] || 0;
+    return `<div class="sug-row">
+      <div class="grow"><div>${esc(f.n)}</div>
+        <div class="meta"><strong>${s.grams[j]} g</strong> · ${de(x.k)} kcal · E ${r0(x.p)} g · KH ${r0(x.c)} g · F ${r0(x.f)} g${f.fromHistory ? '' : ' · <span class="tag">neu</span>'}</div></div>
+      <button class="rate ${r > 0 ? 'on' : ''}" data-rate="${esc(f.id)}" data-v="1" aria-label="${esc(f.n)} gut bewerten">👍</button>
+      <button class="rate ${r < 0 ? 'on' : ''}" data-rate="${esc(f.id)}" data-v="-1" aria-label="${esc(f.n)} schlecht bewerten">👎</button>
+    </div>`;
+  }).join('');
+  const missKcal = Math.abs(after.k) > Math.max(80, 0.15 * R.k);
+  return `<div class="card sug">
+    <div class="spread"><h2>Vorschlag für heute Abend</h2><span class="small muted">${i + 1}/${list.length}</span></div>
+    <p class="small muted">Noch offen: ${open}</p>
+    ${prio}
+    ${rows}
+    <p class="small muted sug-after">Danach: ${after.k >= 0 ? `noch ${de(after.k)} kcal offen` : `${de(-after.k)} kcal über Ziel`}${after.p != null ? ` · Eiweiß ${after.p > 0.5 ? `noch ${de(after.p)} g offen` : 'gedeckt'}` : ''}${missKcal ? `<br>Mit realistischen Portionen ist das Ziel so nicht ganz erreichbar.${state.sug.count < 3 && after.k > 0 ? ' Tipp: In den Einstellungen 3 Lebensmittel wählen.' : ''}` : ''}</p>
+    <p class="small muted">Mengen als Rohgewicht bzw. wie im Lebensmittel angegeben.</p>
+    <div class="row"><button class="btn" id="sugTake">Übernehmen</button><button class="btn secondary" id="sugNext" ${list.length < 2 ? 'disabled' : ''}>Anderer Vorschlag</button></div>
+  </div>`;
+}
+function bindSuggestionCard(iso, rerender) {
+  const card = document.querySelector('.card.sug'); if (!card) return;
+  card.querySelectorAll('[data-sugprio]').forEach((b) => b.onclick = () => { state.sug.priority = b.dataset.sugprio; sugIndex = 0; save(); rerender(); });
+  card.querySelectorAll('[data-rate]').forEach((b) => b.onclick = () => {
+    const id = b.dataset.rate; const v = +b.dataset.v;
+    const r = Math.max(-3, Math.min(3, (state.sugRatings[id] || 0) + v));
+    state.sugRatings[id] = r; save();
+    toast(v > 0 ? 'Wird öfter vorgeschlagen' : r <= -2 ? 'Wird nicht mehr vorgeschlagen' : 'Wird seltener vorgeschlagen');
+    rerender();
+  });
+  const nx = $('#sugNext'); if (nx) nx.onclick = () => { sugIndex++; rerender(); };
+  const tk = $('#sugTake'); if (tk) tk.onclick = () => {
+    const list = computeSuggestions(iso); const s = list[sugIndex % list.length];
+    const target = (state.days[iso] = state.days[iso] || []);
+    s.foods.forEach((f, j) => {
+      target.push(Object.assign({ id: uid(), meal: 'dinner', grams: s.grams[j], ref: f.id, src: f.src, n: f.n, brand: f.brand || '' }, nutrientsOf(f)));
+      state.recent = [Object.assign(foodSnap(f), { lastGrams: s.grams[j] })].concat(state.recent.filter((x) => x.id !== f.id)).slice(0, 60);
+      state.sugRatings[f.id] = Math.min(3, (state.sugRatings[f.id] || 0) + 1);
+    });
+    save(); openMeals.add('dinner'); sugIndex = 0; toast('Zum Abendessen hinzugefügt'); rerender();
+  };
 }
 
 /* ---------- Sheet ---------- */
@@ -597,7 +885,7 @@ async function lookupBarcode(code) {
       n: p.product_name_de || p.product_name || ('Produkt ' + code),
       brand: (p.brands || '').split(',')[0].trim(),
       k, p: num(nm.proteins_100g) || 0, c: num(nm.carbohydrates_100g) || 0, f: num(nm.fat_100g) || 0,
-      fi: num(nm.fiber_100g) || 0, su: num(nm.sugars_100g) || 0,
+      fi: num(nm.fiber_100g) || 0, su: num(nm.sugars_100g) || 0, ...offDiet(p),
       serving: num(p.serving_quantity) || null,
     };
     state.offCache[code] = food; save();
@@ -647,6 +935,16 @@ function openFoodForm(existing) {
       <div><label for="cServ">Portion g (optional)</label><input id="cServ" inputmode="decimal" value="${e.serving || ''}"></div>
       <div><label for="cBarcode">Barcode (optional)</label><input id="cBarcode" inputmode="numeric" value="${esc(e.barcode || '')}"></div>
     </div>
+    <label for="cDiet">Ernährungsform (für Vorschläge)</label>
+    <select id="cDiet">
+      <option value="" ${e.d == null ? 'selected' : ''}>Unbekannt</option>
+      <option value="2" ${e.d === 2 ? 'selected' : ''}>Vegan</option>
+      <option value="1" ${e.d === 1 ? 'selected' : ''}>Vegetarisch</option>
+      <option value="0" ${e.d === 0 ? 'selected' : ''}>Mit Fleisch oder Fisch</option>
+    </select>
+    <label>Enthält</label>
+    <div class="chips" id="cAll">${ALLERGENS.map(([k, l]) => `<label class="chip"><input type="checkbox" value="${k}" ${(e.a || []).includes(k) ? 'checked' : ''}> ${l}</label>`).join('')}</div>
+    <p class="small muted">Nur nötig, wenn du Ernährungs- oder Allergie-Filter nutzt. Bei „Unbekannt“ wird das Lebensmittel mit aktiven Filtern nicht vorgeschlagen.</p>
     <div style="height:14px"></div>
     <button class="btn block" id="cSave">${isEdit ? 'Speichern' : 'Speichern & auswählen'}</button>
     ${isEdit ? '<div style="height:10px"></div><button class="btn danger block" id="cDel">Lebensmittel löschen</button>' : ''}`);
@@ -659,6 +957,8 @@ function openFoodForm(existing) {
       p: num($('#cP').value) || 0, c: num($('#cC').value) || 0, f: num($('#cF').value) || 0,
       fi: num($('#cFi').value) || 0, su: num($('#cSu').value) || 0,
       serving: num($('#cServ').value) || null, barcode: ($('#cBarcode').value || '').replace(/\D/g, '') || null,
+      d: $('#cDiet').value === '' ? null : +$('#cDiet').value,
+      a: [...document.querySelectorAll('#cAll input:checked')].map((x) => x.value),
     };
     saveOwnFood(food);
     if (isEdit) { toast('Gespeichert'); openAmount(food); } else openAmount(food);
@@ -851,6 +1151,27 @@ function renderSettings() {
         ${hist.length > 1 ? `<button class="btn ghost rm" data-delgoal="${h.from}" aria-label="Ziel ab ${fmtD(h.from)} löschen">✕</button>` : ''}</li>`).join('')}</ul>` : ''}
     </div>
     <div class="card">
+      <h2>Abend-Vorschläge</h2>
+      <label class="switch"><input type="checkbox" id="sgOn" ${state.sug.enabled ? 'checked' : ''}> Vorschläge anzeigen, wenn das Ziel noch offen ist</label>
+      <div class="row">
+        <div><label for="sgTime">Ab Uhrzeit</label><input id="sgTime" type="time" value="${esc(state.sug.time)}"></div>
+        <div><label for="sgMin">Ab offenen kcal</label><input id="sgMin" inputmode="numeric" value="${state.sug.minKcal}"></div>
+      </div>
+      <label>Anzahl Lebensmittel</label>
+      <div class="seg three" id="sgCount">${[1, 2, 3].map((n) => `<button type="button" data-n="${n}" class="${state.sug.count === n ? 'active' : ''}">${n}</button>`).join('')}</div>
+      <label>Priorität</label>
+      <div class="seg three" id="sgPrio">${[['kcal', 'Kalorien'], ['protein', 'Eiweiß zuerst'], ['balanced', 'Ausgewogen']].map(([k, l]) => `<button type="button" data-p="${k}" class="${state.sug.priority === k ? 'active' : ''}">${l}</button>`).join('')}</div>
+      <p class="small muted" style="margin-top:8px">Erscheint im Tagebuch, wenn du die App nach dieser Uhrzeit öffnest. Vorgeschlagen wird zuerst aus deinen bisherigen Einträgen, sonst aus gängigen Kochzutaten. Mit 👍/👎 bewertest du einzelne Lebensmittel; zweimal 👎 schließt sie aus. Eine Benachrichtigung zur Uhrzeit ist ohne Server nicht möglich – mit einer Kurzbefehle-Automation kann iOS die App aber zur gewünschten Zeit öffnen.</p>
+      ${Object.keys(state.sugRatings).length ? `<h2 class="sec">Bewertete Lebensmittel</h2><ul class="list goals">${Object.entries(state.sugRatings).sort((a, b) => a[1] - b[1]).map(([id, r]) => `<li><div>${esc((blsMap.get(id) || state.custom.find((x) => x.id === id) || state.offCache[id.slice(4)] || { n: id }).n)}<div class="meta">${r <= -2 ? 'ausgeschlossen' : r < 0 ? 'seltener' : 'bevorzugt'} (${r > 0 ? '+' : ''}${r})</div></div><button class="btn ghost rm" data-unrate="${esc(id)}" aria-label="Bewertung zurücksetzen">✕</button></li>`).join('')}</ul>` : ''}
+    </div>
+    <div class="card">
+      <h2>Ernährung & Allergien</h2>
+      <div class="seg three" id="dietType">${[['all', 'Alles'], ['veg', 'Vegetarisch'], ['vegan', 'Vegan']].map(([k, l]) => `<button type="button" data-d="${k}" class="${state.diet.type === k ? 'active' : ''}">${l}</button>`).join('')}</div>
+      <label>Allergien / Unverträglichkeiten ausschließen</label>
+      <div class="chips" id="dietAll">${ALLERGENS.map(([k, l]) => `<label class="chip"><input type="checkbox" value="${k}" ${state.diet.allergens.includes(k) ? 'checked' : ''}> ${l}</label>`).join('')}</div>
+      <p class="small muted" style="margin-top:8px">Gilt für die Vorschläge. Erkannt wird anhand der BLS-Lebensmittelgruppe und des Namens, bei Barcode-Produkten über Open Food Facts, bei eigenen Lebensmitteln über deine Angaben. Ist etwas unklar (z. B. Fertiggerichte), wird es nicht vorgeschlagen. Sulfite sind nicht erkennbar. <strong>Keine Gewähr – bei Allergien immer die Zutatenliste prüfen.</strong></p>
+    </div>
+    <div class="card">
       <h2>Backup</h2>
       <p class="small muted">Deine Daten liegen nur auf diesem Gerät. ${backupText()} Du wirst nach ${BACKUP_REMIND_DAYS} Tagen erinnert.</p>
       <div class="row"><button class="btn secondary" id="exp">Exportieren</button><button class="btn secondary" id="impBtn">Importieren</button></div>
@@ -937,6 +1258,17 @@ function renderSettings() {
     state.goalHistory = state.goalHistory.filter((h) => h.from !== b.dataset.delgoal);
     const cur = goalsFor(today); GOAL_KEYS.forEach((k) => { state.settings[k] = cur[k] ?? null; });
     save(); toast('Gelöscht'); renderSettings();
+  });
+  const keepScroll = () => { const y = window.scrollY; renderSettings(); window.scrollTo(0, y); };
+  $('#sgOn').onchange = (ev) => { state.sug.enabled = ev.target.checked; save(); };
+  $('#sgTime').onchange = (ev) => { if (ev.target.value) { state.sug.time = ev.target.value; save(); toast(`Vorschläge ab ${ev.target.value} Uhr`); } };
+  $('#sgMin').onchange = (ev) => { const v = num(ev.target.value); if (v != null && v >= 0) { state.sug.minKcal = Math.round(v); save(); } };
+  document.querySelectorAll('#sgCount button').forEach((b) => b.onclick = () => { state.sug.count = +b.dataset.n; save(); keepScroll(); });
+  document.querySelectorAll('#sgPrio button').forEach((b) => b.onclick = () => { state.sug.priority = b.dataset.p; save(); keepScroll(); });
+  document.querySelectorAll('[data-unrate]').forEach((b) => b.onclick = () => { delete state.sugRatings[b.dataset.unrate]; save(); keepScroll(); });
+  document.querySelectorAll('#dietType button').forEach((b) => b.onclick = () => { state.diet.type = b.dataset.d; save(); keepScroll(); });
+  document.querySelectorAll('#dietAll input').forEach((c) => c.onchange = () => {
+    state.diet.allergens = [...document.querySelectorAll('#dietAll input:checked')].map((x) => x.value); save();
   });
   $('#exp').onclick = async () => { await exportBackup(); renderSettings(); };
   $('#impBtn').onclick = () => $('#imp').click();
