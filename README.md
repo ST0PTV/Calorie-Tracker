@@ -17,6 +17,8 @@ Ein schlanker Kalorien-Tracker als Web-App (PWA) fürs iPhone. Er läuft komplet
 - Tagesziel mit Datum (Ziel-Historie); Makro-Presets (Ausgewogen, Muskelaufbau, Fettabbau, Eigene) aus Körpergewicht × Faktor
 - Wasserzähler (+250 ml / +500 ml, Rückgängig, Tagesziel einstellbar, Standard 1,5 l nach DGE-Richtwert)
 - Koffein-Tracker: Pegel im Körper mit Kurve bis zum nächsten Morgen, „unter X mg ab …“, Vorschau/Planung neuer Getränke zur Bettzeit; Verlauf in mg pro Tag, bei 30 Tagen als Heatmap (Stunde × Tag)
+- Flüssigkeiten (Getränke, Milch, Säfte, Pflanzendrinks, Barcode-Produkte mit ml-Angabe, eigene Lebensmittel mit Häkchen „Flüssigkeit“) werden in ml eingegeben und angezeigt; **Annahme 1 ml ≈ 1 g** (Dichte 1,0; Milch ca. 1,03, Saft ca. 1,04 – Abweichung bis ca. 4 %)
+- Koffein-Getränke tragen auf Wunsch kcal ins Tagebuch (Snacks) und ml in den Wasserzähler ein (pro Eintrag und als Standard in den Einstellungen schaltbar; Bearbeiten/Löschen bleibt synchron)
 - Abend-Vorschläge ab einstellbarer Uhrzeit: 1–3 Lebensmittel mit Mengen, die die offenen Ziele treffen (Priorität Kalorien / Eiweiß / ausgewogen), bevorzugt aus eigenen Einträgen, bewertbar mit 👍/👎
 - Ernährungsform (vegetarisch, vegan) und Allergie-Filter für die Vorschläge
 - Lebensmittelsuche im Bundeslebensmittelschlüssel (offline)
@@ -94,6 +96,12 @@ Gegarte BLS-Varianten (z. B. „Reis poliert, gekocht“) rechnen die Rohportion
 
 Standardziel 1,5 l Getränke pro Tag (Richtwert der DGE, zitiert nach [Verbraucherzentrale NRW](https://www.verbraucherzentrale.nrw/wissen/lebensmittel/gesund-ernaehren/wie-viel-sollte-man-am-tag-trinken-24202)); die [EFSA (2010)](https://www.efsa.europa.eu/en/press/news/nda100326) hält 2,5 l (Männer) bzw. 2,0 l (Frauen) **Gesamtwasser** für angemessen, inklusive Wasser aus Lebensmitteln. Das Ziel ist in den Einstellungen änderbar.
 
+
+## Flüssigkeiten und Koffein-Getränke im Tagebuch
+
+- Erkennung als Flüssigkeit bei BLS-Daten nach Warengruppe und Name (Getränke, Milch/Kefir/Buttermilch, Säfte/Nektare, Pflanzendrinks; Pulver, Konserven, Konzentrate und Kondensmilch ausgenommen). Die Regeln sind Heuristiken – Einzelfälle können falsch eingeordnet sein.
+- kcal pro 100 ml: Kaffee, Espresso, Cola aus der BLS 4.0; **Energy Drink 45 kcal/100 ml stammt nur aus einer Quelle (wikifit.de, Red Bull, zuckerhaltig) und ist nicht gegengeprüft**; zuckerfreie Sorten haben deutlich weniger. Werte sind im Eingabedialog änderbar.
+- Ob Kaffee/Energy zur Flüssigkeitszufuhr zählen, ist eine Entscheidung des Nutzers (per Schalter änderbar). Geplante Getränke in der Zukunft zählen sofort mit.
 
 ## Koffein: Modell, Annahmen und Quellen
 

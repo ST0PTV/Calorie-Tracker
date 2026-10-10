@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.9.0';
+const APP_VERSION = '1.10.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -13,7 +13,7 @@ const MEALS = [
   { id: 'snack', label: 'Snacks' },
 ];
 const NUTRIENTS = ['k', 'p', 'c', 'f', 'fi', 'su'];
-const OFF_FIELDS = 'code,product_name,product_name_de,brands,nutriments,serving_quantity,allergens_tags,ingredients_analysis_tags';
+const OFF_FIELDS = 'code,product_name,product_name_de,brands,nutriments,serving_quantity,quantity,allergens_tags,ingredients_analysis_tags';
 
 /* ---------- Speicher ---------- */
 function emptyState() {
@@ -161,9 +161,25 @@ function sumEntries(list) {
   return t;
 }
 const dayTotals = (iso) => sumEntries(state.days[iso] || []);
+/* Flüssigkeiten werden in ml angezeigt/eingegeben. Gespeichert wird weiter die Menge als Zahl (e.grams),
+   Annahme: 1 ml ≈ 1 g (Dichte 1,0; bei Milch ~1,03, Saft ~1,04 → Abweichung ≤ 4 %). */
+function blsLiquid(id, n) {
+  if (!id || !id.startsWith('bls:')) return false;
+  const g = id[4];
+  if (g === 'P') return true;
+  if (g === 'N') return !/pulver/i.test(n) || /Getränk/.test(n);
+  if (g === 'F') return /(saft|nektar(?!in))/i.test(n.split(',')[0]) && !/Konserve|Konzentrat|in Fruchtsaft/.test(n);
+  if (g === 'G') return /^Gemüsesaft/.test(n);
+  if (g === 'M') return /^(Milch |Vollmilch|H-|Rohmilch|Buttermilch|Ziegenmilch|Schafmilch|Dickmilch|Kefir|Milchmisch|Milchshake)/.test(n) && !/Kondensmilch|pulver|dessert/i.test(n);
+  if (g === 'C' || g === 'H') return /drink|^Kokosmilch/i.test(n);
+  return false;
+}
+function isLiq(x) { return x.liq != null ? !!x.liq : blsLiquid(x.ref || x.id, x.n || ''); }
+const unitOf = (x) => (isLiq(x) ? 'ml' : 'g');
+
 function nutrientsOf(food) { const o = {}; NUTRIENTS.forEach((n) => { o[n] = food[n] || 0; }); return o; }
 function foodSnap(food) {
-  return Object.assign({ src: food.src, id: food.ref || food.id, n: food.n, brand: food.brand || '', serving: food.serving || null }, nutrientsOf(food));
+  return Object.assign({ src: food.src, id: food.ref || food.id, n: food.n, brand: food.brand || '', serving: food.serving || null, liq: isLiq(food) }, nutrientsOf(food));
 }
 const isFav = (id) => state.favs.some((x) => x.id === id);
 
@@ -340,7 +356,7 @@ function renderDiary() {
         <button class="add-btn ${list.length ? '' : 'primary'}" data-add="${m.id}" aria-label="${m.label} hinzufügen">+</button>
       </div>
       ${open && list.length ? `<div class="entries">${list.map((e) => `<div class="entry" data-entry="${e.id}">
-        <div class="name">${esc(e.n)}<div class="small muted">${e.quick ? 'Schnelleintrag' : `${r1(e.grams)} g`}</div></div>
+        <div class="name">${esc(e.n)}<div class="small muted">${e.quick ? 'Schnelleintrag' : `${r1(e.grams)} ${unitOf(e)}`}</div></div>
         <div class="kcal">${de(entryTotals(e).k)} kcal</div></div>`).join('')}</div>` : ''}
       ${!list.length && prevMeal.length ? `<button class="btn ghost copy" data-copy="${m.id}">↺ Wie am Vortag (${de(prevMeal.reduce((a, e) => a + entryTotals(e).k, 0))} kcal)</button>` : ''}
     </div>`;
@@ -367,14 +383,16 @@ function renderDiary() {
   v.querySelectorAll('[data-entry]').forEach((el) => el.onclick = () => {
     const e = entries.find((x) => x.id === el.dataset.entry);
     if (!e) return;
-    if (e.quick) openQuick(e.meal, e); else openAmount(e, { edit: true });
+    const ce = e.cafId && ((state.caffeine.log[currentDate] || []).find((x) => x.id === e.cafId));
+    if (ce) openCaffeine(currentDate, ce); else if (e.quick) openQuick(e.meal, e); else openAmount(e, { edit: true });
   });
 }
 
 /* ---------- Wasser ----------
    Standardziel 1,5 l Getränke pro Tag (Richtwert der DGE); EFSA (2010): angemessene Gesamtwasserzufuhr
    2,5 l (Männer) bzw. 2,0 l (Frauen) inklusive Wasser aus Lebensmitteln. */
-const waterOf = (iso) => (state.water.log[iso] || []).reduce((a, b) => a + b, 0);
+const waterManual = (iso) => (state.water.log[iso] || []).reduce((a, b) => a + b, 0);
+const waterOf = (iso) => waterManual(iso) + caffWater(iso);
 const litres = (ml) => (ml / 1000).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 function waterCardHtml(iso) {
   if (!state.water.enabled) return '';
@@ -393,6 +411,7 @@ function waterCardHtml(iso) {
         <div class="small muted">Wasser ${iso === isoDate(new Date()) ? 'heute' : 'an diesem Tag'}</div>
         <div><span class="water-big">${litres(ml)}</span><span class="muted small"> / ${litres(goal)} l</span></div>
         <div class="water-rest">${rest > 0 ? `noch ${litres(rest)} l` : 'Ziel erreicht'}</div>
+        ${caffWater(iso) ? `<div class="small muted">davon ${litres(caffWater(iso))} l aus Koffein-Getränken</div>` : ''}
       </div>
       <div class="water-btns"><button class="btn" data-water="250">+ 250 ml</button><button class="btn secondary" data-water="500">+ 500 ml</button></div>
       ${n ? `<button class="btn ghost water-undo" id="waterUndo">↶ Rückgängig (${state.water.log[iso][n - 1]} ml)</button>` : '<div class="small muted water-undo">Tippe, wenn du etwas getrunken hast.</div>'}
@@ -645,7 +664,7 @@ function suggestionCardHtml(iso) {
     const r = state.sugRatings[f.id] || 0;
     return `<div class="sug-row">
       <div class="grow"><div>${esc(f.n)}</div>
-        <div class="meta"><strong>${s.grams[j]} g</strong> · ${de(x.k)} kcal · E ${r0(x.p)} g · KH ${r0(x.c)} g · F ${r0(x.f)} g${f.fromHistory ? '' : ' · <span class="tag">neu</span>'}</div></div>
+        <div class="meta"><strong>${s.grams[j]} ${unitOf(f)}</strong> · ${de(x.k)} kcal · E ${r0(x.p)} g · KH ${r0(x.c)} g · F ${r0(x.f)} g${f.fromHistory ? '' : ' · <span class="tag">neu</span>'}</div></div>
       <button class="rate ${r > 0 ? 'on' : ''}" data-rate="${esc(f.id)}" data-v="1" aria-label="${esc(f.n)} gut bewerten">👍</button>
       <button class="rate ${r < 0 ? 'on' : ''}" data-rate="${esc(f.id)}" data-v="-1" aria-label="${esc(f.n)} schlecht bewerten">👎</button>
     </div>`;
@@ -676,7 +695,7 @@ function bindSuggestionCard(iso, rerender) {
     const list = computeSuggestions(iso); const s = list[sugIndex % list.length];
     const target = (state.days[iso] = state.days[iso] || []);
     s.foods.forEach((f, j) => {
-      target.push(Object.assign({ id: uid(), meal: 'dinner', grams: s.grams[j], ref: f.id, src: f.src, n: f.n, brand: f.brand || '' }, nutrientsOf(f)));
+      target.push(Object.assign({ id: uid(), meal: 'dinner', grams: s.grams[j], ref: f.id, src: f.src, n: f.n, brand: f.brand || '', liq: isLiq(f) }, nutrientsOf(f)));
       state.recent = [Object.assign(foodSnap(f), { lastGrams: s.grams[j] })].concat(state.recent.filter((x) => x.id !== f.id)).slice(0, 60);
       state.sugRatings[f.id] = Math.min(3, (state.sugRatings[f.id] || 0) + 1);
     });
@@ -743,7 +762,7 @@ function renderAddTab() {
 function foodLi(f, i) {
   const tag = { off: 'Barcode', custom: 'Eigenes', recipe: 'Rezept' }[f.src];
   const star = isFav(f.id) ? '<span class="star">★</span>' : '';
-  return `<li data-i="${i}"><div>${star}${esc(f.n)}${tag ? `<span class="tag">${tag}</span>` : ''}<div class="meta">${f.brand ? esc(f.brand) + ' · ' : ''}${r0(f.k)} kcal / 100 g</div></div><div class="meta">›</div></li>`;
+  return `<li data-i="${i}"><div>${star}${esc(f.n)}${tag ? `<span class="tag">${tag}</span>` : ''}<div class="meta">${f.brand ? esc(f.brand) + ' · ' : ''}${r0(f.k)} kcal / 100 ${unitOf(f)}</div></div><div class="meta">›</div></li>`;
 }
 function bindList(root, items, onPick) {
   root.querySelectorAll('li[data-i]').forEach((li) => li.onclick = () => onPick(items[+li.dataset.i]));
@@ -887,15 +906,16 @@ function openAmount(food, opts = {}) {
   const mealSel = edit ? food.meal : addMeal;
   const ownFood = state.custom.find((x) => x.id === foodId);
   const fav = isFav(foodId);
+  const U = unitOf(food);
   openSheet(`
     <div class="sheet-head"><button class="btn ghost" id="back">‹ Zurück</button>
       <button class="btn ghost star-btn" id="favBtn" aria-label="Favorit">${fav ? '★' : '☆'}</button></div>
     <h1>${esc(food.n)}</h1>
     ${food.brand ? `<p class="muted">${esc(food.brand)}</p>` : ''}
-    <p class="small muted">Pro 100 g: ${r0(food.k)} kcal · E ${r1(food.p)} g · KH ${r1(food.c)} g · F ${r1(food.f)} g · Ballastst. ${r1(food.fi)} g · Zucker ${r1(food.su)} g</p>
-    <label for="grams">Menge in Gramm</label>
+    <p class="small muted">Pro 100 ${U}: ${r0(food.k)} kcal · E ${r1(food.p)} g · KH ${r1(food.c)} g · F ${r1(food.f)} g · Ballastst. ${r1(food.fi)} g · Zucker ${r1(food.su)} g</p>
+    <label for="grams">Menge in ${U === 'ml' ? 'Millilitern' : 'Gramm'}</label>
     <input id="grams" type="text" inputmode="decimal" value="${r1(defGrams)}">
-    <div class="chips portions" id="portions">${portionOptions(food).map((o, i) => `<button type="button" class="chip" data-pi="${i}" title="${esc(o.hint)}">${esc(o.label)} · ${r1(o.grams)} g</button>`).join('')}${recentHit && recentHit.lastGrams && !edit ? `<button type="button" class="chip" data-last="${recentHit.lastGrams}">Zuletzt · ${r1(recentHit.lastGrams)} g</button>` : ''}</div>
+    <div class="chips portions" id="portions">${portionOptions(food).map((o, i) => `<button type="button" class="chip" data-pi="${i}" title="${esc(o.hint)}">${esc(o.label)} · ${r1(o.grams)} ${U}</button>`).join('')}${recentHit && recentHit.lastGrams && !edit ? `<button type="button" class="chip" data-last="${recentHit.lastGrams}">Zuletzt · ${r1(recentHit.lastGrams)} ${U}</button>` : ''}</div>
     ${portionOptions(food).some((o) => o.larn) ? '<p class="small muted portion-note">Mehrfach tippen = mehrere Portionen. Standardportionen: SINU, LARN 2024 (Rohgewicht, essbarer Anteil).</p>' : ''}
     <div class="nutri" id="nutri"></div>
     <label for="meal">Mahlzeit</label>
@@ -920,7 +940,7 @@ function openAmount(food, opts = {}) {
     mult = lastChip === b ? mult + 1 : 1; lastChip = b;
     g.value = r1(o.grams * mult); upd();
     document.querySelectorAll('#portions .chip').forEach((c) => c.classList.toggle('on', c === b));
-    b.textContent = `${mult > 1 ? mult + ' × ' + o.label.replace(/^1 /, '') : o.label} · ${r1(o.grams * mult)} g`;
+    b.textContent = `${mult > 1 ? mult + ' × ' + o.label.replace(/^1 /, '') : o.label} · ${r1(o.grams * mult)} ${U}`;
   });
   const lc = document.querySelector('#portions [data-last]');
   if (lc) lc.onclick = () => { g.value = r1(+lc.dataset.last); upd(); lastChip = lc; document.querySelectorAll('#portions .chip').forEach((c) => c.classList.toggle('on', c === lc)); };
@@ -943,7 +963,7 @@ function openAmount(food, opts = {}) {
       const e = (state.days[currentDate] || []).find((x) => x.id === food.id);
       if (e) { e.grams = grams; e.meal = meal; }
     } else {
-      const entry = Object.assign({ id: uid(), meal, grams, ref: foodId, src: food.src, n: food.n, brand: food.brand || '' }, nutrientsOf(food));
+      const entry = Object.assign({ id: uid(), meal, grams, ref: foodId, src: food.src, n: food.n, brand: food.brand || '', liq: isLiq(food) }, nutrientsOf(food));
       (state.days[currentDate] = state.days[currentDate] || []).push(entry);
       state.recent = [Object.assign(foodSnap(food), { lastGrams: grams })].concat(state.recent.filter((x) => x.id !== foodId)).slice(0, 60);
     }
@@ -1049,6 +1069,7 @@ async function lookupBarcode(code) {
       k, p: num(nm.proteins_100g) || 0, c: num(nm.carbohydrates_100g) || 0, f: num(nm.fat_100g) || 0,
       fi: num(nm.fiber_100g) || 0, su: num(nm.sugars_100g) || 0, ...offDiet(p),
       serving: num(p.serving_quantity) || null,
+      liq: /\d\s*(ml|cl|l)\b/i.test(p.quantity || ''),
     };
     state.offCache[code] = food; save();
     openAmount(food);
@@ -1078,7 +1099,7 @@ function openFoodForm(existing) {
   openSheet(`
     <div class="sheet-head"><button class="btn ghost" id="back">‹ Zurück</button><span></span></div>
     <h1>${isEdit ? 'Lebensmittel bearbeiten' : 'Eigenes Lebensmittel'}</h1>
-    <p class="small muted">Werte pro 100 g, z. B. von der Verpackung.</p>
+    <p class="small muted">Werte pro 100 g bzw. 100 ml, z. B. von der Verpackung.</p>
     <label for="cName">Name</label><input id="cName" type="text" value="${esc(e.n || '')}">
     <label for="cBrand">Marke (optional)</label><input id="cBrand" type="text" value="${esc(e.brand || '')}">
     <div class="row">
@@ -1093,8 +1114,9 @@ function openFoodForm(existing) {
       <div><label for="cFi">Ballaststoffe g</label><input id="cFi" inputmode="decimal" value="${v(e.fi)}"></div>
       <div><label for="cSu">davon Zucker g</label><input id="cSu" inputmode="decimal" value="${v(e.su)}"></div>
     </div>
+    <label class="chip" style="margin-top:10px"><input type="checkbox" id="cLiq" ${e.liq ? 'checked' : ''}> Flüssigkeit (Mengen in ml, Annahme 1 ml ≈ 1 g)</label>
     <div class="row">
-      <div><label for="cServ">Portion g (optional)</label><input id="cServ" inputmode="decimal" value="${e.serving || ''}"></div>
+      <div><label for="cServ">Portion g/ml (optional)</label><input id="cServ" inputmode="decimal" value="${e.serving || ''}"></div>
       <div><label for="cBarcode">Barcode (optional)</label><input id="cBarcode" inputmode="numeric" value="${esc(e.barcode || '')}"></div>
     </div>
     <label for="cDiet">Ernährungsform (für Vorschläge)</label>
@@ -1119,6 +1141,7 @@ function openFoodForm(existing) {
       p: num($('#cP').value) || 0, c: num($('#cC').value) || 0, f: num($('#cF').value) || 0,
       fi: num($('#cFi').value) || 0, su: num($('#cSu').value) || 0,
       serving: num($('#cServ').value) || null, barcode: ($('#cBarcode').value || '').replace(/\D/g, '') || null,
+      liq: $('#cLiq').checked,
       d: $('#cDiet').value === '' ? null : +$('#cDiet').value,
       a: [...document.querySelectorAll('#cAll input:checked')].map((x) => x.value),
     };

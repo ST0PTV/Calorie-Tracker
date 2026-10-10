@@ -10,22 +10,40 @@
    Das Modell zeigt die Menge im Körper in mg, nicht die Plasmakonzentration; Körpergewicht, Mahlzeiten, Toleranz
    und Wechselwirkungen sind nicht berücksichtigt. */
 const CAFF_KA = 8;
-const CAFF_DEFAULTS = () => ({ enabled: true, bed: '23:00', wake: '07:00', halfLife: 5, threshold: 50, limit: 400, log: {} });
+const CAFF_DEFAULTS = () => ({ enabled: true, track: true, bed: '23:00', wake: '07:00', halfLife: 5, threshold: 50, limit: 400, log: {} });
 
 // Richtwerte für den Koffeingehalt. s: 'bfr' = aus BfR-Angaben abgeleitet, 'typ' = üblicher Wert (nicht belegt, bitte Packung prüfen)
 const CAFF_CATS = [['coffee', 'Kaffee'], ['energy', 'Energy'], ['tea', 'Tee'], ['cola', 'Cola'], ['custom', 'Eigene']];
+// ml = Portion; k100 = kcal pro 100 ml. kq: 'bls' = BLS 4.0, 'web' = nur eine Quelle (Red Bull, wikifit.de), nicht gegengeprüft
 const CAFF_DRINKS = [
-  { c: 'coffee', n: 'Filterkaffee', size: '200 ml', mg: 90, s: 'bfr' },
-  { c: 'coffee', n: 'Espresso', size: '30 ml', mg: 60, s: 'typ' },
-  { c: 'coffee', n: 'Doppelter Espresso', size: '60 ml', mg: 120, s: 'typ' },
-  { c: 'energy', n: 'Energy Drink', size: '250 ml', mg: 80, s: 'bfr' },
-  { c: 'energy', n: 'Energy Drink', size: '330 ml', mg: 105, s: 'bfr' },
-  { c: 'energy', n: 'Energy Drink', size: '500 ml', mg: 160, s: 'bfr' },
-  { c: 'tea', n: 'Schwarztee', size: '200 ml', mg: 50, s: 'bfr' },
-  { c: 'tea', n: 'Grüntee', size: '200 ml', mg: 30, s: 'typ' },
-  { c: 'cola', n: 'Cola', size: '330 ml', mg: 33, s: 'bfr' },
-  { c: 'cola', n: 'Cola', size: '500 ml', mg: 50, s: 'bfr' },
+  { c: 'coffee', n: 'Filterkaffee', size: '200 ml', ml: 200, k100: 1, kq: 'bls', mg: 90, s: 'bfr' },
+  { c: 'coffee', n: 'Espresso', size: '30 ml', ml: 30, k100: 2, kq: 'bls', mg: 60, s: 'typ' },
+  { c: 'coffee', n: 'Doppelter Espresso', size: '60 ml', ml: 60, k100: 2, kq: 'bls', mg: 120, s: 'typ' },
+  { c: 'energy', n: 'Energy Drink', size: '250 ml', ml: 250, k100: 45, kq: 'web', mg: 80, s: 'bfr' },
+  { c: 'energy', n: 'Energy Drink', size: '330 ml', ml: 330, k100: 45, kq: 'web', mg: 105, s: 'bfr' },
+  { c: 'energy', n: 'Energy Drink', size: '500 ml', ml: 500, k100: 45, kq: 'web', mg: 160, s: 'bfr' },
+  { c: 'tea', n: 'Schwarztee', size: '200 ml', ml: 200, k100: 0, kq: 'bls', mg: 50, s: 'bfr' },
+  { c: 'tea', n: 'Grüntee', size: '200 ml', ml: 200, k100: 0, kq: 'bls', mg: 30, s: 'typ' },
+  { c: 'cola', n: 'Cola', size: '330 ml', ml: 330, k100: 41, kq: 'bls', mg: 33, s: 'bfr' },
+  { c: 'cola', n: 'Cola', size: '500 ml', ml: 500, k100: 41, kq: 'bls', mg: 50, s: 'bfr' },
 ];
+const cdKcal = (d) => Math.round(d.ml * d.k100 / 100);
+
+// Wasser aus Koffein-Getränken (zählt zum Wasserzähler, wenn „tr“ gesetzt ist)
+function caffWater(iso) {
+  return ((state.caffeine.log[iso] || []).filter((x) => x.tr && x.ml > 0)).reduce((a, x) => a + x.ml, 0);
+}
+// Tagebucheintrag (kcal) zu einem Koffein-Eintrag anlegen/aktualisieren/entfernen
+function caffSyncDiary(iso, ent) {
+  const day = (state.days[iso] = (state.days[iso] || []).filter((x) => x.cafId !== ent.id));
+  if (ent.tr && ent.kcal > 0) {
+    const base = ent.ml > 0 ? ent.ml : 100;
+    day.push({ id: uid(), cafId: ent.id, meal: 'snack', grams: base, ref: 'caff:' + ent.id, src: 'caff', n: ent.n, brand: '', liq: true,
+      k: ent.kcal * 100 / base, p: 0, c: 0, f: 0, fi: 0, su: 0 });
+  }
+  if (!day.length) delete state.days[iso];
+}
+
 
 const hmToMin = (s) => { const [h, m] = String(s || '0:0').split(':').map(Number); return (h || 0) * 60 + (m || 0); };
 // absolute Zeit in Stunden (lokale Uhrzeit des Tages iso + min Minuten)
@@ -183,6 +201,11 @@ function openCaffeine(iso, entry) {
       <div><label for="cName">Bezeichnung</label><input id="cName" type="text" placeholder="z. B. Mate" value="${esc(entry ? entry.n : '')}"></div>
       <div><label for="cMg">Koffein (mg)</label><input id="cMg" inputmode="decimal" value="${entry ? entry.mg : ''}"></div>
     </div>
+    <div class="row">
+      <div><label for="cMl">Menge (ml)</label><input id="cMl" inputmode="decimal" value="${entry && entry.ml ? entry.ml : ''}"></div>
+      <div><label for="cKc">Energie (kcal)</label><input id="cKc" inputmode="decimal" value="${entry && entry.kcal != null ? entry.kcal : ''}"></div>
+    </div>
+    <label class="switch"><input type="checkbox" id="cTr" ${(entry ? entry.tr : c.track) ? 'checked' : ''}> In Tagebuch (kcal) und Wasserzähler (ml) eintragen</label>
     <label for="cTime">Uhrzeit (spätere Zeit = Vorschau/Planung)</label>
     <input id="cTime" type="time" value="${entry ? minToHm(entry.min) : isToday ? nowRounded() : '08:00'}">
     ${isToday ? `<div class="chips portions" id="cWhen">${[['Jetzt', 0], ['+30 min', 30], ['+1 h', 60], ['+2 h', 120]].map(([l, m]) => `<button type="button" class="chip" data-add="${m}">${l}</button>`).join('')}</div>` : ''}
@@ -225,7 +248,7 @@ function openCaffeine(iso, entry) {
       : items.map((d, i) => `<button type="button" class="caf-drink" data-i="${i}"><span>${esc(d.n)}</span><span class="muted small">${d.size}</span><strong>${d.mg} mg</strong>${d.s === 'typ' ? '<em title="üblicher Wert, nicht belegt">ca.</em>' : ''}</button>`).join('');
     document.querySelectorAll('.caf-drink').forEach((b) => b.onclick = () => {
       const d = items[+b.dataset.i];
-      $('#cName').value = `${d.n} ${d.size}`; $('#cMg').value = d.mg;
+      $('#cName').value = `${d.n} ${d.size}`; $('#cMg').value = d.mg; $('#cMl').value = d.ml; $('#cKc').value = cdKcal(d);
       document.querySelectorAll('.caf-drink').forEach((x) => x.classList.toggle('on', x === b));
       preview();
     });
@@ -243,14 +266,19 @@ function openCaffeine(iso, entry) {
     const { mg, min, name } = read();
     if (mg == null || mg <= 0 || mg > 1000) { toast('Bitte eine Koffein-Menge zwischen 1 und 1000 mg eingeben.'); return; }
     if (min == null) { toast('Bitte eine Uhrzeit wählen.'); return; }
-    const vals = { min, mg: Math.round(mg * 10) / 10, n: name || 'Koffein', dur };
+    const ml = num($('#cMl').value), kcal = num($('#cKc').value);
+    if ((ml != null && (ml < 0 || ml > 3000)) || (kcal != null && (kcal < 0 || kcal > 2000))) { toast('Bitte Menge (0–3000 ml) und kcal (0–2000) prüfen.'); return; }
+    const vals = { min, mg: Math.round(mg * 10) / 10, n: name || 'Koffein', dur, ml: ml || 0, kcal: kcal || 0, tr: $('#cTr').checked };
     const list = (c.log[iso] = c.log[iso] || []);
-    if (entry) Object.assign(list.find((x) => x.id === entry.id) || {}, vals); else list.push(Object.assign({ id: uid() }, vals));
+    let ent = entry && list.find((x) => x.id === entry.id);
+    if (ent) Object.assign(ent, vals); else { ent = Object.assign({ id: uid() }, vals); list.push(ent); }
+    caffSyncDiary(iso, ent);
     save(); toast(entry ? 'Gespeichert' : 'Eingetragen'); closeSheet();
   };
   const del = $('#cDel');
   if (del) del.onclick = () => {
     c.log[iso] = (c.log[iso] || []).filter((x) => x.id !== entry.id); if (!c.log[iso].length) delete c.log[iso];
+    caffSyncDiary(iso, Object.assign({}, entry, { tr: false }));
     save(); toast('Gelöscht'); closeSheet();
   };
   drawList(); drawDur(); preview();
@@ -355,6 +383,7 @@ function caffSettingsHtml() {
   return `<div class="card">
     <h2>Koffein</h2>
     <label class="switch"><input type="checkbox" id="cfOn" ${c.enabled ? 'checked' : ''}> Koffein-Tracker anzeigen</label>
+    <label class="switch"><input type="checkbox" id="cfTr" ${c.track ? 'checked' : ''}> Neue Getränke standardmäßig in Tagebuch (kcal) und Wasserzähler (ml) eintragen</label>
     <div class="row">
       <div><label for="cfBed">Bettzeit</label><input id="cfBed" type="time" value="${esc(c.bed)}"></div>
       <div><label for="cfWake">Aufstehen</label><input id="cfWake" type="time" value="${esc(c.wake)}"></div>
@@ -369,6 +398,7 @@ function caffSettingsHtml() {
 }
 function caffSettingsBind() {
   const c = state.caffeine;
+  $('#cfTr').onchange = (ev) => { c.track = ev.target.checked; save(); };
   $('#cfOn').onchange = (ev) => { c.enabled = ev.target.checked; save(); };
   const time = (id, key, label) => { $(id).onchange = (ev) => { if (ev.target.value) { c[key] = ev.target.value; save(); toast(`${label} ${ev.target.value} Uhr`); } }; };
   time('#cfBed', 'bed', 'Bettzeit'); time('#cfWake', 'wake', 'Aufstehen');
