@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.16.0';
+const APP_VERSION = '1.16.1';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -286,6 +286,22 @@ function copyEntries(fromDate, meal) {
   return src.length;
 }
 
+/* Zucker (Obergrenze) und Ballaststoffe (Mindestziel) – nur wenn im Tagesziel festgelegt */
+function sfHalf(cls, label, val, target, kind) {
+  const isMax = kind === 'max.';
+  const r = target ? val / target : 0;
+  let st, tone = '';
+  if (isMax) {
+    if (val > target) { st = `+${r0(val - target)} g über`; tone = 'warn'; }
+    else if (r >= 0.9) { st = 'fast erreicht'; tone = 'warn'; }
+    else st = `noch ${r0(target - val)} g`;
+  } else {
+    if (val >= target) { st = 'erreicht ✓'; tone = 'ok'; } else st = `noch ${r0(target - val)} g`;
+  }
+  return `<div class="sf ${cls}"><div class="sf-h"><span>${label}</span><span class="sf-st ${tone}">${st}</span></div>
+    <div class="sf-v"><strong>${r0(val)}</strong><span>${kind} ${r0(target)} g</span></div>
+    <div class="sf-bar"><span style="width:${Math.min(100, r * 100)}%"></span></div></div>`;
+}
 const openMeals = new Set();   // aufgeklappte Mahlzeiten (nur für diese Sitzung)
 function renderDiary() {
   const v = $('#view');
@@ -342,6 +358,7 @@ function renderDiary() {
         ${tile('c', 'Kohlenhydr.', t.c, s.carbs)}
         ${tile('f', 'Fett', t.f, s.fat)}
       </div>
+      ${(s.sugar || s.fiber) ? `<div class="sf-row">${s.sugar ? sfHalf('su', 'Zucker', t.su, s.sugar, 'max.') : ''}${s.fiber ? sfHalf('fi', 'Ballaststoffe', t.fi, s.fiber, 'mind.') : ''}</div>` : ''}
     </div>`;
   html += suppReminderHtml(currentDate);
   html += suppCardHtml(currentDate);
