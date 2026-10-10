@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.14.1';
+const APP_VERSION = '1.15.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -1363,7 +1363,7 @@ function renderHistory() {
   const barCard = `<div class="card chart"><div class="spread"><h2 style="margin:0">Kalorien pro Tag</h2><span class="small muted">${selLabel}</span></div>
     <div class="hch-row">${chipHtml}</div>
     <div class="hb-wrap" id="hWrap"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Kalorien pro Tag">${goalLine}${bars}</svg>${brush}</div>
-    <p class="small muted" style="margin:6px 0 0">Ziehe die Griffe, um den Zeitraum zu ändern. Die Auswahl gilt für alle Werte darunter.</p></div>`;
+</div>`;
 
   // 3) Ø Makros im Zeitraum
   const ep = avg('p') * 4, ec = avg('c') * 4, ef = avg('f') * 9, es = ep + ec + ef || 1;
@@ -1387,7 +1387,7 @@ function renderHistory() {
   const cDays = sel.map((x) => x.d);
   const nextOff = histMonth >= curMonth;
   $('#view').innerHTML = `
-    <div class="spread hm-head"><h1 style="margin:0">Verlauf</h1>
+    <div class="spread hm-head"><h1 style="margin:0">Analytics</h1>
       <div class="hm-nav"><button class="hm-b" id="hmPrev" aria-label="Vorheriger Monat">‹</button><span class="hm-t">${HIST_MON[M - 1]} ${Y}</span><button class="hm-b" id="hmNext" aria-label="Nächster Monat" ${nextOff ? 'disabled' : ''}>›</button></div></div>
     ${calCard}${barCard}${macroCard}${cDays.length ? caffHistoryHtml(cDays, cDays.length >= 15 ? 30 : 7) : ''}${otherCard}`;
   caffHistoryBind(cDays, cDays.length >= 15 ? 30 : 7, () => { const sy = window.scrollY; renderHistory(); window.scrollTo(0, sy); });
