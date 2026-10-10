@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.11.0';
+const APP_VERSION = '1.11.1';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -1318,12 +1318,24 @@ const SET_ICONS = {
   'Abend-Vorschläge': ['#B9A6FF', '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>'],
   'Ernährung & Allergien': ['#6FE0C1', '<path d="M5 19c0-8 5-13 14-14 0 9-5 14-14 14z"/><path d="M5 19l8-8"/>'],
 };
+const setOpen = new Set(['Tagesziel']); // aufgeklappte Einstellungs-Bereiche
 function renderSettings() {
   renderSettingsInner();
-  document.querySelectorAll('#view > .card > h2').forEach((h) => {
-    const ic = SET_ICONS[h.textContent.trim()]; if (!ic) return;
+  document.querySelectorAll('#view > .card > h2:not(.sec)').forEach((h) => {
+    const title = h.textContent.trim();
+    const ic = SET_ICONS[title] || ['#93A0B4', '<path d="M5 12h14M12 5v14"/>'];
+    const card = h.parentElement;
     h.classList.add('set-h');
-    h.innerHTML = `<span class="set-ico" style="--c:${ic[0]}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ic[1]}</svg></span>${h.innerHTML}`;
+    h.innerHTML = `<span class="set-ico" style="--c:${ic[0]}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ic[1]}</svg></span><span class="set-t">${h.innerHTML}</span><span class="set-chev" aria-hidden="true"></span>`;
+    const body = document.createElement('div'); body.className = 'set-body';
+    while (h.nextSibling) body.appendChild(h.nextSibling);
+    card.appendChild(body);
+    card.classList.add('set-card');
+    h.setAttribute('role', 'button'); h.tabIndex = 0;
+    const apply = () => { const open = setOpen.has(title); card.classList.toggle('collapsed', !open); h.setAttribute('aria-expanded', open); };
+    const toggle = () => { if (setOpen.has(title)) setOpen.delete(title); else setOpen.add(title); apply(); };
+    h.onclick = toggle; h.onkeydown = (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggle(); } };
+    apply();
   });
   const bk = $('#setBack'); if (bk) bk.onclick = () => goTab('diary');
 }
