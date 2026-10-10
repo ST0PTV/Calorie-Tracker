@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.15.1';
+const APP_VERSION = '1.15.2';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -1377,12 +1377,11 @@ function renderHistory() {
   const goalChanges = new Set(sel.map((x) => x.goal)).size > 1;
   const otherCard = `<div class="card">
     <div class="spread"><h2 style="margin:0">Weitere Werte</h2><span class="small muted">${selLabel}</span></div>
-    <div class="spread" style="margin-top:8px"><span class="muted">Ø kcal an getrackten Tagen</span><strong>${r0(avg('k'))} kcal</strong></div>
+    <div class="spread" style="margin-top:8px"><span class="muted">Ø kcal</span><strong>${r0(avg('k'))} kcal</strong></div>
     <div class="spread"><span class="muted">Getrackte Tage</span><strong>${tracked.length} / ${sel.length}</strong></div>
     ${withGoal.length ? `<div class="spread"><span class="muted">Ø Differenz zum Ziel</span><strong>${avgDiff > 0 ? '+' : ''}${r0(avgDiff)} kcal</strong></div>` : ''}
     <div class="spread"><span class="muted">Ø Ballaststoffe / Zucker</span><strong>${r0(avg('fi'))} / ${r0(avg('su'))} g</strong></div>
-    ${state.water.enabled ? `<div class="spread"><span class="muted">Ø Wasser (an ${wd.length} Tagen erfasst)</span><strong>${wd.length ? litres(wd.reduce((a, b) => a + b, 0) / wd.length) + ' l' : '–'}</strong></div>` : ''}
-    <p class="small muted" style="margin-top:8px">Nicht getrackte Tage fließen nicht in den Durchschnitt ein. Ein Tag mit wenig Einträgen ist nicht unbedingt ein Tag mit wenig Essen.${goalChanges ? ' Die Differenz zum Ziel nutzt für jeden Tag das damals gültige Ziel.' : ''}</p></div>`;
+    ${state.water.enabled ? `<div class="spread"><span class="muted">Ø Wasser</span><strong>${wd.length ? litres(wd.reduce((a, b) => a + b, 0) / wd.length) + ' l' : '–'}</strong></div>` : ''}</div>`;
 
   const cDays = sel.map((x) => x.d);
   const nextOff = histMonth >= curMonth;
@@ -1538,6 +1537,8 @@ function renderSettingsInner() {
         <li>Eier, Gewichtsklasse M: 53 bis unter 63 g mit Schale, VO (EG) Nr. 589/2008 Art. 4.</li></ul>
       <p style="margin-top:10px"><strong style="color:var(--ink)">Makro-Presets</strong></p>
       <ul class="refs">${Object.keys(REFS).map(refHtml).join('')}</ul>
+      <p style="margin-top:10px"><strong style="color:var(--ink)">Analytics: woher die Werte kommen</strong></p>
+      <p class="small muted">Mittelwerte (Ø) zählen nur Tage mit Einträgen; Tage ohne Eintrag und zukünftige Tage bleiben außen vor. Ein Tag mit wenig Einträgen ist nicht unbedingt ein Tag mit wenig Essen. Beim Wasser zählen Tage mit mindestens 1 ml, beim Koffein Tage mit Koffein- oder Essenseinträgen. Die Differenz zum Ziel nutzt für jeden Tag das damals gültige Ziel. Die Koffein-Pegel sind Modellwerte (Halbwertszeit in den Koffein-Einstellungen), keine Messungen. Die Makro-Anteile beziehen sich auf die Energie aus Eiweiß, Kohlenhydraten und Fett (4/4/9 kcal pro g).</p>
       <p>Version ${APP_VERSION}</p>
     </div>`;
 
