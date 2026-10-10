@@ -309,8 +309,8 @@ function caffHistoryHtml(days, range) {
       ${strip}${hl}${cells}
       <rect x="${(L + sel * cw).toFixed(1)}" y="${top - 1}" width="${cw.toFixed(1)}" height="${24 * ch + 2}" rx="2" fill="none" stroke="#E8EEF7" stroke-width="1.2"></rect>
       ${dl}${hit}</svg>
-      <div class="heat-legend small muted"><span>weniger</span>${[0, 0.25, 0.75, 1.5, 2.5, 3].map((r) => `<i style="background:${caffHeatColor(r * thr + (r ? 0.1 : 0), thr)}"></i>`).join('')}<span>mehr</span></div>
-      <p class="small muted" style="margin:4px 0 0">Koffein im Körper je Stunde. Orange: ab ${r0(3 * thr)} mg, lila Streifen: Schlafenszeit. Tippe auf einen Tag.</p>`;
+      <div class="heat-legend small muted" aria-label="Legende in mg">${[[0, '0'], [0.25, `<${r0(thr / 2)}`], [0.75, `<${r0(thr)}`], [1.5, `<${r0(2 * thr)}`], [2.5, `<${r0(3 * thr)}`], [3, `≥${r0(3 * thr)}`]].map(([r, l]) => `<div><i style="background:${caffHeatColor(r * thr + (r ? 0.1 : 0), thr)}"></i><span>${l}</span></div>`).join('')}<span class="unit">mg</span></div>
+      <p class="small muted" style="margin:4px 0 0">Koffein im Körper je Stunde (Modellwert). Lila Streifen: Schlafenszeit. Tippe auf einen Tag.</p>`;
     const s = info[sel];
     const lab = new Date(s.iso + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
     chart += `<div class="heat-detail"><button class="btn ghost" data-heatnav="-1" aria-label="Vorheriger Tag">‹</button>
