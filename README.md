@@ -16,6 +16,7 @@ Ein schlanker Kalorien-Tracker als Web-App (PWA) fürs iPhone. Er läuft komplet
 - Tagebuch mit vier Mahlzeiten, Tagesziel, Makros, Ballaststoffen und Zucker
 - Tagesziel mit Datum (Ziel-Historie); Makro-Presets (Ausgewogen, Muskelaufbau, Fettabbau, Eigene) aus Körpergewicht × Faktor
 - Wasserzähler (+250 ml / +500 ml, Rückgängig, Tagesziel einstellbar, Standard 1,5 l nach DGE-Richtwert)
+- Koffein-Tracker: Pegel im Körper mit Kurve bis zum nächsten Morgen, „unter X mg ab …“, Vorschau/Planung neuer Getränke zur Bettzeit; Verlauf in mg pro Tag, bei 30 Tagen als Heatmap (Stunde × Tag)
 - Abend-Vorschläge ab einstellbarer Uhrzeit: 1–3 Lebensmittel mit Mengen, die die offenen Ziele treffen (Priorität Kalorien / Eiweiß / ausgewogen), bevorzugt aus eigenen Einträgen, bewertbar mit 👍/👎
 - Ernährungsform (vegetarisch, vegan) und Allergie-Filter für die Vorschläge
 - Lebensmittelsuche im Bundeslebensmittelschlüssel (offline)
@@ -92,3 +93,29 @@ Gegarte BLS-Varianten (z. B. „Reis poliert, gekocht“) rechnen die Rohportion
 ## Wasser
 
 Standardziel 1,5 l Getränke pro Tag (Richtwert der DGE, zitiert nach [Verbraucherzentrale NRW](https://www.verbraucherzentrale.nrw/wissen/lebensmittel/gesund-ernaehren/wie-viel-sollte-man-am-tag-trinken-24202)); die [EFSA (2010)](https://www.efsa.europa.eu/en/press/news/nda100326) hält 2,5 l (Männer) bzw. 2,0 l (Frauen) **Gesamtwasser** für angemessen, inklusive Wasser aus Lebensmitteln. Das Ziel ist in den Einstellungen änderbar.
+
+
+## Koffein: Modell, Annahmen und Quellen
+
+**Modell.** Ein-Kompartiment-Modell mit Aufnahme und Abbau erster Ordnung: Menge(t) = D · ka/(ka − ke) · (e^(−ke·t) − e^(−ka·t)), ke = ln 2 / Halbwertszeit, ka = 8/h (Maximum nach ca. 30 min). „Getrunken über X min“ verteilt die Dosis in sechs Teile über diese Zeit. Mehrere Getränke addieren sich (Superposition). Geprüft mit `node`: Fläche unter der Kurve = D/ke, Maximum nach 31 min, terminale Halbwertszeit exakt wie eingestellt, Dauer verschiebt das Maximum, ändert die Gesamtmenge nicht.
+
+**Quellen (per Websuche/PubMed geprüft):**
+
+| Aussage | Quelle |
+|---|---|
+| Halbwertszeit im Mittel ca. 5 h, individuell 2,7–9,9 h; Maximum nach ca. 30 min; Bioverfügbarkeit ≈ 100 % | Blanchard (1983), Eur J Clin Pharmacol (Abstract) |
+| Ein-Kompartiment-Modell mit Aufnahme/Abbau erster Ordnung; Halbwertszeit Nichtraucher 4,3 h, Raucher 3,0 h | Seng et al. (2009), [doi:10.1111/j.1365-2710.2008.00976.x](https://doi.org/10.1111/j.1365-2710.2008.00976.x) |
+| 400 mg Koffein 0, 3 oder 6 h vor der Bettzeit störten den Schlaf (randomisiert, placebokontrolliert) | Drake et al. (2013), [doi:10.5664/jcsm.3170](https://doi.org/10.5664/jcsm.3170) |
+| Einzeldosis bis 200 mg, täglich bis 400 mg (gesunde Erwachsene), 200 mg/Tag Schwangere/Stillende; ca. 100 mg kurz vor dem Schlafen können den Schlaf beeinflussen | EFSA NDA Panel (2015), [doi:10.2903/j.efsa.2015.4102](https://doi.org/10.2903/j.efsa.2015.4102) |
+| Energy Drink ca. 80 mg je 250 ml; Gleichwerte (200 mg ≈ 2 Tassen Kaffee, 4 Tassen Tee, 5 Dosen Cola) | [Bundesregierung/BfR](https://www.bundesregierung.de/breg-de/aktuelles/koffein-die-dosis-machts-1649340) |
+
+**Getränkewerte.** Filterkaffee 90 mg/200 ml, Schwarztee 50 mg/200 ml, Cola 33 mg/330 ml und die Energy-Drink-Größen sind aus den BfR-Angaben abgeleitet. **Nicht belegt** (übliche Werte aus allgemeinem Wissen, in der App mit „ca.“ markiert): Espresso 60 mg/30 ml, doppelter Espresso 120 mg, Grüntee 30 mg. Die Packungsangabe hat Vorrang; die Menge ist beim Eintragen änderbar.
+
+**Schwächen und Grenzen.**
+- Die **Schwelle „unter 50 mg zur Bettzeit“ ist eine Faustregel, kein belegter Grenzwert.** In Drake et al. lag die Menge im Körper bei Bettzeit (400 mg, 6 h vorher) nach diesem Modell bei ca. 100–220 mg (Halbwertszeit 3–7 h); unterhalb davon gibt es keine Daten, die einen sicheren Wert belegen. Schlafempfindlichkeit ist individuell.
+- Die **Halbwertszeit streut stark** (2,7–9,9 h). Der Pegel zur Bettzeit eines Beispieltags reichte im Modell von 11 mg (Halbwertszeit 3 h) bis 72 mg (9,9 h). Deshalb ist sie einstellbar. Medikamente, Schwangerschaft, Leber, Rauchen u. a. verändern sie; das Modell kennt sie nicht.
+- Gezeigt wird die **Menge im Körper in mg**, nicht die Konzentration im Blut (Körpergewicht/Verteilungsvolumen fehlen). Toleranz, Mahlzeiten und Alkohol sind nicht berücksichtigt; Aufnahmegeschwindigkeit (ka) ist angenommen, nicht gemessen (Seng et al.: große Streuung der Absorptionsrate).
+- Die Studienlage zu Schlaf ist korrelativ/klein (Drake: Stichprobengröße nach meiner Erinnerung klein, in dieser Recherche nicht geprüft); die App gibt keine medizinischen Empfehlungen.
+- Heatmap und Durchschnitte zählen nur Tage mit Koffein- oder Essenseinträgen; ein Tag ohne Eintrag ist nicht zwingend ein Tag ohne Koffein.
+
+Alle Koffein-Daten liegen wie alles andere nur lokal auf dem Gerät und sind Teil des Backup-Exports.
