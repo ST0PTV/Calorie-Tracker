@@ -1,12 +1,13 @@
 /* Service Worker: macht die App offline nutzbar. Speichert nur die App-Dateien,
    keine Nutzerdaten. Bei jeder Änderung an den Dateien CACHE-Version erhöhen. */
-const CACHE = 'ct-cache-v21';
+const CACHE = 'ct-cache-v23';
 const ASSETS = [
   './',
   'index.html',
   'css/style.css',
   'js/app.js',
   'js/caffeine.js',
+  'js/supplements.js',
   'vendor/zxing.min.js',
   'data/bls.json',
   'manifest.webmanifest',

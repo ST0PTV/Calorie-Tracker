@@ -357,3 +357,41 @@ label.chip { display: inline-flex; align-items: center; gap: 8px; }
 .set-card.collapsed .set-chev { transform: rotate(-45deg); }
 .set-card.collapsed .set-body { display: none; }
 .set-card:not(.collapsed) > .set-h { margin-bottom: 4px; }
+
+/* Supplements */
+.card.supp { padding: 14px 12px 12px; }
+.supp-head { display: flex; justify-content: space-between; align-items: baseline; padding: 0 4px 12px; }
+.supp-count { font-size: 0.78rem; font-weight: 600; color: var(--good); }
+.supp-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 4px; }
+.supp-pill { display: flex; flex-direction: column; align-items: center; gap: 6px; background: none; border: 0; padding: 0; color: var(--ink); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.supp-ico { position: relative; width: 62px; height: 62px; border-radius: 50%; display: grid; place-items: center; border: 2px dashed color-mix(in srgb, var(--c) 55%, transparent); background: rgba(255, 255, 255, 0.04); transition: background .15s, border-color .15s, transform .1s; }
+.supp-pill:active .supp-ico { transform: scale(0.94); }
+.supp-pill.taken .supp-ico { border: 2px solid var(--good); background: rgba(111, 224, 193, 0.16); }
+.supp-badge { position: absolute; right: -3px; top: -3px; width: 22px; height: 22px; border-radius: 50%; background: var(--good); display: grid; place-items: center; }
+.supp-n { font-size: 0.72rem; font-weight: 600; text-align: center; line-height: 1.2; }
+.supp-s { font-size: 0.65rem; color: var(--muted); margin-top: -3px; }
+.supp-ico.sm { width: 40px; height: 40px; border-width: 1px; border-style: solid; flex: none; }
+.supp-remind { border-color: rgba(255, 154, 107, 0.45); background: linear-gradient(160deg, rgba(255, 154, 107, 0.14), rgba(255, 154, 107, 0.04)); display: flex; flex-direction: column; gap: 10px; }
+.supp-r-top { display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; }
+.supp-x { background: none; border: 0; color: var(--muted); font-size: 1rem; padding: 4px 8px; cursor: pointer; }
+.supp-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.supp-chip { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 12px 0 9px; border-radius: 12px; background: rgba(255, 255, 255, 0.06); border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); font-size: 0.78rem; font-weight: 600; }
+.supp-r-btns { display: grid; grid-template-columns: 1fr 96px; gap: 8px; }
+.supp-r-btns .btn { min-height: 44px; }
+.sp-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.sp-item { border: 1px solid var(--line); border-radius: 16px; background: rgba(255, 255, 255, 0.03); padding: 6px 10px; }
+.sp-item.open { padding-bottom: 12px; background: rgba(255, 255, 255, 0.05); }
+.sp-row { display: flex; align-items: center; gap: 8px; }
+.sp-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; background: none; border: 0; padding: 6px 0; color: var(--ink); text-align: left; cursor: pointer; }
+.sp-t { display: flex; flex-direction: column; min-width: 0; }
+.sp-t strong { font-size: 0.9rem; font-weight: 600; }
+.sp-edit { padding-top: 4px; }
+.sp-hint { margin-top: 12px; padding: 10px 12px; border-radius: 14px; background: rgba(111, 224, 193, 0.08); border: 1px solid rgba(111, 224, 193, 0.25); font-size: 0.74rem; line-height: 1.5; color: #C9D4E4; }
+.sp-hint .muted { margin-top: 3px; } .sp-hint .warn { color: var(--warn); }
+label.sw input { -webkit-appearance: none; appearance: none; width: 42px; height: 24px; margin: 0; border-radius: 12px; background: rgba(255, 255, 255, 0.14); position: relative; transition: background .15s; }
+label.sw input::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #0D1320; transition: transform .15s; }
+label.sw input:checked { background: var(--good); }
+label.sw input:checked::after { transform: translateX(18px); }
+
+.sp-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-top: 8px; }
+.sp-days .chip { padding: 0; justify-content: center; min-height: 38px; }
