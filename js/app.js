@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.10.0';
+const APP_VERSION = '1.11.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -241,11 +241,12 @@ function searchFoods(q, { includeRecipes = true } = {}) {
 let tab = 'diary';
 let currentDate = isoDate(new Date());
 document.querySelectorAll('.tabbar button').forEach((b) => b.addEventListener('click', () => {
-  tab = b.dataset.tab;
-  document.querySelectorAll('.tabbar button').forEach((x) => x.classList.toggle('active', x === b));
-  render();
+  goTab(b.dataset.tab);
 }));
+function goTab(t) { tab = t; render(); }
 function render() {
+  document.body.classList.toggle('in-settings', tab === 'settings');
+  document.querySelectorAll('.tabbar button').forEach((x) => x.classList.toggle('active', x.dataset.tab === tab));
   if (tab === 'diary') renderDiary();
   else if (tab === 'history') renderHistory();
   else renderSettings();
@@ -315,6 +316,7 @@ function renderDiary() {
 
   html += `
     <div class="card hero">
+      <button class="gear" id="gear" aria-label="Einstellungen"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h0a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v0a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.56 1.03z"/></svg></button>
       <div class="gauge">
         <svg viewBox="0 0 260 140" role="img" aria-label="${goal ? `${r0(frac * 100)} Prozent des Tagesziels gegessen` : 'Kein Tagesziel festgelegt'}">
           <path class="track" d="M 20 130 A 110 110 0 0 1 240 130" fill="none" stroke-width="14" stroke-linecap="round"></path>
@@ -371,7 +373,8 @@ function renderDiary() {
 
   $('#prevDay').onclick = () => { currentDate = addDays(currentDate, -1); openMeals.clear(); renderDiary(); };
   $('#nextDay').onclick = () => { currentDate = addDays(currentDate, 1); openMeals.clear(); renderDiary(); };
-  const ts = $('#toSettings'); if (ts) ts.onclick = () => document.querySelector('[data-tab="settings"]').click();
+  const ts = $('#toSettings'); if (ts) ts.onclick = () => goTab('settings');
+  const gr = $('#gear'); if (gr) gr.onclick = () => goTab('settings');
   const qb = $('#quickBackup'); if (qb) qb.onclick = async () => { await exportBackup(); renderDiary(); };
   v.querySelectorAll('[data-toggle]').forEach((b) => b.onclick = () => {
     const id = b.dataset.toggle; if (openMeals.has(id)) openMeals.delete(id); else openMeals.add(id);
@@ -1308,13 +1311,29 @@ function renderHistory() {
 }
 
 /* ---------- Einstellungen ---------- */
+const SET_ICONS = {
+  'Tagesziel': ['#5BE7F5', '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/>'],
+  'Wasser': ['#7AB8FF', '<path d="M12 3s6 6.2 6 10.5A6 6 0 0 1 6 13.5C6 9.2 12 3 12 3z"/>'],
+  'Koffein': ['#E2B36B', '<path d="M5 9h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5V9z"/><path d="M16 10h1.5a2.5 2.5 0 0 1 0 5H16"/><path d="M9 3v3M12.5 3v3"/>'],
+  'Abend-Vorschläge': ['#B9A6FF', '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>'],
+  'Ernährung & Allergien': ['#6FE0C1', '<path d="M5 19c0-8 5-13 14-14 0 9-5 14-14 14z"/><path d="M5 19l8-8"/>'],
+};
 function renderSettings() {
+  renderSettingsInner();
+  document.querySelectorAll('#view > .card > h2').forEach((h) => {
+    const ic = SET_ICONS[h.textContent.trim()]; if (!ic) return;
+    h.classList.add('set-h');
+    h.innerHTML = `<span class="set-ico" style="--c:${ic[0]}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ic[1]}</svg></span>${h.innerHTML}`;
+  });
+  const bk = $('#setBack'); if (bk) bk.onclick = () => goTab('diary');
+}
+function renderSettingsInner() {
   const today = isoDate(new Date());
   const s = goalsFor(today);
   const fmtD = (iso) => new Date(iso + 'T12:00:00').toLocaleDateString('de-DE');
   const hist = state.goalHistory.slice().reverse();
   $('#view').innerHTML = `
-    <h1>Einstellungen</h1>
+    <div class="set-top"><button class="set-back" id="setBack" aria-label="Zurück">‹</button><h1>Einstellungen</h1></div>
     <div class="card">
       <h2>Tagesziel</h2>
       <label for="sGoal">Kalorien pro Tag (kcal)</label><input id="sGoal" inputmode="decimal" value="${s.goal ?? ''}" placeholder="z. B. Tagesbedarf aus Garmin">
