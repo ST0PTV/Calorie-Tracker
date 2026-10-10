@@ -232,3 +232,9 @@ ul.refs a { color: var(--accent); word-break: break-all; }
 label.switch { display: flex; align-items: center; gap: 10px; color: var(--ink); font-size: 0.9rem; margin: 10px 0 4px; }
 label.switch input { width: 22px; height: 22px; accent-color: var(--accent); }
 input[type=time] { min-height: 48px; -webkit-appearance: none; appearance: none; }
+
+/* Portions-Schnellwahl */
+.chips.portions { margin-top: 8px; }
+.chips.portions .chip { font-family: inherit; }
+.chip.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.portion-note { margin: 6px 0 0; font-size: 0.72rem; }
