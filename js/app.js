@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.8.0';
+const APP_VERSION = '1.9.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -25,6 +25,7 @@ function emptyState() {
     diet: { type: 'all', allergens: [] },
     sugRatings: {}, // Bewertung je Lebensmittel-ID: -3 … +3; ab -2 nicht mehr vorgeschlagen
     water: { enabled: true, goal: 1500, log: {} }, // log: { 'JJJJ-MM-TT': [ml, ml, …] }
+    caffeine: CAFF_DEFAULTS(), // log: { 'JJJJ-MM-TT': [{ id, min (Minuten seit 0 Uhr), mg, n, dur (Minuten) }] }
   };
 }
 const GOAL_KEYS = ['goal', 'protein', 'carbs', 'fat', 'fiber', 'sugar', 'weight', 'preset', 'pf', 'ff'];
@@ -90,6 +91,8 @@ function normalizeState(data) {
   if (!s.sugRatings || typeof s.sugRatings !== 'object') s.sugRatings = {};
   s.water = Object.assign(emptyState().water, data.water || {});
   if (!s.water.log || typeof s.water.log !== 'object') s.water.log = {};
+  s.caffeine = Object.assign(CAFF_DEFAULTS(), data.caffeine || {});
+  if (!s.caffeine.log || typeof s.caffeine.log !== 'object') s.caffeine.log = {};
   // Übernahme aus Versionen ohne Ziel-Historie: bisheriges Ziel gilt ab dem ersten Tagebuch-Tag
   if (!s.goalHistory.length && s.settings.goal != null) {
     const first = Object.keys(s.days).filter((d) => (s.days[d] || []).length).sort()[0] || isoDate(new Date());
@@ -317,6 +320,7 @@ function renderDiary() {
       </div>
     </div>`;
   html += waterCardHtml(currentDate);
+  html += caffCardHtml(currentDate);
   html += suggestionCardHtml(currentDate);
 
   for (const m of MEALS) {
@@ -347,6 +351,7 @@ function renderDiary() {
   v.innerHTML = html;
   bindSuggestionCard(currentDate, () => { const y = window.scrollY; renderDiary(); window.scrollTo(0, y); });
   bindWaterCard(currentDate, () => { const y = window.scrollY; renderDiary(); window.scrollTo(0, y); });
+  caffBindCard(currentDate);
 
   $('#prevDay').onclick = () => { currentDate = addDays(currentDate, -1); openMeals.clear(); renderDiary(); };
   $('#nextDay').onclick = () => { currentDate = addDays(currentDate, 1); openMeals.clear(); renderDiary(); };
@@ -1270,7 +1275,9 @@ function renderHistory() {
       <div class="spread"><span class="muted">Ø Ballaststoffe / Zucker</span><strong>${r0(avg('fi'))} / ${r0(avg('su'))} g</strong></div>
       ${state.water.enabled ? (() => { const wd = days.map((x) => waterOf(x.d)).filter((v) => v > 0); return `<div class="spread"><span class="muted">Ø Wasser (an ${wd.length} Tagen erfasst)</span><strong>${wd.length ? litres(wd.reduce((a, b) => a + b, 0) / wd.length) + ' l' : '–'}</strong></div>`; })() : ''}
       <p class="small muted" style="margin-top:8px">Nicht getrackte Tage fließen nicht in den Durchschnitt ein. Ein Tag mit wenig Einträgen ist nicht unbedingt ein Tag mit wenig Essen.${goalChanges ? ' Die Differenz zum Ziel nutzt für jeden Tag das damals gültige Ziel.' : ''}</p>
-    </div>`;
+    </div>
+    ${caffHistoryHtml(days.map((x) => x.d), histRange)}`;
+  caffHistoryBind(days.map((x) => x.d), histRange, () => { const y = window.scrollY; renderHistory(); window.scrollTo(0, y); });
   $('#rangeSeg').querySelectorAll('button').forEach((b) => {
     b.classList.toggle('active', +b.dataset.r === histRange);
     b.onclick = () => { histRange = +b.dataset.r; renderHistory(); };
@@ -1314,6 +1321,7 @@ function renderSettings() {
       <label for="wGoal">Tagesziel (Liter)</label><input id="wGoal" inputmode="decimal" value="${litres(state.water.goal)}">
       <p class="small muted" style="margin-top:6px">Richtwert der DGE: 1,5 l Getränke pro Tag; bei Hitze, Sport oder körperlicher Arbeit mehr. Die EFSA nennt 2,5 l (Männer) bzw. 2,0 l (Frauen) Gesamtwasser – inklusive Wasser aus Lebensmitteln.</p>
     </div>
+    ${caffSettingsHtml()}
     <div class="card">
       <h2>Abend-Vorschläge</h2>
       <label class="switch"><input type="checkbox" id="sgOn" ${state.sug.enabled ? 'checked' : ''}> Vorschläge anzeigen, wenn das Ziel noch offen ist</label>
@@ -1355,6 +1363,7 @@ function renderSettings() {
       <p style="margin-top:10px"><strong style="color:var(--ink)">Wasser</strong></p>
       <ul class="refs"><li>Deutsche Gesellschaft für Ernährung: Richtwert 1,5 l Getränke pro Tag für Erwachsene (zitiert nach Verbraucherzentrale NRW). <a href="https://www.verbraucherzentrale.nrw/wissen/lebensmittel/gesund-ernaehren/wie-viel-sollte-man-am-tag-trinken-24202" target="_blank" rel="noopener">Link</a></li>
         <li>EFSA NDA Panel (2010). Scientific Opinion on Dietary Reference Values for water. EFSA Journal 8(3):1459. <a href="https://www.efsa.europa.eu/en/press/news/nda100326" target="_blank" rel="noopener">Pressemitteilung</a></li></ul>
+      ${caffSourcesHtml()}
       <p style="margin-top:10px"><strong style="color:var(--ink)">Standardportionen</strong></p>
       <ul class="refs"><li>SINU – Società Italiana di Nutrizione Umana (2024). LARN – Livelli di Assunzione di Riferimento di Nutrienti ed energia per la popolazione italiana, V Revisione: Porzioni standard. Werte übernommen aus: ATS Brescia (2025), Porzioni standard degli alimenti per la popolazione adulta. <a href="https://www.ats-brescia.it/documents/3432658/78612060/Porzioni+standard+degli+alimenti+per+la+popolazione+adulta.pdf/2ce817e7-0713-bbe6-56c7-767285a575dd" target="_blank" rel="noopener">PDF</a></li>
         <li>Eier, Gewichtsklasse M: 53 bis unter 63 g mit Schale, VO (EG) Nr. 589/2008 Art. 4.</li></ul>
@@ -1430,6 +1439,7 @@ function renderSettings() {
     save(); toast('Gelöscht'); renderSettings();
   });
   const keepScroll = () => { const y = window.scrollY; renderSettings(); window.scrollTo(0, y); };
+  caffSettingsBind();
   $('#sgOn').onchange = (ev) => { state.sug.enabled = ev.target.checked; save(); };
   $('#wOn').onchange = (ev) => { state.water.enabled = ev.target.checked; save(); };
   $('#wGoal').onchange = (ev) => {
@@ -1488,6 +1498,13 @@ async function exportBackup() {
 /* ---------- Start ---------- */
 render();
 loadBls();
+// Koffein-Pegel altert mit der Zeit: Tagebuch (heute) jede Minute und beim Zurückkehren in die App auffrischen
+function refreshCaffeine() {
+  if (tab !== 'diary' || sheetMode || document.visibilityState !== 'visible' || !state.caffeine.enabled || currentDate !== isoDate(new Date())) return;
+  const y = window.scrollY; renderDiary(); window.scrollTo(0, y);
+}
+setInterval(refreshCaffeine, 60000);
+document.addEventListener('visibilitychange', refreshCaffeine);
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
