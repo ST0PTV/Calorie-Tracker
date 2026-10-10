@@ -321,7 +321,6 @@ function caffHistoryHtml(days, range) {
   const tr = info.filter((x) => x.tracked);
   const withC = info.filter((x) => x.n > 0);
   const avg = tr.length ? tr.reduce((s, x) => s + x.mg, 0) / tr.length : 0;
-  const overDays = info.filter((x) => x.mg > c.limit).length;
   const avgLast = withC.length ? withC.reduce((s, x) => s + x.last, 0) / withC.length : null;
   const avgBed = withC.length ? withC.reduce((s, x) => s + x.bedLvl, 0) / withC.length : null;
   const hm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(Math.round(m % 60)).padStart(2, '0')}`;
@@ -344,13 +343,14 @@ function caffHistoryHtml(days, range) {
     let strip = ''; for (let h = 0; h < 24; h++) if (sleepRow(h)) strip += `<rect x="${L - 6}" y="${top + h * ch + 0.5}" width="3" height="${ch - 1}" rx="1" fill="#B9A6FF" fill-opacity="0.7"></rect>`;
     const hl = [0, 6, 12, 18].map((h) => `<text x="${L - 10}" y="${top + h * ch + 6}" text-anchor="end">${h}</text>`).join('');
     const dl = info.map((x, i) => (i % 5 === 0 || i === n - 1) ? `<text x="${(L + i * cw + cw / 2).toFixed(1)}" y="${H - 4}" text-anchor="middle">${new Date(x.iso + 'T12:00:00').getDate()}</text>` : '').join('');
+    const over = info.map((x, i) => (x.mg > c.limit ? `<circle cx="${(L + i * cw + cw / 2).toFixed(1)}" cy="${top + 24 * ch + 5}" r="2" fill="#FF9A6B"><title>über ${r0(c.limit)} mg</title></circle>` : '')).join('');
     const hit = info.map((x, i) => `<rect class="hit" data-heat="${i}" x="${(L + i * cw).toFixed(1)}" y="${top}" width="${cw.toFixed(1)}" height="${24 * ch}" fill="transparent"></rect>`).join('');
     chart = `<svg class="heat" viewBox="0 0 ${W} ${H}" role="img" aria-label="Heatmap: Koffein im Körper je Stunde und Tag, ${n} Tage">
       ${strip}${hl}${cells}
       <rect x="${(L + sel * cw).toFixed(1)}" y="${top - 1}" width="${cw.toFixed(1)}" height="${24 * ch + 2}" rx="2" fill="none" stroke="#E8EEF7" stroke-width="1.2"></rect>
-      ${dl}${hit}</svg>
+      ${over}${dl}${hit}</svg>
       <div class="heat-legend small muted" aria-label="Legende in mg">${[[0, '0'], [0.25, `<${r0(thr / 2)}`], [0.75, `<${r0(thr)}`], [1.5, `<${r0(2 * thr)}`], [2.5, `<${r0(3 * thr)}`], [3, `≥${r0(3 * thr)}`]].map(([r, l]) => `<div><i style="background:${caffHeatColor(r * thr + (r ? 0.1 : 0), thr)}"></i><span>${l}</span></div>`).join('')}<span class="unit">mg</span></div>
-      <p class="small muted" style="margin:4px 0 0">Koffein im Körper je Stunde (Modellwert). Lila Streifen: Schlafenszeit. Tippe auf einen Tag.</p>`;
+      <p class="small muted" style="margin:4px 0 0">Koffein im Körper je Stunde (Modellwert). Lila Streifen: Schlafenszeit. Oranger Punkt: Tagesrichtwert überschritten. Tippe auf einen Tag.</p>`;
     const s = info[sel];
     const lab = new Date(s.iso + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
     chart += `<div class="heat-detail"><button class="btn ghost" data-heatnav="-1" aria-label="Vorheriger Tag">‹</button>
@@ -375,7 +375,6 @@ function caffHistoryHtml(days, range) {
   return `<div class="card caf-hist"><div class="spread"><h2>Koffein</h2><span class="small muted">Ø ${r0(avg)} mg pro Tag</span></div>${chart}</div>
     <div class="card">
       <div class="spread"><span class="muted">Ø Koffein</span><strong>${r0(avg)} mg</strong></div>
-      <div class="spread"><span class="muted">Tage über ${r0(c.limit)} mg</span><strong>${overDays}</strong></div>
       <div class="spread"><span class="muted">Ø letztes Getränk</span><strong>${avgLast != null ? hm(avgLast) : '–'}</strong></div>
       <div class="spread"><span class="muted">Ø Pegel zur Bettzeit</span><strong>${avgBed != null ? r0(avgBed) + ' mg' : '–'}</strong></div>
     </div>`;
