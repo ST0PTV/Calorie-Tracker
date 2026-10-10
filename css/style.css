@@ -335,3 +335,24 @@ body.in-settings .tabbar { display: none; }
 .set-back { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.05); color: var(--ink); font-size: 1.5rem; line-height: 1; cursor: pointer; padding: 0 0 3px; }
 .set-h { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
 .set-ico { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 10px; color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); border: 1px solid color-mix(in srgb, var(--c) 30%, transparent); }
+
+/* Eigene Häkchen-Boxen */
+.chip input[type=checkbox], label.switch input[type=checkbox] {
+  -webkit-appearance: none; appearance: none; flex: none; width: 22px; height: 22px; min-height: 0; margin: 0; padding: 0;
+  border-radius: 7px; border: 1.5px solid rgba(147, 160, 180, 0.55); background: rgba(255, 255, 255, 0.04); display: inline-grid; place-items: center;
+  transition: background .15s, border-color .15s;
+}
+.chip input[type=checkbox]:checked, label.switch input[type=checkbox]:checked { background: var(--accent); border-color: var(--accent); }
+.chip input[type=checkbox]:checked::after, label.switch input[type=checkbox]:checked::after {
+  content: ''; width: 5px; height: 10px; margin-top: -2px; border: solid #0D1320; border-width: 0 2.2px 2.2px 0; transform: rotate(45deg);
+}
+.chip input[type=checkbox]:focus-visible, label.switch input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+label.chip { display: inline-flex; align-items: center; gap: 8px; }
+
+/* Einklappbare Einstellungs-Bereiche */
+.set-card > .set-h { cursor: pointer; margin-bottom: 0; -webkit-tap-highlight-color: transparent; user-select: none; }
+.set-t { flex: 1; }
+.set-chev { width: 9px; height: 9px; border: solid var(--muted); border-width: 0 2px 2px 0; transform: rotate(45deg); margin-right: 6px; transition: transform .2s; }
+.set-card.collapsed .set-chev { transform: rotate(-45deg); }
+.set-card.collapsed .set-body { display: none; }
+.set-card:not(.collapsed) > .set-h { margin-bottom: 4px; }
