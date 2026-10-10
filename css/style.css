@@ -238,3 +238,20 @@ input[type=time] { min-height: 48px; -webkit-appearance: none; appearance: none;
 .chips.portions .chip { font-family: inherit; }
 .chip.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
 .portion-note { margin: 6px 0 0; font-size: 0.72rem; }
+
+/* Wasserzähler (Design W2) */
+:root { --water: #7AB8FF; }
+.card.water { display: flex; gap: 16px; align-items: stretch; padding: 14px; }
+.vessel { position: relative; width: 74px; flex: 0 0 74px; min-height: 150px; border-radius: 14px 14px 22px 22px; border: 2px solid rgba(255, 255, 255, 0.18); overflow: hidden; box-sizing: border-box; }
+.vessel .fill { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(180deg, rgba(122, 184, 255, 0.8), rgba(122, 184, 255, 0.4)); transition: height .5s ease; }
+.vessel .wave { position: absolute; left: -2px; width: 78px; height: 14px; transition: bottom .5s ease; }
+.vessel .wave path { fill: rgba(122, 184, 255, 0.8); }
+.vessel i { position: absolute; left: 6px; right: 6px; border-top: 1px dashed rgba(255, 255, 255, 0.18); }
+.water-body { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; gap: 10px; }
+.water-big { font-size: 2.1rem; font-weight: 300; letter-spacing: -0.02em; }
+.water-rest { font-size: 0.78rem; color: var(--water); }
+.water-btns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.water-btns .btn { min-height: 44px; padding: 8px 6px; font-size: 0.85rem; }
+.water-btns .btn:not(.secondary) { background: var(--water); color: #0D1320; }
+.water-undo { justify-content: flex-start; padding: 0; min-height: 32px; font-size: 0.78rem; color: var(--ink); }
+@media (prefers-reduced-motion: reduce) { .vessel .fill, .vessel .wave { transition: none; } }

@@ -15,6 +15,7 @@ Ein schlanker Kalorien-Tracker als Web-App (PWA) fürs iPhone. Er läuft komplet
 
 - Tagebuch mit vier Mahlzeiten, Tagesziel, Makros, Ballaststoffen und Zucker
 - Tagesziel mit Datum (Ziel-Historie); Makro-Presets (Ausgewogen, Muskelaufbau, Fettabbau, Eigene) aus Körpergewicht × Faktor
+- Wasserzähler (+250 ml / +500 ml, Rückgängig, Tagesziel einstellbar, Standard 1,5 l nach DGE-Richtwert)
 - Abend-Vorschläge ab einstellbarer Uhrzeit: 1–3 Lebensmittel mit Mengen, die die offenen Ziele treffen (Priorität Kalorien / Eiweiß / ausgewogen), bevorzugt aus eigenen Einträgen, bewertbar mit 👍/👎
 - Ernährungsform (vegetarisch, vegan) und Allergie-Filter für die Vorschläge
 - Lebensmittelsuche im Bundeslebensmittelschlüssel (offline)
@@ -87,3 +88,7 @@ Quelle: SINU – Società Italiana di Nutrizione Umana (2024), LARN V Revisione,
 | Öl (1 EL) / Butter | 9 / 10 g |
 
 Gegarte BLS-Varianten (z. B. „Reis poliert, gekocht“) rechnen die Rohportion über das Energieverhältnis roh/gegart um. Stückgewichte (1 Tomate 80 g, 1 Karotte 60 g, 1 kleine Kartoffel 100 g) sind aus den LARN-Haushaltsmaßen abgeleitet.
+
+## Wasser
+
+Standardziel 1,5 l Getränke pro Tag (Richtwert der DGE, zitiert nach [Verbraucherzentrale NRW](https://www.verbraucherzentrale.nrw/wissen/lebensmittel/gesund-ernaehren/wie-viel-sollte-man-am-tag-trinken-24202)); die [EFSA (2010)](https://www.efsa.europa.eu/en/press/news/nda100326) hält 2,5 l (Männer) bzw. 2,0 l (Frauen) **Gesamtwasser** für angemessen, inklusive Wasser aus Lebensmitteln. Das Ziel ist in den Einstellungen änderbar.

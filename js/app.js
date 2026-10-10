@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.7.0';
+const APP_VERSION = '1.8.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -24,6 +24,7 @@ function emptyState() {
     sug: { enabled: true, time: '16:00', count: 2, priority: 'protein', minKcal: 200 },
     diet: { type: 'all', allergens: [] },
     sugRatings: {}, // Bewertung je Lebensmittel-ID: -3 … +3; ab -2 nicht mehr vorgeschlagen
+    water: { enabled: true, goal: 1500, log: {} }, // log: { 'JJJJ-MM-TT': [ml, ml, …] }
   };
 }
 const GOAL_KEYS = ['goal', 'protein', 'carbs', 'fat', 'fiber', 'sugar', 'weight', 'preset', 'pf', 'ff'];
@@ -87,6 +88,8 @@ function normalizeState(data) {
   s.diet = Object.assign(emptyState().diet, data.diet || {});
   if (!Array.isArray(s.diet.allergens)) s.diet.allergens = [];
   if (!s.sugRatings || typeof s.sugRatings !== 'object') s.sugRatings = {};
+  s.water = Object.assign(emptyState().water, data.water || {});
+  if (!s.water.log || typeof s.water.log !== 'object') s.water.log = {};
   // Übernahme aus Versionen ohne Ziel-Historie: bisheriges Ziel gilt ab dem ersten Tagebuch-Tag
   if (!s.goalHistory.length && s.settings.goal != null) {
     const first = Object.keys(s.days).filter((d) => (s.days[d] || []).length).sort()[0] || isoDate(new Date());
@@ -313,6 +316,7 @@ function renderDiary() {
         <span>Zucker <strong class="${s.sugar && t.su > s.sugar ? 'over' : ''}">${r0(t.su)}${s.sugar ? ` / ${r0(s.sugar)}` : ''} g</strong></span>
       </div>
     </div>`;
+  html += waterCardHtml(currentDate);
   html += suggestionCardHtml(currentDate);
 
   for (const m of MEALS) {
@@ -342,6 +346,7 @@ function renderDiary() {
   }
   v.innerHTML = html;
   bindSuggestionCard(currentDate, () => { const y = window.scrollY; renderDiary(); window.scrollTo(0, y); });
+  bindWaterCard(currentDate, () => { const y = window.scrollY; renderDiary(); window.scrollTo(0, y); });
 
   $('#prevDay').onclick = () => { currentDate = addDays(currentDate, -1); openMeals.clear(); renderDiary(); };
   $('#nextDay').onclick = () => { currentDate = addDays(currentDate, 1); openMeals.clear(); renderDiary(); };
@@ -359,6 +364,43 @@ function renderDiary() {
     if (!e) return;
     if (e.quick) openQuick(e.meal, e); else openAmount(e, { edit: true });
   });
+}
+
+/* ---------- Wasser ----------
+   Standardziel 1,5 l Getränke pro Tag (Richtwert der DGE); EFSA (2010): angemessene Gesamtwasserzufuhr
+   2,5 l (Männer) bzw. 2,0 l (Frauen) inklusive Wasser aus Lebensmitteln. */
+const waterOf = (iso) => (state.water.log[iso] || []).reduce((a, b) => a + b, 0);
+const litres = (ml) => (ml / 1000).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function waterCardHtml(iso) {
+  if (!state.water.enabled) return '';
+  const ml = waterOf(iso), goal = state.water.goal || 1500;
+  const pct = Math.max(0, Math.min(100, (ml / goal) * 100));
+  const rest = goal - ml;
+  const n = (state.water.log[iso] || []).length;
+  return `<div class="card water">
+    <div class="vessel" role="img" aria-label="Wasser ${r0(pct)} Prozent des Tagesziels">
+      <div class="fill" style="height:${pct}%"></div>
+      <svg class="wave" viewBox="0 0 74 14" preserveAspectRatio="none" style="bottom:calc(${pct}% - 7px)" aria-hidden="true"><path d="M0 7 Q 9 1 18 7 T 37 7 T 56 7 T 76 7 V 14 H 0 Z"></path></svg>
+      <i style="top:25%"></i><i style="top:50%"></i><i style="top:75%"></i>
+    </div>
+    <div class="water-body">
+      <div>
+        <div class="small muted">Wasser ${iso === isoDate(new Date()) ? 'heute' : 'an diesem Tag'}</div>
+        <div><span class="water-big">${litres(ml)}</span><span class="muted small"> / ${litres(goal)} l</span></div>
+        <div class="water-rest">${rest > 0 ? `noch ${litres(rest)} l` : 'Ziel erreicht'}</div>
+      </div>
+      <div class="water-btns"><button class="btn" data-water="250">+ 250 ml</button><button class="btn secondary" data-water="500">+ 500 ml</button></div>
+      ${n ? `<button class="btn ghost water-undo" id="waterUndo">↶ Rückgängig (${state.water.log[iso][n - 1]} ml)</button>` : '<div class="small muted water-undo">Tippe, wenn du etwas getrunken hast.</div>'}
+    </div>
+  </div>`;
+}
+function bindWaterCard(iso, rerender) {
+  document.querySelectorAll('[data-water]').forEach((b) => b.onclick = () => {
+    (state.water.log[iso] = state.water.log[iso] || []).push(+b.dataset.water);
+    save(); if (navigator.vibrate) navigator.vibrate(20); rerender();
+  });
+  const u = $('#waterUndo');
+  if (u) u.onclick = () => { const l = state.water.log[iso] || []; l.pop(); if (!l.length) delete state.water.log[iso]; save(); rerender(); };
 }
 
 /* ---------- Ernährungsform & Allergene ---------- */
@@ -1226,6 +1268,7 @@ function renderHistory() {
       ${lastGoal || withGoal.length ? `<div class="spread"><span class="muted">Ø Differenz zum Ziel</span><strong>${avgDiff != null ? (avgDiff > 0 ? '+' : '') + r0(avgDiff) + ' kcal' : '–'}</strong></div>` : ''}
       <div class="spread"><span class="muted">Ø Eiweiß / KH / Fett</span><strong>${r0(avg('p'))} / ${r0(avg('c'))} / ${r0(avg('f'))} g</strong></div>
       <div class="spread"><span class="muted">Ø Ballaststoffe / Zucker</span><strong>${r0(avg('fi'))} / ${r0(avg('su'))} g</strong></div>
+      ${state.water.enabled ? (() => { const wd = days.map((x) => waterOf(x.d)).filter((v) => v > 0); return `<div class="spread"><span class="muted">Ø Wasser (an ${wd.length} Tagen erfasst)</span><strong>${wd.length ? litres(wd.reduce((a, b) => a + b, 0) / wd.length) + ' l' : '–'}</strong></div>`; })() : ''}
       <p class="small muted" style="margin-top:8px">Nicht getrackte Tage fließen nicht in den Durchschnitt ein. Ein Tag mit wenig Einträgen ist nicht unbedingt ein Tag mit wenig Essen.${goalChanges ? ' Die Differenz zum Ziel nutzt für jeden Tag das damals gültige Ziel.' : ''}</p>
     </div>`;
   $('#rangeSeg').querySelectorAll('button').forEach((b) => {
@@ -1266,6 +1309,12 @@ function renderSettings() {
         ${hist.length > 1 ? `<button class="btn ghost rm" data-delgoal="${h.from}" aria-label="Ziel ab ${fmtD(h.from)} löschen">✕</button>` : ''}</li>`).join('')}</ul>` : ''}
     </div>
     <div class="card">
+      <h2>Wasser</h2>
+      <label class="switch"><input type="checkbox" id="wOn" ${state.water.enabled ? 'checked' : ''}> Wasserzähler im Tagebuch anzeigen</label>
+      <label for="wGoal">Tagesziel (Liter)</label><input id="wGoal" inputmode="decimal" value="${litres(state.water.goal)}">
+      <p class="small muted" style="margin-top:6px">Richtwert der DGE: 1,5 l Getränke pro Tag; bei Hitze, Sport oder körperlicher Arbeit mehr. Die EFSA nennt 2,5 l (Männer) bzw. 2,0 l (Frauen) Gesamtwasser – inklusive Wasser aus Lebensmitteln.</p>
+    </div>
+    <div class="card">
       <h2>Abend-Vorschläge</h2>
       <label class="switch"><input type="checkbox" id="sgOn" ${state.sug.enabled ? 'checked' : ''}> Vorschläge anzeigen, wenn das Ziel noch offen ist</label>
       <div class="row">
@@ -1303,6 +1352,9 @@ function renderSettings() {
         <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">Open Database License (ODbL)</a>,
         Inhalte unter der Database Contents License (DbCL). Werte von Open Food Facts stammen von Freiwilligen – bitte mit der Verpackung abgleichen.</p>
       <p>Barcode-Erkennung: ZXing (Apache-2.0). Schrift: Sora (SIL OFL 1.1).</p>
+      <p style="margin-top:10px"><strong style="color:var(--ink)">Wasser</strong></p>
+      <ul class="refs"><li>Deutsche Gesellschaft für Ernährung: Richtwert 1,5 l Getränke pro Tag für Erwachsene (zitiert nach Verbraucherzentrale NRW). <a href="https://www.verbraucherzentrale.nrw/wissen/lebensmittel/gesund-ernaehren/wie-viel-sollte-man-am-tag-trinken-24202" target="_blank" rel="noopener">Link</a></li>
+        <li>EFSA NDA Panel (2010). Scientific Opinion on Dietary Reference Values for water. EFSA Journal 8(3):1459. <a href="https://www.efsa.europa.eu/en/press/news/nda100326" target="_blank" rel="noopener">Pressemitteilung</a></li></ul>
       <p style="margin-top:10px"><strong style="color:var(--ink)">Standardportionen</strong></p>
       <ul class="refs"><li>SINU – Società Italiana di Nutrizione Umana (2024). LARN – Livelli di Assunzione di Riferimento di Nutrienti ed energia per la popolazione italiana, V Revisione: Porzioni standard. Werte übernommen aus: ATS Brescia (2025), Porzioni standard degli alimenti per la popolazione adulta. <a href="https://www.ats-brescia.it/documents/3432658/78612060/Porzioni+standard+degli+alimenti+per+la+popolazione+adulta.pdf/2ce817e7-0713-bbe6-56c7-767285a575dd" target="_blank" rel="noopener">PDF</a></li>
         <li>Eier, Gewichtsklasse M: 53 bis unter 63 g mit Schale, VO (EG) Nr. 589/2008 Art. 4.</li></ul>
@@ -1379,6 +1431,12 @@ function renderSettings() {
   });
   const keepScroll = () => { const y = window.scrollY; renderSettings(); window.scrollTo(0, y); };
   $('#sgOn').onchange = (ev) => { state.sug.enabled = ev.target.checked; save(); };
+  $('#wOn').onchange = (ev) => { state.water.enabled = ev.target.checked; save(); };
+  $('#wGoal').onchange = (ev) => {
+    const l = num(ev.target.value);
+    if (l == null || l < 0.5 || l > 6) { toast('Bitte zwischen 0,5 und 6 Liter eingeben.'); ev.target.value = litres(state.water.goal); return; }
+    state.water.goal = Math.round(l * 1000); save(); toast(`Wasserziel ${litres(state.water.goal)} l`);
+  };
   $('#sgTime').onchange = (ev) => { if (ev.target.value) { state.sug.time = ev.target.value; save(); toast(`Vorschläge ab ${ev.target.value} Uhr`); } };
   $('#sgMin').onchange = (ev) => { const v = num(ev.target.value); if (v != null && v >= 0) { state.sug.minKcal = Math.round(v); save(); } };
   document.querySelectorAll('#sgCount button').forEach((b) => b.onclick = () => { state.sug.count = +b.dataset.n; save(); keepScroll(); });
