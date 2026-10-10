@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.11.1';
+const APP_VERSION = '1.11.2';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -332,10 +332,6 @@ function renderDiary() {
         ${tile('c', 'Kohlenhydr.', t.c, s.carbs)}
         ${tile('f', 'Fett', t.f, s.fat)}
       </div>
-      <div class="subline">
-        <span>Ballaststoffe <strong>${r0(t.fi)}${s.fiber ? ` / ${r0(s.fiber)}` : ''} g</strong></span>
-        <span>Zucker <strong class="${s.sugar && t.su > s.sugar ? 'over' : ''}">${r0(t.su)}${s.sugar ? ` / ${r0(s.sugar)}` : ''} g</strong></span>
-      </div>
     </div>`;
   html += waterCardHtml(currentDate);
   html += caffCardHtml(currentDate);
@@ -401,9 +397,10 @@ function waterCardHtml(iso) {
   if (!state.water.enabled) return '';
   const ml = waterOf(iso), goal = state.water.goal || 1500;
   const pct = Math.max(0, Math.min(100, (ml / goal) * 100));
-  const rest = goal - ml;
   const n = (state.water.log[iso] || []).length;
   return `<div class="card water">
+    <div class="small muted water-title">Wasser</div>
+    <div class="water-row">
     <div class="vessel" role="img" aria-label="Wasser ${r0(pct)} Prozent des Tagesziels">
       <div class="fill" style="height:${pct}%"></div>
       <svg class="wave" viewBox="0 0 74 14" preserveAspectRatio="none" style="bottom:calc(${pct}% - 7px)" aria-hidden="true"><path d="M0 7 Q 9 1 18 7 T 37 7 T 56 7 T 76 7 V 14 H 0 Z"></path></svg>
@@ -411,13 +408,12 @@ function waterCardHtml(iso) {
     </div>
     <div class="water-body">
       <div>
-        <div class="small muted">Wasser ${iso === isoDate(new Date()) ? 'heute' : 'an diesem Tag'}</div>
         <div><span class="water-big">${litres(ml)}</span><span class="muted small"> / ${litres(goal)} l</span></div>
-        <div class="water-rest">${rest > 0 ? `noch ${litres(rest)} l` : 'Ziel erreicht'}</div>
         ${caffWater(iso) ? `<div class="small muted">davon ${litres(caffWater(iso))} l aus Koffein-Getränken</div>` : ''}
       </div>
       <div class="water-btns"><button class="btn" data-water="250">+ 250 ml</button><button class="btn secondary" data-water="500">+ 500 ml</button></div>
       ${n ? `<button class="btn ghost water-undo" id="waterUndo">↶ Rückgängig (${state.water.log[iso][n - 1]} ml)</button>` : '<div class="small muted water-undo">Tippe, wenn du etwas getrunken hast.</div>'}
+    </div>
     </div>
   </div>`;
 }
