@@ -97,6 +97,11 @@ Gegarte BLS-Varianten (z. B. „Reis poliert, gekocht“) rechnen die Rohportion
 Standardziel 1,5 l Getränke pro Tag (Richtwert der DGE, zitiert nach [Verbraucherzentrale NRW](https://www.verbraucherzentrale.nrw/wissen/lebensmittel/gesund-ernaehren/wie-viel-sollte-man-am-tag-trinken-24202)); die [EFSA (2010)](https://www.efsa.europa.eu/en/press/news/nda100326) hält 2,5 l (Männer) bzw. 2,0 l (Frauen) **Gesamtwasser** für angemessen, inklusive Wasser aus Lebensmitteln. Das Ziel ist in den Einstellungen änderbar.
 
 
+## Barcode-Kamera
+
+- Der Kamera-Stream wird nach dem Schließen des Scanners 3 Minuten behalten (Kamera dann deaktiviert), damit iOS beim erneuten Öffnen nicht erneut nach der Erlaubnis fragt. Bekannt ist, dass iOS-Home-Bildschirm-Apps die Erlaubnis nicht dauerhaft speichern ([WebKit-Bug 215884](https://bugs.webkit.org/show_bug.cgi?id=215884)); ob das Behalten des Streams die Abfrage zuverlässig verhindert, ist nicht bestätigt.
+- Fokus: Auflösung bis 1920×1080, Hauptkamera statt Ultraweitwinkel (falls erkennbar), Autofokus „continuous“ nur wenn das Gerät ihn anbietet, TRY_HARDER und Abtastung alle 150 ms. Die Wirkung auf dem iPhone ist ungetestet.
+
 ## Flüssigkeiten und Koffein-Getränke im Tagebuch
 
 - Erkennung als Flüssigkeit bei BLS-Daten nach Warengruppe und Name (Getränke, Milch/Kefir/Buttermilch, Säfte/Nektare, Pflanzendrinks; Pulver, Konserven, Konzentrate und Kondensmilch ausgenommen). Die Regeln sind Heuristiken – Einzelfälle können falsch eingeordnet sein.

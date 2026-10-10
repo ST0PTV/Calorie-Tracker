@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.11.4';
+const APP_VERSION = '1.12.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -1015,31 +1015,70 @@ function openQuick(meal, entry) {
 function renderScan() {
   $('#addBody').innerHTML = `
     <div class="scanner"><video id="video" playsinline muted></video><div class="frame"></div></div>
-    <p class="small muted" style="margin-top:8px">Barcode in den Rahmen halten. Nur der Barcode wird an Open Food Facts gesendet.</p>
+    <p class="small muted" style="margin-top:8px">Barcode in den Rahmen halten, etwa 15–25 cm Abstand, gut beleuchtet. Nur der Barcode wird an Open Food Facts gesendet.</p>
     <label for="code">Oder Barcode eintippen</label>
     <div class="row"><input id="code" type="text" inputmode="numeric" placeholder="z. B. 4008400401621"><button class="btn" id="lookup" style="flex:0 0 auto">Suchen</button></div>
     <div id="scanResult"></div>`;
   $('#lookup').onclick = () => { const c = ($('#code').value || '').replace(/\D/g, ''); if (c) lookupBarcode(c); };
   startScanner();
 }
+/* Kamera: Der Stream wird kurz behalten (CAM_KEEP_MS), damit iOS beim erneuten Öffnen des Scanners nicht jedes Mal
+   neu nach der Erlaubnis fragt. Außerdem: hohe Auflösung, Hauptkamera statt Ultraweitwinkel (schlechter Nahfokus),
+   kontinuierlicher Autofokus, falls vom Gerät angeboten. */
+let camStream = null, camTimer = null;
+const CAM_KEEP_MS = 3 * 60 * 1000;
+const camLive = () => camStream && camStream.getVideoTracks().some((t) => t.readyState === 'live');
+function camRelease() { clearTimeout(camTimer); camTimer = null; if (camStream) { camStream.getTracks().forEach((t) => t.stop()); camStream = null; } }
+async function getCamStream() {
+  clearTimeout(camTimer);
+  if (camLive()) { camStream.getVideoTracks().forEach((t) => { t.enabled = true; }); return camStream; }
+  const res = { width: { ideal: 1920 }, height: { ideal: 1080 } };
+  let st = await navigator.mediaDevices.getUserMedia({ video: Object.assign({ facingMode: { ideal: 'environment' } }, res) });
+  try {
+    const tr = st.getVideoTracks()[0];
+    if (/ultra/i.test(tr.label || '')) {
+      const back = (await navigator.mediaDevices.enumerateDevices()).find((d) => d.kind === 'videoinput' && /back|rück|hinter/i.test(d.label) && !/ultra|tele/i.test(d.label));
+      if (back) { st.getTracks().forEach((t) => t.stop()); st = await navigator.mediaDevices.getUserMedia({ video: Object.assign({ deviceId: { exact: back.deviceId } }, res) }); }
+    }
+  } catch (e) { /* bei Fehlern Standardkamera behalten */ }
+  try {
+    const tr = st.getVideoTracks()[0]; const cap = tr.getCapabilities ? tr.getCapabilities() : {};
+    if (cap.focusMode && cap.focusMode.includes('continuous')) await tr.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+  } catch (e) { /* Fokus nicht steuerbar */ }
+  camStream = st;
+  return st;
+}
 function startScanner() {
   if (!window.ZXing || !navigator.mediaDevices) { $('#scanResult').innerHTML = '<p class="muted">Kamera nicht verfügbar – bitte Barcode eintippen.</p>'; return; }
   const hints = new Map();
   hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8, ZXing.BarcodeFormat.UPC_A, ZXing.BarcodeFormat.UPC_E]);
-  scanner = new ZXing.BrowserMultiFormatReader(hints, 300);
+  hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+  const reader = new ZXing.BrowserMultiFormatReader(hints, 150);
+  scanner = reader;
   let done = false;
-  scanner.decodeFromConstraints({ video: { facingMode: 'environment' } }, 'video', (result) => {
-    if (result && !done) {
-      done = true;
-      if (navigator.vibrate) navigator.vibrate(60);
-      const code = result.getText();
-      stopScanner();
-      $('#code').value = code;
-      lookupBarcode(code);
-    }
+  getCamStream().then((stream) => {
+    if (scanner !== reader) return; // inzwischen geschlossen
+    return reader.decodeFromStream(stream, 'video', (result) => {
+      if (result && !done) {
+        done = true;
+        if (navigator.vibrate) navigator.vibrate(60);
+        const code = result.getText();
+        stopScanner();
+        $('#code').value = code;
+        lookupBarcode(code);
+      }
+    });
   }).catch(() => { const r = $('#scanResult'); if (r) r.innerHTML = '<p class="muted">Kein Kamerazugriff. Erlaube die Kamera in den Safari-Einstellungen oder tippe den Barcode ein.</p>'; });
 }
-function stopScanner() { if (scanner) { try { scanner.reset(); } catch (e) {} scanner = null; } }
+function stopScanner() {
+  if (scanner) {
+    try { scanner.stopContinuousDecode(); } catch (e) { /* ok */ }
+    scanner = null;
+    const v = document.getElementById('video'); if (v) { try { v.pause(); v.srcObject = null; } catch (e) { /* ok */ } }
+    if (camStream) { camStream.getVideoTracks().forEach((t) => { t.enabled = false; }); clearTimeout(camTimer); camTimer = setTimeout(camRelease, CAM_KEEP_MS); }
+  }
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && !scanner) camRelease(); });
 
 async function lookupBarcode(code) {
   const out = $('#scanResult');
