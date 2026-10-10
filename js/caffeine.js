@@ -171,7 +171,20 @@ function caffCardHtml(iso) {
       ${pill}
     </div>
     ${caffChartSvg({ id: 'cg-card', iso, doses, nowH, ke, thr, bed, wake })}
-    <div class="small muted caf-note">Zur Bettzeit (${esc(c.bed)}) noch ca. <strong class="${bedLvl < thr ? 'good' : bedLvl < 2 * thr ? 'mid' : 'bad'}">${r0(bedLvl)} mg</strong> · ${isToday ? 'heute ' : ''}${r0(total)} mg aufgenommen${over ? ` · <span class="bad">über ${r0(c.limit)} mg</span>` : ''}</div>
+    <div class="caf-stats">
+      <div class="caf-stat">
+        <span class="cs-l">${isToday ? 'Heute aufgenommen' : 'Aufgenommen'}</span>
+        <span class="cs-v ${over ? 'bad' : ''}">${r0(total)}<small> / ${r0(c.limit)} mg</small></span>
+        <span class="cs-bar"><i class="${over ? 'over' : ''}" style="width:${Math.min(100, total / c.limit * 100).toFixed(0)}%"></i></span>
+        <span class="cs-s">${over ? `${r0(total - c.limit)} mg über dem Richtwert` : `${r0(Math.max(0, c.limit - total))} mg bis zum Richtwert`}</span>
+      </div>
+      <div class="caf-stat">
+        <span class="cs-l">Zur Bettzeit (${esc(c.bed)})</span>
+        <span class="cs-v ${bedLvl < thr ? 'good' : bedLvl < 2 * thr ? 'mid' : 'bad'}">${r0(bedLvl)}<small> mg</small></span>
+        <span class="cs-bar"><i class="${bedLvl < thr ? 'ok' : bedLvl < 2 * thr ? 'mid' : 'over'}" style="width:${Math.min(100, bedLvl / (3 * thr) * 100).toFixed(0)}%"></i></span>
+        <span class="cs-s">${bedLvl < thr ? `unter Ziel (${r0(thr)} mg)` : `Ziel ${r0(thr)} mg`}</span>
+      </div>
+    </div>
     ${rows ? `<div class="caf-list-day">${rows}</div>` : '<div class="small muted caf-empty">Noch nichts getrunken.</div>'}
     <button class="btn block caf-add" data-caf-add>+ Getränk hinzufügen</button>
   </div>`;

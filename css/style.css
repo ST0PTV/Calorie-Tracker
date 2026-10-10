@@ -312,3 +312,15 @@ input[type=time] { min-height: 48px; -webkit-appearance: none; appearance: none;
 .heat-legend i { width: auto; height: 10px; }
 .heat-legend span { font-size: 0.68rem; margin: 0; }
 .heat-legend .unit { flex: 0 0 auto; margin-left: 2px; }
+
+/* Koffein-Kennzahlen */
+.caf-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0 12px; }
+.caf-stat { display: flex; flex-direction: column; gap: 4px; padding: 12px; border-radius: 16px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); }
+.cs-l { font-size: 0.7rem; color: var(--muted); }
+.cs-v { font-size: 1.35rem; font-weight: 600; line-height: 1.1; color: var(--caf); }
+.cs-v small { font-size: 0.72rem; font-weight: 400; color: var(--muted); }
+.cs-v.good { color: var(--good); } .cs-v.mid { color: var(--caf); } .cs-v.bad { color: var(--warn); }
+.cs-bar { height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.cs-bar i { display: block; height: 100%; border-radius: 3px; background: var(--caf); }
+.cs-bar i.ok { background: var(--good); } .cs-bar i.over { background: var(--warn); }
+.cs-s { font-size: 0.68rem; color: var(--muted); }
