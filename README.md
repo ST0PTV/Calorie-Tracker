@@ -15,6 +15,8 @@ Ein schlanker Kalorien-Tracker als Web-App (PWA) fürs iPhone. Er läuft komplet
 
 - Tagebuch mit vier Mahlzeiten, Tagesziel, Makros, Ballaststoffen und Zucker
 - Tagesziel mit Datum (Ziel-Historie); Makro-Presets (Ausgewogen, Muskelaufbau, Fettabbau, Eigene) aus Körpergewicht × Faktor
+- Abend-Vorschläge ab einstellbarer Uhrzeit: 1–3 Lebensmittel mit Mengen, die die offenen Ziele treffen (Priorität Kalorien / Eiweiß / ausgewogen), bevorzugt aus eigenen Einträgen, bewertbar mit 👍/👎
+- Ernährungsform (vegetarisch, vegan) und Allergie-Filter für die Vorschläge
 - Lebensmittelsuche im Bundeslebensmittelschlüssel (offline)
 - Barcode-Scan über die Kamera (Open Food Facts)
 - Favoriten, zuletzt verwendete und eigene Lebensmittel
@@ -48,3 +50,14 @@ Eiweiß und Fett = Faktor (g/kg Körpergewicht) × Gewicht; Kohlenhydrate = (Kal
 | Fettabbau | 2,2 g/kg | 0,8 g/kg | 15–30 % | Helms et al. 2014, [doi:10.1123/ijsnem.2013-0054](https://doi.org/10.1123/ijsnem.2013-0054); Longland et al. 2016, [doi:10.3945/ajcn.115.119339](https://doi.org/10.3945/ajcn.115.119339); Helms, Aragon & Fitschen 2014, [doi:10.1186/1550-2783-11-20](https://doi.org/10.1186/1550-2783-11-20) |
 
 Die Presets ändern nur die Verteilung der Makros, nicht das Kalorienziel.
+
+## Abend-Vorschläge: Methode
+
+- **Offene Ziele:** Tagesziel (kcal und, falls gesetzt, Eiweiß/KH/Fett) minus bereits Gegessenes.
+- **Kandidaten:** zuerst Lebensmittel aus früheren Einträgen (abends Gegessenes bevorzugt), sonst eine Basisliste gängiger Kochzutaten aus dem BLS (`BASICS` in `tools/convert_bls.py`). Ausgeschlossen: Getränke, Süßwaren, Fertiggerichte, Brot/Backwaren, Gewürze, Öle sowie Lebensmittel mit zweimal 👎.
+- **Mengen:** Für jede Kombination werden die Grammzahlen per Gittersuche (5- bzw. 10-g-Schritte, realistische Portionsgrenzen je Lebensmittelart) so gewählt, dass die gewichtete quadratische Abweichung der Summe von den offenen Zielen minimal ist. Überschreiten der kcal wird stärker bestraft als Unterschreiten; bei „Eiweiß zuerst“ wird fehlendes Eiweiß stark gewichtet.
+- **Rangfolge:** Abweichung plus kleine Präferenzterme (Bewertung, Häufigkeit, neu vs. bekannt, keine zwei Beilagen/Gemüse).
+
+## Ernährungsform und Allergene
+
+Der BLS enthält keine Allergen- oder Vegan-Angaben. `tools/convert_bls.py` leitet sie aus der Hauptgruppe (erster Buchstabe des BLS-Codes) und Stichwörtern im Namen ab, nur für Gruppen mit einfachen Zutaten; zusammengesetzte Produkte bleiben „unbekannt“ und werden bei aktiven Filtern nicht vorgeschlagen. Allergene nach LMIV Anhang II, ohne Sulfite. Barcode-Produkte nutzen die Angaben von Open Food Facts, eigene Lebensmittel die eigenen Angaben. **Keine Gewähr – bei Allergien immer die Zutatenliste prüfen.**
