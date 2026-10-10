@@ -307,3 +307,8 @@ input[type=time] { min-height: 48px; -webkit-appearance: none; appearance: none;
 #cSave { background: var(--caf); }
 .heat-detail .hd { flex: 1; text-align: center; min-width: 0; }
 .heat-legend { flex-wrap: wrap; }
+.heat-legend { display: flex; align-items: flex-end; gap: 6px; margin-top: 8px; flex-wrap: nowrap; }
+.heat-legend > div { flex: 1; display: flex; flex-direction: column; align-items: stretch; gap: 3px; text-align: center; min-width: 0; }
+.heat-legend i { width: auto; height: 10px; }
+.heat-legend span { font-size: 0.68rem; margin: 0; }
+.heat-legend .unit { flex: 0 0 auto; margin-left: 2px; }
