@@ -176,7 +176,7 @@ function caffCardHtml(iso) {
         <span class="cs-l">${isToday ? 'Heute aufgenommen' : 'Aufgenommen'}</span>
         <span class="cs-v ${over ? 'bad' : ''}">${r0(total)}<small> / ${r0(c.limit)} mg</small></span>
         <span class="cs-bar"><i class="${over ? 'over' : ''}" style="width:${Math.min(100, total / c.limit * 100).toFixed(0)}%"></i></span>
-        <span class="cs-s">${over ? `${r0(total - c.limit)} mg über dem Richtwert` : `${r0(Math.max(0, c.limit - total))} mg bis zum Richtwert`}</span>
+        ${over ? `<span class="cs-s bad">${r0(total - c.limit)} mg über dem Richtwert</span>` : ''}
       </div>
       <div class="caf-stat">
         <span class="cs-l">Zur Bettzeit (${esc(c.bed)})</span>
