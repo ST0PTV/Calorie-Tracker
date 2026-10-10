@@ -18,6 +18,7 @@ Ein schlanker Kalorien-Tracker als Web-App (PWA) fürs iPhone. Er läuft komplet
 - Abend-Vorschläge ab einstellbarer Uhrzeit: 1–3 Lebensmittel mit Mengen, die die offenen Ziele treffen (Priorität Kalorien / Eiweiß / ausgewogen), bevorzugt aus eigenen Einträgen, bewertbar mit 👍/👎
 - Ernährungsform (vegetarisch, vegan) und Allergie-Filter für die Vorschläge
 - Lebensmittelsuche im Bundeslebensmittelschlüssel (offline)
+- Portions-Schnellwahl im Mengen-Dialog (Standardportionen nach SINU LARN 2024, Stückgewichte, Packungsportion, zuletzt verwendete Menge; mehrfach tippen = mehrere Portionen)
 - Barcode-Scan über die Kamera (Open Food Facts)
 - Favoriten, zuletzt verwendete und eigene Lebensmittel
 - Eigene Rezepte aus mehreren Zutaten (mit Endgewicht und Portionen)
@@ -61,3 +62,28 @@ Die Presets ändern nur die Verteilung der Makros, nicht das Kalorienziel.
 ## Ernährungsform und Allergene
 
 Der BLS enthält keine Allergen- oder Vegan-Angaben. `tools/convert_bls.py` leitet sie aus der Hauptgruppe (erster Buchstabe des BLS-Codes) und Stichwörtern im Namen ab, nur für Gruppen mit einfachen Zutaten; zusammengesetzte Produkte bleiben „unbekannt“ und werden bei aktiven Filtern nicht vorgeschlagen. Allergene nach LMIV Anhang II, ohne Sulfite. Barcode-Produkte nutzen die Angaben von Open Food Facts, eigene Lebensmittel die eigenen Angaben. **Keine Gewähr – bei Allergien immer die Zutatenliste prüfen.**
+
+## Standardportionen
+
+Quelle: SINU – Società Italiana di Nutrizione Umana (2024), LARN V Revisione, „Porzioni standard“ für Erwachsene; Werte übernommen aus [ATS Brescia (2025)](https://www.ats-brescia.it/documents/3432658/78612060/Porzioni+standard+degli+alimenti+per+la+popolazione+adulta.pdf/2ce817e7-0713-bbe6-56c7-767285a575dd). Eine vergleichbare deutsche Tabelle für Einzelportionen Erwachsener wurde nicht gefunden (die DGE gibt Tages- bzw. Wochenmengen an).
+
+| Lebensmittel (roh, essbarer Anteil) | Portion |
+|---|---|
+| Reis, Nudeln, Getreide (trocken) | 80 g |
+| Frühstückscerealien, Haferflocken | 30 g |
+| Frische Pasta / gefüllte Pasta / Gnocchi | 100 / 125 / 200 g |
+| Kartoffeln | 200 g (ca. 2 kleine) |
+| Hülsenfrüchte getrocknet / gegart oder Dose | 50 / 150 g |
+| Fleisch | 100 g |
+| Fisch / Fischkonserve abgetropft | 150 / 50 g |
+| Wurst, Aufschnitt | 50 g |
+| Ei | 50 g (1 Ei) |
+| Milch / Joghurt | 125 ml / 125 g |
+| Frischkäse, Quark, Mozzarella (≤ 25 % Fett) / Ricotta / gereifter Käse | 100 / 150 / 50 g |
+| Gemüse / Blattsalat | 200 / 80 g |
+| Obst frisch / Trockenobst | 150 / 30 g |
+| Nüsse, Samen | 30 g |
+| Brot | 50 g |
+| Öl (1 EL) / Butter | 9 / 10 g |
+
+Gegarte BLS-Varianten (z. B. „Reis poliert, gekocht“) rechnen die Rohportion über das Energieverhältnis roh/gegart um. Stückgewichte (1 Tomate 80 g, 1 Karotte 60 g, 1 kleine Kartoffel 100 g) sind aus den LARN-Haushaltsmaßen abgeleitet.

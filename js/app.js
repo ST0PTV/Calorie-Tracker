@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.7.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -726,6 +726,109 @@ function renderMine() {
   document.querySelectorAll('#addBody [data-sec]').forEach((ul) => bindList(ul, map[ul.dataset.sec], (f) => openAmount(f)));
 }
 
+/* ---------- Standardportionen ----------
+   Quelle: SINU, LARN – V Revisione 2024, „Porzioni standard“ für Erwachsene (über ATS Brescia, 2025).
+   Grammangaben beziehen sich auf das rohe Lebensmittel, essbarer Anteil. Für gegarte Varianten rechnet
+   die App die Rohportion über das Energieverhältnis roh/gegart aus dem BLS um. Stückgewichte sind aus den
+   LARN-Haushaltsmaßen abgeleitet (z. B. 2–3 Tomaten = 200 g). */
+const COOKED_RX = /,?\s*(gekocht|gegart|gedünstet|gedämpft|pochiert|geschmort ohne Fett|gebraten ohne Fett(?: \((?:Pfanne|Ofen)\))?|gegrillt)\b.*$/;
+const FISH_CAN = /Konserve|Präserve|in Öl|im eigenen Saft/;
+function larnPortion(food) {
+  const n = food.n, g = food.id && food.id.startsWith('bls:') ? food.id[4] : null;
+  if (!g) return null;
+  const P = (grams, label, hint) => ({ grams, label, hint });
+  switch (g) {
+    case 'C':
+      if (/Mehl|Stärke|Kleie|Malz|Drink|Grieß/.test(n)) return null;
+      if (/Flocken|Müsli|Cerealien|Flakes|gepufft/.test(n)) return P(30, '1 Portion', 'Frühstückscerealien');
+      return P(80, '1 Portion', 'Getreide/Reis roh');
+    case 'E':
+      if (/Hühnerei roh|^Hühnerei$/.test(n)) return P(50, '1 Ei (M)', 'essbarer Anteil');
+      if (/Eiklar|Eigelb|Pulver/.test(n)) return null;
+      if (/Gnocchi/.test(n)) return P(200, '1 Portion', 'Gnocchi');
+      if (/Tortell|Ravioli|gefüllt|Füllung/.test(n)) return P(125, '1 Portion', 'gefüllte Pasta');
+      if (/Frisch/.test(n)) return P(100, '1 Portion', 'frische Pasta');
+      if (/[Tt]eigwaren|[Nn]udel/.test(n)) return P(80, '1 Portion', 'Nudeln roh');
+      return null;
+    case 'K':
+      if (/Kartoffel|Batate|Süßkartoffel|Yams|Topinambur/.test(n) && !/Püree|Kloß|Stärke|Mehl|Chips|Pommes|Rösti|Krokette|Pulver|Trocken/.test(n)) return P(200, '1 Portion', 'ca. 2 kleine Kartoffeln');
+      if (/getrocknet/.test(n)) return null;
+      return P(200, '1 Portion', 'Pilze wie Gemüse');
+    case 'H':
+      if (/Drink|Joghurt|Mehl|Öl|Mus|Butter|Creme|Sprossen|Keimlinge/.test(n)) return null;
+      if (/Mandel|Haselnuss|Walnuss|Cashew|Pekan|Paranuss|Pistazie|Macadamia|Erdnuss|Sesam|Sonnenblumenkern|Kürbiskern|Leinsamen|Chia|Pinienkern|Nuss/.test(n)) return P(30, '1 Portion', 'Nüsse/Samen, z. B. 7–8 Walnüsse');
+      if (/Tofu|Tempeh|Seitan|Ersatz|Aufschnitt/.test(n)) return null;
+      if (/Konserve|gekocht|gegart/.test(n)) return P(150, '1 Portion', 'Hülsenfrüchte gegart/Dose');
+      if (/reif|getrocknet/.test(n)) return P(50, '1 Portion', 'Hülsenfrüchte getrocknet');
+      return null;
+    case 'G':
+      if (/Saft|getrocknet|Pulver/.test(n)) return null;
+      if (/zwiebel|knoblauch|ingwer|petersilie|schnittlauch|basilikum|dill|kerbel|koriander|minze|rosmarin|thymian|oregano|kresse|meerrettich|chili|peperoni/i.test(n)) return null; // Würzzutaten, keine Beilage
+      if (/Hülsenfr|Kichererbse reif|Erbse reif|Bohne reif|Linse/.test(n)) return /gekocht|Konserve/.test(n) ? P(150, '1 Portion', 'Hülsenfrüchte gegart') : P(50, '1 Portion', 'Hülsenfrüchte getrocknet');
+      if (/salat|Rucola|Feldsalat|Eisberg|Endivie|Radicchio|Chicorée|Kresse/i.test(n)) return P(80, '1 Portion', 'Blattsalat');
+      return P(200, '1 Portion', 'Gemüse');
+    case 'F':
+      if (/Saft|Nektar|Konfitüre|Marmelade|Mus\b|Sirup/.test(n)) return null;
+      if (/getrocknet|Trocken/.test(n)) return P(30, '1 Portion', 'Trockenobst');
+      return P(150, '1 Stück/Portion', 'mittelgroßes Stück Obst');
+    case 'T':
+      if (/Rogen|Kaviar|Leber|Salat|Paste/.test(n)) return null;
+      if (FISH_CAN.test(n)) return P(50, '1 kleine Dose', 'Fischkonserve abgetropft');
+      return P(150, '1 Portion', 'Fisch, z. B. 1 Filet');
+    case 'U': case 'V':
+      if (/Fett|Speck|Leber|Niere|Herz|Hirn|Zunge|Knochen|Mark|Blut|Haut\b/.test(n) && !/Filet|Brust/.test(n)) return null;
+      return P(100, '1 Portion', 'Fleisch roh, z. B. 1 Scheibe Hähnchenbrust');
+    case 'W':
+      return P(50, '1 Portion', 'Wurst/Aufschnitt, ca. 3–4 Scheiben');
+    case 'M':
+      if (/Pulver|Butter|Sahne|Rahm/.test(n)) return null;
+      if (/Ricotta/.test(n)) return P(150, '1 Portion', 'Ricotta');
+      if (/[Jj]oghurt|Kefir|Dickmilch|Sauermilch|Buttermilch/.test(n)) return P(125, '1 Becher', 'Joghurt/Sauermilch');
+      if (/[Mm]ilch\b|Milch,|Milch \d|Vollmilch|Trinkmilch/.test(n) && !/käse/i.test(n)) return P(125, '1 kleines Glas', 'Milch (ml ≈ g)');
+      return (food.f || 0) > 25 ? P(50, '1 Portion', 'gereifter Käse') : P(100, '1 Portion', 'Frischkäse/Quark/Mozzarella');
+    case 'B':
+      return P(50, '1 Portion', '1 Scheibe oder kleines Brötchen');
+    case 'Q':
+      if (/[Öö]l\b/.test(n)) return P(9, '1 EL', 'Öl (10 ml)');
+      if (/Butter|Schmalz/.test(n)) return P(10, '1 Portion', 'Butter/Schmalz');
+      return null;
+    default: return null;
+  }
+}
+// Zusätzliche Stückgewichte aus LARN-Haushaltsmaßen
+function pieceSize(food) {
+  const n = food.n;
+  if (/^Tomate roh/.test(n)) return { grams: 80, label: '1 Tomate' };
+  if (/^Karotte\/Möhre, roh/.test(n)) return { grams: 60, label: '1 Karotte' };
+  if (/^Kartoffel (geschält|ungeschält), roh/.test(n)) return { grams: 100, label: '1 kleine Kartoffel' };
+  return null;
+}
+function portionOptions(food) {
+  const out = [];
+  let base = food;
+  let factor = 1;
+  if (food.id && food.id.startsWith('bls:') && COOKED_RX.test(food.n) && !larnPortionDirect(food)) {
+    const stem = food.n.replace(COOKED_RX, '').trim();
+    const raw = bls.find((x) => x.id[4] === food.id[4] && (x.n === stem + ', roh' || x.n === stem + ' roh' || x.n === stem));
+    if (raw && raw.k > 0 && food.k > 0) { base = raw; factor = raw.k / food.k; }
+    else base = null;
+  }
+  const p = base ? larnPortion(base) : null;
+  if (p) {
+    const g = factor === 1 ? p.grams : Math.round((p.grams * factor) / 5) * 5;
+    out.push({ grams: g, label: p.label + (factor !== 1 ? ' (gegart)' : ''), hint: p.hint + (factor !== 1 ? `; ${p.grams} g roh umgerechnet` : ''), larn: true });
+  }
+  const pc = factor === 1 ? pieceSize(food) : null;
+  if (pc && !out.some((o) => o.grams === pc.grams)) out.push({ grams: pc.grams, label: pc.label, hint: 'aus LARN-Haushaltsmaß', larn: true });
+  if (food.serving && !out.some((o) => o.grams === Math.round(food.serving))) out.push({ grams: r1n(food.serving), label: food.src === 'off' ? 'Packungsportion' : food.src === 'recipe' ? '1 Rezeptportion' : '1 Portion', hint: food.src === 'off' ? 'laut Open Food Facts' : 'eigene Angabe' });
+  return out;
+}
+// Lebensmittel, deren Portion sich direkt auf den gegarten Zustand bezieht (z. B. Hülsenfrüchte gekocht)
+function larnPortionDirect(food) {
+  return /^H|^G/.test(food.id[4]) && /Hülsen|Kichererbse|Erbse reif|Bohne reif|Linse|Konserve/.test(food.n) && /gekocht|Konserve/.test(food.n);
+}
+const r1n = (n) => Math.round((n || 0) * 10) / 10;
+
 /* ---------- Mengen-Dialog ---------- */
 function openAmount(food, opts = {}) {
   stopScanner();
@@ -745,7 +848,8 @@ function openAmount(food, opts = {}) {
     <p class="small muted">Pro 100 g: ${r0(food.k)} kcal · E ${r1(food.p)} g · KH ${r1(food.c)} g · F ${r1(food.f)} g · Ballastst. ${r1(food.fi)} g · Zucker ${r1(food.su)} g</p>
     <label for="grams">Menge in Gramm</label>
     <input id="grams" type="text" inputmode="decimal" value="${r1(defGrams)}">
-    ${food.serving ? `<button class="btn ghost" id="serving">1 Portion = ${r1(food.serving)} g</button>` : ''}
+    <div class="chips portions" id="portions">${portionOptions(food).map((o, i) => `<button type="button" class="chip" data-pi="${i}" title="${esc(o.hint)}">${esc(o.label)} · ${r1(o.grams)} g</button>`).join('')}${recentHit && recentHit.lastGrams && !edit ? `<button type="button" class="chip" data-last="${recentHit.lastGrams}">Zuletzt · ${r1(recentHit.lastGrams)} g</button>` : ''}</div>
+    ${portionOptions(food).some((o) => o.larn) ? '<p class="small muted portion-note">Mehrfach tippen = mehrere Portionen. Standardportionen: SINU, LARN 2024 (Rohgewicht, essbarer Anteil).</p>' : ''}
     <div class="nutri" id="nutri"></div>
     <label for="meal">Mahlzeit</label>
     <select id="meal">${MEALS.map((m) => `<option value="${m.id}" ${m.id === mealSel ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
@@ -762,7 +866,18 @@ function openAmount(food, opts = {}) {
       <div><strong>${r1(x.fi)}</strong><span>Ballastst.</span></div><div><strong>${r1(x.su)}</strong><span>Zucker</span></div>`;
   };
   g.oninput = upd; upd();
-  const sv = $('#serving'); if (sv) sv.onclick = () => { g.value = r1(food.serving); upd(); };
+  const pOpts = portionOptions(food);
+  let lastChip = null, mult = 0;
+  document.querySelectorAll('#portions [data-pi]').forEach((b) => b.onclick = () => {
+    const o = pOpts[+b.dataset.pi];
+    mult = lastChip === b ? mult + 1 : 1; lastChip = b;
+    g.value = r1(o.grams * mult); upd();
+    document.querySelectorAll('#portions .chip').forEach((c) => c.classList.toggle('on', c === b));
+    b.textContent = `${mult > 1 ? mult + ' × ' + o.label.replace(/^1 /, '') : o.label} · ${r1(o.grams * mult)} g`;
+  });
+  const lc = document.querySelector('#portions [data-last]');
+  if (lc) lc.onclick = () => { g.value = r1(+lc.dataset.last); upd(); lastChip = lc; document.querySelectorAll('#portions .chip').forEach((c) => c.classList.toggle('on', c === lc)); };
+  g.addEventListener('input', () => { lastChip = null; document.querySelectorAll('#portions .chip').forEach((c) => c.classList.remove('on')); });
   const back = () => { if (edit) closeSheet(); else openAdd(addMeal); };
   $('#back').onclick = back;
   $('#favBtn').onclick = () => {
@@ -1188,6 +1303,9 @@ function renderSettings() {
         <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">Open Database License (ODbL)</a>,
         Inhalte unter der Database Contents License (DbCL). Werte von Open Food Facts stammen von Freiwilligen – bitte mit der Verpackung abgleichen.</p>
       <p>Barcode-Erkennung: ZXing (Apache-2.0). Schrift: Sora (SIL OFL 1.1).</p>
+      <p style="margin-top:10px"><strong style="color:var(--ink)">Standardportionen</strong></p>
+      <ul class="refs"><li>SINU – Società Italiana di Nutrizione Umana (2024). LARN – Livelli di Assunzione di Riferimento di Nutrienti ed energia per la popolazione italiana, V Revisione: Porzioni standard. Werte übernommen aus: ATS Brescia (2025), Porzioni standard degli alimenti per la popolazione adulta. <a href="https://www.ats-brescia.it/documents/3432658/78612060/Porzioni+standard+degli+alimenti+per+la+popolazione+adulta.pdf/2ce817e7-0713-bbe6-56c7-767285a575dd" target="_blank" rel="noopener">PDF</a></li>
+        <li>Eier, Gewichtsklasse M: 53 bis unter 63 g mit Schale, VO (EG) Nr. 589/2008 Art. 4.</li></ul>
       <p style="margin-top:10px"><strong style="color:var(--ink)">Makro-Presets</strong></p>
       <ul class="refs">${Object.keys(REFS).map(refHtml).join('')}</ul>
       <p>Version ${APP_VERSION}</p>
