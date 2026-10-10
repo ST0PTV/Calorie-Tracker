@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.11.3';
+const APP_VERSION = '1.11.4';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -409,7 +409,6 @@ function waterCardHtml(iso) {
     <div class="water-body">
       <div>
         <div><span class="water-big">${litres(ml)}</span><span class="muted small"> / ${litres(goal)} l</span></div>
-        ${caffWater(iso) ? `<div class="small muted">davon ${litres(caffWater(iso))} l aus Koffein-Getränken</div>` : ''}
       </div>
       <div class="water-btns"><button class="btn" data-water="250">+ 250 ml</button><button class="btn secondary" data-water="500">+ 500 ml</button></div>
       ${n ? `<button class="btn ghost water-undo" id="waterUndo">↶ Rückgängig (${state.water.log[iso][n - 1]} ml)</button>` : '<div class="small muted water-undo">Tippe, wenn du etwas getrunken hast.</div>'}
