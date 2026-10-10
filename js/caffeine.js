@@ -393,10 +393,7 @@ function caffSettingsHtml() {
   return `<div class="card">
     <h2>Koffein</h2>
     <label class="switch"><input type="checkbox" id="cfOn" ${c.enabled ? 'checked' : ''}> Koffein-Tracker anzeigen</label>
-    <div class="row">
-      <div><label for="cfBed">Bettzeit</label><input id="cfBed" type="time" value="${esc(c.bed)}"></div>
-      <div><label for="cfWake">Aufstehen</label><input id="cfWake" type="time" value="${esc(c.wake)}"></div>
-    </div>
+    <p class="small muted" style="margin:0 0 4px">Bettzeit ${esc(c.bed)} · Aufstehen ${esc(c.wake)} – änderbar unter „Schlaf &amp; Körper“.</p>
     <div class="row">
       <div><label for="cfHl">Halbwertszeit (h)</label><input id="cfHl" inputmode="decimal" value="${r1(c.halfLife)}"></div>
       <div><label for="cfThr">Ziel zur Bettzeit (mg)</label><input id="cfThr" inputmode="numeric" value="${r0(c.threshold)}"></div>
@@ -408,8 +405,6 @@ function caffSettingsHtml() {
 function caffSettingsBind() {
   const c = state.caffeine;
   $('#cfOn').onchange = (ev) => { c.enabled = ev.target.checked; save(); };
-  const time = (id, key, label) => { $(id).onchange = (ev) => { if (ev.target.value) { c[key] = ev.target.value; save(); toast(`${label} ${ev.target.value} Uhr`); } }; };
-  time('#cfBed', 'bed', 'Bettzeit'); time('#cfWake', 'wake', 'Aufstehen');
   const nums = (id, key, lo, hi, unit, dec) => {
     $(id).onchange = (ev) => {
       const v = num(ev.target.value);
