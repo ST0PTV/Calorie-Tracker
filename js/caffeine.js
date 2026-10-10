@@ -374,11 +374,10 @@ function caffHistoryHtml(days, range) {
   }
   return `<div class="card caf-hist"><div class="spread"><h2>Koffein</h2><span class="small muted">Ø ${r0(avg)} mg pro Tag</span></div>${chart}</div>
     <div class="card">
-      <div class="spread"><span class="muted">Ø Koffein pro erfasstem Tag</span><strong>${r0(avg)} mg</strong></div>
+      <div class="spread"><span class="muted">Ø Koffein</span><strong>${r0(avg)} mg</strong></div>
       <div class="spread"><span class="muted">Tage über ${r0(c.limit)} mg</span><strong>${overDays}</strong></div>
       <div class="spread"><span class="muted">Ø letztes Getränk</span><strong>${avgLast != null ? hm(avgLast) : '–'}</strong></div>
       <div class="spread"><span class="muted">Ø Pegel zur Bettzeit</span><strong>${avgBed != null ? r0(avgBed) + ' mg' : '–'}</strong></div>
-      <p class="small muted" style="margin-top:8px">Gezählt werden Tage mit Koffein- oder Essenseinträgen; Tage ohne Eintrag bleiben außen vor. Die Pegel sind Modellwerte (Halbwertszeit ${r1(c.halfLife)} h), keine Messungen.</p>
     </div>`;
 }
 function caffHistoryBind(days, range, rerender) {
