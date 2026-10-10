@@ -182,7 +182,6 @@ function caffCardHtml(iso) {
         <span class="cs-l">Zur Bettzeit (${esc(c.bed)})</span>
         <span class="cs-v ${bedLvl < thr ? 'good' : bedLvl < 2 * thr ? 'mid' : 'bad'}">${r0(bedLvl)}<small> mg</small></span>
         <span class="cs-bar"><i class="${bedLvl < thr ? 'ok' : bedLvl < 2 * thr ? 'mid' : 'over'}" style="width:${Math.min(100, bedLvl / (3 * thr) * 100).toFixed(0)}%"></i></span>
-        <span class="cs-s">${bedLvl < thr ? `unter Ziel (${r0(thr)} mg)` : `Ziel ${r0(thr)} mg`}</span>
       </div>
     </div>
     ${rows ? `<div class="caf-list-day">${rows}</div>` : '<div class="small muted caf-empty">Noch nichts getrunken.</div>'}
