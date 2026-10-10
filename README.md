@@ -16,7 +16,7 @@ Ein schlanker Kalorien-Tracker als Web-App (PWA) fürs iPhone. Er läuft komplet
 - Tagebuch mit vier Mahlzeiten, Tagesziel, Makros, Ballaststoffen und Zucker
 - Tagesziel mit Datum (Ziel-Historie); Makro-Presets (Ausgewogen, Muskelaufbau, Fettabbau, Eigene) aus Körpergewicht × Faktor
 - Wasserzähler (+250 ml / +500 ml, Rückgängig, Tagesziel einstellbar, Standard 1,5 l nach DGE-Richtwert)
-- Koffein-Tracker: Pegel im Körper mit Kurve bis zum nächsten Morgen, „unter X mg ab …“, Vorschau/Planung neuer Getränke zur Bettzeit; Verlauf in mg pro Tag, bei 30 Tagen als Heatmap (Stunde × Tag)
+- Koffein-Tracker: Pegel im Körper mit Kurve bis zum nächsten Morgen, „unter X mg ab …“, Vorschau/Planung neuer Getränke zur Bettzeit; Auswertung als Heatmap in „Analytics“ pro Tag, bei 30 Tagen als Heatmap (Stunde × Tag)
 - Flüssigkeiten (Getränke, Milch, Säfte, Pflanzendrinks, Barcode-Produkte mit ml-Angabe, eigene Lebensmittel mit Häkchen „Flüssigkeit“) werden in ml eingegeben und angezeigt; **Annahme 1 ml ≈ 1 g** (Dichte 1,0; Milch ca. 1,03, Saft ca. 1,04 – Abweichung bis ca. 4 %)
 - Koffein-Getränke tragen auf Wunsch kcal ins Tagebuch (Snacks) und ml in den Wasserzähler ein (pro Eintrag und als Standard in den Einstellungen schaltbar; Bearbeiten/Löschen bleibt synchron)
 - Supplement-Tracker: Pillen-Leiste im Tagebuch (Tippen = genommen, erneut Tippen = zurücknehmen), Erinnerungskarte beim Öffnen der App für alle noch offenen Supplements („Alles genommen“, „Später“ = 1 Stunde), Einstellungen mit Menge/Einheit, täglich / jeden 2. Tag / Wochentage und Mahlzeit oder Uhrzeit; Voreinstellung Kreatin 7 g, Vitamin B12, Omega-3, Eisen (aus). Hinweise je Supplement mit Quellen (AIS, NIH ODS, Stoffel 2017); keine Benachrichtigung bei geschlossener App (ohne Server nicht möglich)
@@ -29,7 +29,7 @@ Ein schlanker Kalorien-Tracker als Web-App (PWA) fürs iPhone. Er läuft komplet
 - Eigene Rezepte aus mehreren Zutaten (mit Endgewicht und Portionen)
 - Schnelleintrag (nur kcal)
 - Mahlzeit oder ganzen Tag vom Vortag übernehmen
-- Verlauf über 7, 14 oder 30 Tage
+- Analytics: Monatsansicht mit Kalender (Zielerreichung), Auswahlfenster, Ø Makros, Koffein-Heatmap und weiteren Durchschnittswerten
 - Backup-Export und -Import mit Erinnerung nach 7 Tagen
 
 ## Installation auf dem iPhone

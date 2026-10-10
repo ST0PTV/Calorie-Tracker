@@ -326,7 +326,7 @@ function caffHistoryHtml(days, range) {
   const avgBed = withC.length ? withC.reduce((s, x) => s + x.bedLvl, 0) / withC.length : null;
   const hm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(Math.round(m % 60)).padStart(2, '0')}`;
   let chart = '';
-  if (range >= 15) {
+  if (range >= 1) {
     const n = info.length, W = 340, L = 26, top = 6, ch = 7, cw = (W - L) / n, H = top + 24 * ch + 18;
     const now = Date.now() / 36e5;
     const sel = caffSel == null ? n - 1 : Math.min(caffSel, n - 1);
