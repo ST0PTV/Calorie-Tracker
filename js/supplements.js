@@ -135,7 +135,7 @@ function suppItemHtml(x) {
 function suppSettingsHtml() {
   const s = state.supp;
   return `<div class="card"><h2>Supplements</h2>
-    <label class="switch"><input type="checkbox" id="spOn" ${s.enabled ? 'checked' : ''}> Supplement-Leiste im Tagebuch anzeigen</label>
+    <label class="switch"><input type="checkbox" id="spOn" ${s.enabled ? 'checked' : ''}> Supplement-Leiste im Journal anzeigen</label>
     <label class="switch"><input type="checkbox" id="spRem" ${s.remind ? 'checked' : ''}> Beim Öffnen der App an offene Supplements erinnern</label>
     <div class="sp-list">${s.items.map(suppItemHtml).join('')}</div>
     <button type="button" class="btn secondary block" id="spAdd" style="margin-top:10px">+ Supplement hinzufügen</button>

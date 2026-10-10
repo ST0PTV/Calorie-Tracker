@@ -13,13 +13,13 @@ Ein schlanker Kalorien-Tracker als Web-App (PWA) fürs iPhone. Er läuft komplet
 
 ## Funktionen
 
-- Tagebuch mit vier Mahlzeiten, Tagesziel, Makros, Ballaststoffen und Zucker
+- Journal mit vier Mahlzeiten, Tagesziel, Makros, Ballaststoffen und Zucker
 - Tagesziel mit Datum (Ziel-Historie); Makro-Presets (Ausgewogen, Muskelaufbau, Fettabbau, Eigene) aus Körpergewicht × Faktor
 - Wasserzähler (+250 ml / +500 ml, Rückgängig, Tagesziel einstellbar, Standard 1,5 l nach DGE-Richtwert)
 - Koffein-Tracker: Pegel im Körper mit Kurve bis zum nächsten Morgen, „unter X mg ab …“, Vorschau/Planung neuer Getränke zur Bettzeit; Auswertung als Heatmap in „Analytics“ pro Tag, bei 30 Tagen als Heatmap (Stunde × Tag)
 - Flüssigkeiten (Getränke, Milch, Säfte, Pflanzendrinks, Barcode-Produkte mit ml-Angabe, eigene Lebensmittel mit Häkchen „Flüssigkeit“) werden in ml eingegeben und angezeigt; **Annahme 1 ml ≈ 1 g** (Dichte 1,0; Milch ca. 1,03, Saft ca. 1,04 – Abweichung bis ca. 4 %)
-- Koffein-Getränke tragen auf Wunsch kcal ins Tagebuch (Snacks) und ml in den Wasserzähler ein (pro Eintrag und als Standard in den Einstellungen schaltbar; Bearbeiten/Löschen bleibt synchron)
-- Supplement-Tracker: Pillen-Leiste im Tagebuch (Tippen = genommen, erneut Tippen = zurücknehmen), Erinnerungskarte beim Öffnen der App für alle noch offenen Supplements („Alles genommen“, „Später“ = 1 Stunde), Einstellungen mit Menge/Einheit, täglich / jeden 2. Tag / Wochentage und Mahlzeit oder Uhrzeit; Voreinstellung Kreatin 7 g, Vitamin B12, Omega-3, Eisen (aus). Hinweise je Supplement mit Quellen (AIS, NIH ODS, Stoffel 2017); keine Benachrichtigung bei geschlossener App (ohne Server nicht möglich)
+- Koffein-Getränke tragen auf Wunsch kcal ins Journal (Snacks) und ml in den Wasserzähler ein (pro Eintrag und als Standard in den Einstellungen schaltbar; Bearbeiten/Löschen bleibt synchron)
+- Supplement-Tracker: Pillen-Leiste im Journal (Tippen = genommen, erneut Tippen = zurücknehmen), Erinnerungskarte beim Öffnen der App für alle noch offenen Supplements („Alles genommen“, „Später“ = 1 Stunde), Einstellungen mit Menge/Einheit, täglich / jeden 2. Tag / Wochentage und Mahlzeit oder Uhrzeit; Voreinstellung Kreatin 7 g, Vitamin B12, Omega-3, Eisen (aus). Hinweise je Supplement mit Quellen (AIS, NIH ODS, Stoffel 2017); keine Benachrichtigung bei geschlossener App (ohne Server nicht möglich)
 - Abend-Vorschläge ab einstellbarer Uhrzeit: 1–3 Lebensmittel mit Mengen, die die offenen Ziele treffen (Priorität Kalorien / Eiweiß / ausgewogen), bevorzugt aus eigenen Einträgen, bewertbar mit 👍/👎
 - Ernährungsform (vegetarisch, vegan) und Allergie-Filter für die Vorschläge
 - Lebensmittelsuche im Bundeslebensmittelschlüssel (offline)
@@ -103,7 +103,7 @@ Standardziel 1,5 l Getränke pro Tag (Richtwert der DGE, zitiert nach [Verbrauch
 - Der Kamera-Stream wird nach dem Schließen des Scanners 3 Minuten behalten (Kamera dann deaktiviert), damit iOS beim erneuten Öffnen nicht erneut nach der Erlaubnis fragt. Bekannt ist, dass iOS-Home-Bildschirm-Apps die Erlaubnis nicht dauerhaft speichern ([WebKit-Bug 215884](https://bugs.webkit.org/show_bug.cgi?id=215884)); ob das Behalten des Streams die Abfrage zuverlässig verhindert, ist nicht bestätigt.
 - Fokus: Auflösung bis 1920×1080, Hauptkamera statt Ultraweitwinkel (falls erkennbar), Autofokus „continuous“ nur wenn das Gerät ihn anbietet, TRY_HARDER und Abtastung alle 150 ms. Die Wirkung auf dem iPhone ist ungetestet.
 
-## Flüssigkeiten und Koffein-Getränke im Tagebuch
+## Flüssigkeiten und Koffein-Getränke im Journal
 
 - Erkennung als Flüssigkeit bei BLS-Daten nach Warengruppe und Name (Getränke, Milch/Kefir/Buttermilch, Säfte/Nektare, Pflanzendrinks; Pulver, Konserven, Konzentrate und Kondensmilch ausgenommen). Die Regeln sind Heuristiken – Einzelfälle können falsch eingeordnet sein.
 - kcal pro 100 ml: Kaffee, Espresso, Cola aus der BLS 4.0; **Energy Drink 45 kcal/100 ml stammt nur aus einer Quelle (wikifit.de, Red Bull, zuckerhaltig) und ist nicht gegengeprüft**; zuckerfreie Sorten haben deutlich weniger. Werte sind im Eingabedialog änderbar.

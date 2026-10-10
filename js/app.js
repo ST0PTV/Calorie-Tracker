@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.15.0';
+const APP_VERSION = '1.15.1';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -1485,7 +1485,7 @@ function renderSettingsInner() {
     </div>
     <div class="card">
       <h2>Wasser</h2>
-      <label class="switch"><input type="checkbox" id="wOn" ${state.water.enabled ? 'checked' : ''}> Wasserzähler im Tagebuch anzeigen</label>
+      <label class="switch"><input type="checkbox" id="wOn" ${state.water.enabled ? 'checked' : ''}> Wasserzähler im Journal anzeigen</label>
       <label for="wGoal">Tagesziel (Liter)</label><input id="wGoal" inputmode="decimal" value="${litres(state.water.goal)}">
       <p class="small muted" style="margin-top:6px">Richtwert der DGE: 1,5 l Getränke pro Tag; bei Hitze, Sport oder körperlicher Arbeit mehr. Die EFSA nennt 2,5 l (Männer) bzw. 2,0 l (Frauen) Gesamtwasser – inklusive Wasser aus Lebensmitteln.</p>
     </div>
@@ -1502,7 +1502,7 @@ function renderSettingsInner() {
       <div class="seg three" id="sgCount">${[1, 2, 3].map((n) => `<button type="button" data-n="${n}" class="${state.sug.count === n ? 'active' : ''}">${n}</button>`).join('')}</div>
       <label>Priorität</label>
       <div class="seg three" id="sgPrio">${[['kcal', 'Kalorien'], ['protein', 'Eiweiß zuerst'], ['balanced', 'Ausgewogen']].map(([k, l]) => `<button type="button" data-p="${k}" class="${state.sug.priority === k ? 'active' : ''}">${l}</button>`).join('')}</div>
-      <p class="small muted" style="margin-top:8px">Erscheint im Tagebuch, wenn du die App nach dieser Uhrzeit öffnest. Vorgeschlagen wird zuerst aus deinen bisherigen Einträgen, sonst aus gängigen Kochzutaten. Mit 👍/👎 bewertest du einzelne Lebensmittel; zweimal 👎 schließt sie aus. Eine Benachrichtigung zur Uhrzeit ist ohne Server nicht möglich – mit einer Kurzbefehle-Automation kann iOS die App aber zur gewünschten Zeit öffnen.</p>
+      <p class="small muted" style="margin-top:8px">Erscheint im Journal, wenn du die App nach dieser Uhrzeit öffnest. Vorgeschlagen wird zuerst aus deinen bisherigen Einträgen, sonst aus gängigen Kochzutaten. Mit 👍/👎 bewertest du einzelne Lebensmittel; zweimal 👎 schließt sie aus. Eine Benachrichtigung zur Uhrzeit ist ohne Server nicht möglich – mit einer Kurzbefehle-Automation kann iOS die App aber zur gewünschten Zeit öffnen.</p>
       ${Object.keys(state.sugRatings).length ? `<h2 class="sec">Bewertete Lebensmittel</h2><ul class="list goals">${Object.entries(state.sugRatings).sort((a, b) => a[1] - b[1]).map(([id, r]) => `<li><div>${esc((blsMap.get(id) || state.custom.find((x) => x.id === id) || state.offCache[id.slice(4)] || { n: id }).n)}<div class="meta">${r <= -2 ? 'ausgeschlossen' : r < 0 ? 'seltener' : 'bevorzugt'} (${r > 0 ? '+' : ''}${r})</div></div><button class="btn ghost rm" data-unrate="${esc(id)}" aria-label="Bewertung zurücksetzen">✕</button></li>`).join('')}</ul>` : ''}
     </div>
     <div class="card">
