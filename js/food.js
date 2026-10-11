@@ -47,7 +47,7 @@ function foodItems() {
 const FOOD_FILTERS = [['all', 'Alle'], ['fav', '★ Favoriten'], ['pantry', 'Vorgemerkt'], ['own', 'Eigene'], ['recent', 'Zuletzt']];
 function mealByTime() { const h = new Date().getHours(); return h < 10 ? 'breakfast' : h < 15 ? 'lunch' : h < 18 ? 'snack' : 'dinner'; }
 
-INFO.foodList = { body: '<p>Der Balken zeigt den Energieanteil von <span style="color:var(--p)">Eiweiß</span>, <span style="color:var(--c)">Kohlenhydraten</span> und <span style="color:var(--f)">Fett</span>; „E“ ist das Eiweiß pro 100 g.</p><p>„+“ trägt das Lebensmittel direkt ins Journal ein (Mahlzeit nach Uhrzeit). Entfernen kannst du Lebensmittel unter „Meine“ im Hinzufügen-Fenster.</p>' };
+INFO.foodList = { body: '<p>Der Balken zeigt den Energieanteil von <span style="color:var(--p)">Eiweiß</span>, <span style="color:var(--c)">Kohlenhydraten</span> und <span style="color:var(--f)">Fett</span>; „E“ ist das Eiweiß pro 100 g.</p><p>„+“ trägt das Lebensmittel direkt ins Journal ein (Mahlzeit nach Uhrzeit). Ein Tipp auf die Zeile zeigt weitere Aktionen: Favorit an/aus, aus „Vorgemerkt“ oder „Zuletzt“ entfernen, eigene Lebensmittel bearbeiten oder löschen.</p>' };
 function renderFood() {
   const all = foodItems();
   const pantry = (state.pantry || []).slice(0, 3);
