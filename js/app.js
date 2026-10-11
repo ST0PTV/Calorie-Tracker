@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.19.1';
+const APP_VERSION = '1.20.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -337,6 +337,39 @@ function sfHalf(cls, label, val, target, kind, natural) {
     <div class="sf-v"><strong>${r0(val)}</strong><span>${kind} ${r0(target)} g</span></div>
     <div class="sf-bar"><span style="width:${Math.min(100, r * 100)}%"></span></div>${natural != null ? `<div class="sf-nat">+ ${r0(Math.max(0, natural))} g natürlicher Zucker</div>` : ''}</div>`;
 }
+/* ---------- Info-Knöpfe (Blatt von unten) ---------- */
+const INFO_STATIC = {
+  water: { body: '<p>Richtwert der DGE: 1,5 l Getränke pro Tag; bei Hitze, Sport oder körperlicher Arbeit mehr. Die EFSA nennt 2,5 l (Männer) bzw. 2,0 l (Frauen) Gesamtwasser – inklusive Wasser aus Lebensmitteln.</p><p>Koffein-Getränke zählen mit ihren ml, Alkohol zählt nicht.</p>', src: 'DGE · EFSA 2010' },
+  sug: { body: '<p>Die Vorschläge erscheinen im Journal, wenn du die App nach dieser Uhrzeit öffnest und noch mindestens so viele kcal offen sind. Vorgeschlagen wird zuerst aus deinen bisherigen Einträgen, sonst aus gängigen Kochzutaten.</p><p>Mit 👍/👎 bewertest du einzelne Lebensmittel; zweimal 👎 schließt sie aus. Eine Benachrichtigung zur Uhrzeit ist ohne Server nicht möglich – mit einer Kurzbefehle-Automation kann iOS die App aber zur gewünschten Zeit öffnen.</p>' },
+  diet: { body: '<p>Gilt für die Vorschläge. Erkannt wird anhand der BLS-Lebensmittelgruppe und des Namens, bei Barcode-Produkten über Open Food Facts, bei eigenen Lebensmitteln über deine Angaben.</p><p>Ist etwas unklar (z. B. Fertiggerichte), wird es nicht vorgeschlagen. Sulfite sind nicht erkennbar.</p>' },
+  sf: { body: '<p>Bei den Ernährungszielen Ausgewogen, Muskelaufbau und Fettabbau rechnet die App automatisch: Ballaststoffe mindestens 30 g (DGE), freier Zucker höchstens 10 % (oder 5 %) deiner Kalorien (WHO). Bei „Eigene“ trägst du beide Werte selbst ein.</p><p>Freier Zucker = zugesetzter Zucker sowie Zucker in Honig, Sirup und Fruchtsaft. Zucker in ganzem Obst, Gemüse und Milch zählt als natürlich und wird nur angezeigt. Der freie Anteil wird aus Lebensmittelgruppe und Namen geschätzt.</p>', pts: [['< 10 % der kcal', 'WHO, starke Empfehlung'], ['< 5 % der kcal', 'WHO, bedingte Empfehlung'], ['≥ 30 g Ballaststoffe', 'DGE, für Erwachsene']], src: 'WHO 2015 · DGE/DAG/DDG 2019 · DGE 2022' },
+};
+// Einträge: { body: HTML, pts: [[fett, grau], …], src: 'Quellen' } oder Funktion, die so ein Objekt liefert
+var INFO = globalThis.INFO || {}; globalThis.INFO = INFO; Object.assign(INFO, INFO_STATIC);
+const infoBtn = (key) => `<button type="button" class="ibtn" data-info="${key}" aria-label="Info">i</button>`;
+function openInfo(key) {
+  const raw = INFO[key]; if (!raw) return;
+  const i = typeof raw === 'function' ? raw() : raw;
+  closeInfo();
+  const el = document.createElement('div');
+  el.id = 'infoSheet';
+  el.innerHTML = `<div class="info-back"></div><div class="info-panel" role="dialog" aria-modal="true" aria-label="Info"><div class="info-grip"></div>
+    <div class="info-h"><span class="info-i">i</span><h1>Info</h1></div>
+    <div class="info-body">${i.body}</div>
+    ${i.pts ? `<div class="info-pts">${i.pts.map(([b, m]) => `<div><strong>${b}</strong>${m ? ` <span class="muted">· ${m}</span>` : ''}</div>`).join('')}</div>` : ''}
+    ${i.src ? `<div class="info-src small muted">Quellen: ${i.src}</div>` : ''}
+    <button class="btn block" id="infoOk">Verstanden</button></div>`;
+  document.body.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('open'));
+  el.querySelector('.info-back').onclick = closeInfo;
+  el.querySelector('#infoOk').onclick = closeInfo;
+}
+function closeInfo() { const el = document.getElementById('infoSheet'); if (el) el.remove(); }
+document.addEventListener('click', (e) => {
+  const b = e.target.closest && e.target.closest('[data-info]');
+  if (!b) return;
+  e.preventDefault(); e.stopPropagation(); openInfo(b.dataset.info);
+}, true);
 const openMeals = new Set();   // aufgeklappte Mahlzeiten (nur für diese Sitzung)
 function renderDiary() {
   const v = $('#view');
@@ -1539,15 +1572,14 @@ function renderSettingsInner() {
       <h2>Tagesziel</h2>
       <label for="sGoal">Kalorien pro Tag (kcal)</label><input id="sGoal" inputmode="decimal" value="${s.goal ?? ''}" placeholder="z. B. Tagesbedarf aus Garmin">
       <p class="small muted" style="margin:6px 0 0">Körpergewicht: <strong style="color:var(--ink)">${state.profile.weight != null ? r1(state.profile.weight) + ' kg' : 'noch nicht eingetragen'}</strong> – änderbar unter „Schlaf &amp; Körper“.</p>
-      <label>Ernährungsziel</label>
+      <label>Ernährungsziel ${infoBtn('preset')}</label>
       <div class="seg" id="presetSeg">${Object.entries(PRESETS).map(([k, p]) => `<button type="button" data-preset="${k}">${p.label}</button>`).join('')}</div>
       <div class="row">
         <div><label for="sPf">Eiweiß (g/kg)</label><input id="sPf" inputmode="decimal"></div>
         <div><label for="sFf">Fett (g/kg)</label><input id="sFf" inputmode="decimal"></div>
       </div>
       <div class="card macro-preview" id="macroPreview"></div>
-      <details class="why"><summary>Warum diese Werte? Quellen</summary><div id="presetWhy"></div></details>
-      <label>Ballaststoffe &amp; freier Zucker</label>
+      <label>Ballaststoffe &amp; freier Zucker ${infoBtn('sf')}</label>
       <div id="sfAuto" class="small muted"></div>
       <div class="row" id="sfManual">
         <div><label for="sFi">Ballaststoffe mind. (g)</label><input id="sFi" inputmode="decimal" value="${s.fiber ?? ''}" placeholder="DGE: 30"></div>
@@ -1566,8 +1598,7 @@ function renderSettingsInner() {
     <div class="card">
       <h2>Wasser</h2>
       <label class="switch"><input type="checkbox" id="wOn" ${state.water.enabled ? 'checked' : ''}> Wasserzähler im Journal anzeigen</label>
-      <label for="wGoal">Tagesziel (Liter)</label><input id="wGoal" inputmode="decimal" value="${litres(state.water.goal)}">
-      <p class="small muted" style="margin-top:6px">Richtwert der DGE: 1,5 l Getränke pro Tag; bei Hitze, Sport oder körperlicher Arbeit mehr. Die EFSA nennt 2,5 l (Männer) bzw. 2,0 l (Frauen) Gesamtwasser – inklusive Wasser aus Lebensmitteln.</p>
+      <label for="wGoal">Tagesziel (Liter) ${infoBtn('water')}</label><input id="wGoal" inputmode="decimal" value="${litres(state.water.goal)}">
     </div>
     ${caffSettingsHtml()}
     ${alcSettingsHtml()}
@@ -1577,22 +1608,21 @@ function renderSettingsInner() {
       <h2>Abend-Vorschläge</h2>
       <label class="switch"><input type="checkbox" id="sgOn" ${state.sug.enabled ? 'checked' : ''}> Vorschläge anzeigen, wenn das Ziel noch offen ist</label>
       <div class="row">
-        <div><label for="sgTime">Ab Uhrzeit</label><input id="sgTime" type="time" value="${esc(state.sug.time)}"></div>
+        <div><label for="sgTime">Ab Uhrzeit ${infoBtn('sug')}</label><input id="sgTime" type="time" value="${esc(state.sug.time)}"></div>
         <div><label for="sgMin">Ab offenen kcal</label><input id="sgMin" inputmode="numeric" value="${state.sug.minKcal}"></div>
       </div>
       <label>Anzahl Lebensmittel</label>
       <div class="seg three" id="sgCount">${[1, 2, 3].map((n) => `<button type="button" data-n="${n}" class="${state.sug.count === n ? 'active' : ''}">${n}</button>`).join('')}</div>
       <label>Priorität</label>
       <div class="seg three" id="sgPrio">${[['kcal', 'Kalorien'], ['protein', 'Eiweiß zuerst'], ['balanced', 'Ausgewogen']].map(([k, l]) => `<button type="button" data-p="${k}" class="${state.sug.priority === k ? 'active' : ''}">${l}</button>`).join('')}</div>
-      <p class="small muted" style="margin-top:8px">Erscheint im Journal, wenn du die App nach dieser Uhrzeit öffnest. Vorgeschlagen wird zuerst aus deinen bisherigen Einträgen, sonst aus gängigen Kochzutaten. Mit 👍/👎 bewertest du einzelne Lebensmittel; zweimal 👎 schließt sie aus. Eine Benachrichtigung zur Uhrzeit ist ohne Server nicht möglich – mit einer Kurzbefehle-Automation kann iOS die App aber zur gewünschten Zeit öffnen.</p>
       ${Object.keys(state.sugRatings).length ? `<h2 class="sec">Bewertete Lebensmittel</h2><ul class="list goals">${Object.entries(state.sugRatings).sort((a, b) => a[1] - b[1]).map(([id, r]) => `<li><div>${esc((blsMap.get(id) || state.custom.find((x) => x.id === id) || state.offCache[id.slice(4)] || { n: id }).n)}<div class="meta">${r <= -2 ? 'ausgeschlossen' : r < 0 ? 'seltener' : 'bevorzugt'} (${r > 0 ? '+' : ''}${r})</div></div><button class="btn ghost rm" data-unrate="${esc(id)}" aria-label="Bewertung zurücksetzen">✕</button></li>`).join('')}</ul>` : ''}
     </div>
     <div class="card">
       <h2>Ernährung & Allergien</h2>
       <div class="seg three" id="dietType">${[['all', 'Alles'], ['veg', 'Vegetarisch'], ['vegan', 'Vegan']].map(([k, l]) => `<button type="button" data-d="${k}" class="${state.diet.type === k ? 'active' : ''}">${l}</button>`).join('')}</div>
-      <label>Allergien / Unverträglichkeiten ausschließen</label>
+      <label>Allergien / Unverträglichkeiten ausschließen ${infoBtn('diet')}</label>
       <div class="chips" id="dietAll">${ALLERGENS.map(([k, l]) => `<label class="chip"><input type="checkbox" value="${k}" ${state.diet.allergens.includes(k) ? 'checked' : ''}> ${l}</label>`).join('')}</div>
-      <p class="small muted" style="margin-top:8px">Gilt für die Vorschläge. Erkannt wird anhand der BLS-Lebensmittelgruppe und des Namens, bei Barcode-Produkten über Open Food Facts, bei eigenen Lebensmitteln über deine Angaben. Ist etwas unklar (z. B. Fertiggerichte), wird es nicht vorgeschlagen. Sulfite sind nicht erkennbar. <strong>Keine Gewähr – bei Allergien immer die Zutatenliste prüfen.</strong></p>
+      <p class="small muted" style="margin-top:8px"><strong>Keine Gewähr – bei Allergien immer die Zutatenliste prüfen.</strong></p>
     </div>
     <div class="card">
       <h2>Backup</h2>
@@ -1643,8 +1673,7 @@ function renderSettingsInner() {
   const showPreset = () => {
     document.querySelectorAll('#presetSeg button').forEach((b) => b.classList.toggle('active', b.dataset.preset === preset));
     const P = PRESETS[preset];
-    $('#presetWhy').innerHTML = `<p class="small">${esc(P.why)}</p><ul class="refs">${P.refs.map(refHtml).join('')}</ul>
-      <p class="small muted">Hinweis: Die Faktoren beziehen sich auf das Körpergewicht. Bei höherem Körperfettanteil überschätzt das den Eiweißbedarf; dann eher das Zielgewicht eintragen.</p>`;
+    INFO.preset = () => ({ body: `<p><strong>${esc(P.long || P.label)}</strong></p><p>${esc(P.why)}</p><p>Die Faktoren beziehen sich auf das Körpergewicht. Bei höherem Körperfettanteil überschätzt das den Eiweißbedarf; dann eher das Zielgewicht eintragen.</p><ul class="refs">${P.refs.map(refHtml).join('')}</ul>` });
   };
   const preview = () => {
     const kcal = num($('#sGoal').value), w = state.profile.weight, pf = num(pfIn.value), ff = num(ffIn.value);
