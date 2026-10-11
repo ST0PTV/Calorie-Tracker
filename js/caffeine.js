@@ -1,6 +1,7 @@
 /* Koffein-Tracker – Rechenmodell, Karte im Tagebuch, Eingabe, Verlauf (Heatmap) und Einstellungen.
    Alle Daten bleiben lokal (state.caffeine). Das Modell steht oben und läuft auch ohne Browser (Tests mit Node). */
 'use strict';
+var INFO = globalThis.INFO || {}; globalThis.INFO = INFO; // Info-Texte (Blatt von unten), Anzeige in app.js
 
 /* ---------- Rechenmodell ----------
    Ein-Kompartiment-Modell mit Aufnahme und Abbau erster Ordnung (so beschreiben es u. a. Seng et al. 2009):
@@ -335,6 +336,7 @@ function caffDayInfo(c, iso, ke) {
   const last = entries.length ? Math.max(...entries.map((e) => e.min)) : null;
   return { iso, mg: caffSum(c, iso), n: entries.length, last, bedLvl: caffLevel(doses, bed, ke), tracked: entries.length > 0 || (state.days[iso] || []).length > 0, doses };
 }
+INFO.cafHeat = { body: '<p>Die Heatmap zeigt das Koffein im Körper je Stunde (Modellwert): jede Spalte ein Tag, jede Zeile eine Stunde, je heller, desto mehr.</p>', pts: [['Lila Streifen', 'deine Schlafenszeit'], ['Oranger Punkt', 'Tagesrichtwert überschritten'], ['Tippen', 'auf einen Tag zeigt darunter seine Werte']] };
 function caffHistoryHtml(days, range) {
   const c = state.caffeine; if (!c.enabled) return '';
   const ke = caffKe(c), thr = c.threshold;
@@ -373,7 +375,7 @@ function caffHistoryHtml(days, range) {
       <rect x="${(L + sel * cw).toFixed(1)}" y="${top - 1}" width="${cw.toFixed(1)}" height="${24 * ch + 2}" rx="2" fill="none" stroke="#E8EEF7" stroke-width="1.2"></rect>
       ${over}${dl}${hit}</svg>
       <div class="heat-legend small muted" aria-label="Legende in mg">${[[0, '0'], [0.25, `<${r0(thr / 2)}`], [0.75, `<${r0(thr)}`], [1.5, `<${r0(2 * thr)}`], [2.5, `<${r0(3 * thr)}`], [3, `≥${r0(3 * thr)}`]].map(([r, l]) => `<div><i style="background:${caffHeatColor(r * thr + (r ? 0.1 : 0), thr)}"></i><span>${l}</span></div>`).join('')}<span class="unit">mg</span></div>
-      <p class="small muted" style="margin:4px 0 0">Koffein im Körper je Stunde (Modellwert). Lila Streifen: Schlafenszeit. Oranger Punkt: Tagesrichtwert überschritten. Tippe auf einen Tag.</p>`;
+`;
     const s = info[sel];
     const lab = new Date(s.iso + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
     chart += `<div class="heat-detail"><button class="btn ghost" data-heatnav="-1" aria-label="Vorheriger Tag">‹</button>
@@ -395,7 +397,7 @@ function caffHistoryHtml(days, range) {
         return `<div class="caf-night ${col}" title="${r0(x.bedLvl)} mg">${x.n || x.tracked ? r0(x.bedLvl) : '–'}</div>`;
       }).join('')}</div></div>`;
   }
-  return `<div class="card caf-hist"><div class="spread"><h2 class="ct">Koffein</h2><span class="small muted">Ø ${r0(avg)} mg pro Tag</span></div>${chart}</div>
+  return `<div class="card caf-hist"><div class="spread"><h2 class="ct">Koffein ${infoBtn('cafHeat')}</h2><span class="small muted">Ø ${r0(avg)} mg pro Tag</span></div>${chart}</div>
     <div class="card">
       <div class="spread"><span class="muted">Ø Koffein</span><strong>${r0(avg)} mg</strong></div>
       <div class="spread"><span class="muted">Ø letztes Getränk</span><strong>${avgLast != null ? hm(avgLast) : '–'}</strong></div>
@@ -431,7 +433,6 @@ function caffSettingsHtml() {
     <label for="cfLim">Richtwert pro Tag (mg) ${infoBtn('cafLim')}</label><input id="cfLim" inputmode="numeric" value="${r0(c.limit)}">
   </div>`;
 }
-var INFO = globalThis.INFO || {}; globalThis.INFO = INFO; // Info-Texte (Blatt von unten), Anzeige in app.js
 INFO.cafHl = () => ({ body: `<p>Im Mittel etwa 5 Stunden, individuell aber sehr verschieden (in Studien 2,7 bis 9,9 h); bei Rauchern kürzer (ca. 3 statt 4,3 h). Passe den Wert an, wenn du Koffein erfahrungsgemäß schneller oder langsamer abbaust.</p><p>${caffSexNote()}</p>`, src: 'Blanchard 1983 · Seng 2009 · Abernethy & Todd 1985 · Grzegorzewski 2022' });
 INFO.cafThr = { body: '<p>Das Ziel zur Bettzeit ist eine <strong>Faustregel, kein belegter Grenzwert</strong>. Die EFSA nennt, dass schon 100 mg kurz vor dem Schlafen den Schlaf stören können; in einer Studie störten 400 mg sogar 6 Stunden vor dem Zubettgehen noch.</p>', src: 'EFSA 2015 · Drake 2013' };
 INFO.cafLim = { body: '<p>EFSA: bis 400 mg pro Tag gelten für gesunde Erwachsene als unbedenklich, Einzeldosen bis 200 mg; in Schwangerschaft und Stillzeit 200 mg pro Tag.</p><p>Tage über dem Richtwert markiert die Heatmap mit einem orangen Punkt.</p>', src: 'EFSA 2015' };

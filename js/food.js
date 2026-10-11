@@ -2,6 +2,7 @@
    Makro-Balken; „Einkauf erfassen“ öffnet das Vormerken-Blatt (Barcode/Suche), das Lebensmittel nur speichert,
    ohne sie ins Journal einzutragen. „+“ trägt ein Lebensmittel direkt ins Journal ein. */
 'use strict';
+var INFO = globalThis.INFO || {}; globalThis.INFO = INFO;
 let pantryMode = false;      // true: Auswahl im Hinzufügen-Blatt merkt das Lebensmittel nur vor
 let pantryFav = false;       // beim Vormerken zusätzlich als Favorit markieren
 let pantryCount = 0;         // in diesem Durchgang vorgemerkt
@@ -45,6 +46,7 @@ function foodItems() {
 const FOOD_FILTERS = [['all', 'Alle'], ['fav', '★ Favoriten'], ['pantry', 'Vorgemerkt'], ['own', 'Eigene'], ['recent', 'Zuletzt']];
 function mealByTime() { const h = new Date().getHours(); return h < 10 ? 'breakfast' : h < 15 ? 'lunch' : h < 18 ? 'snack' : 'dinner'; }
 
+INFO.foodList = { body: '<p>Der Balken zeigt den Energieanteil von <span style="color:var(--p)">Eiweiß</span>, <span style="color:var(--c)">Kohlenhydraten</span> und <span style="color:var(--f)">Fett</span>; „E“ ist das Eiweiß pro 100 g.</p><p>„+“ trägt das Lebensmittel direkt ins Journal ein (Mahlzeit nach Uhrzeit). Entfernen kannst du Lebensmittel unter „Meine“ im Hinzufügen-Fenster.</p>' };
 function renderFood() {
   const all = foodItems();
   const pantry = (state.pantry || []).slice(0, 3);
@@ -58,8 +60,9 @@ function renderFood() {
     </div>
     <input id="fdQ" type="search" placeholder="In deinen Lebensmitteln suchen" autocomplete="off" value="${esc(foodQuery)}">
     <div class="chips fd-chips" id="fdF">${FOOD_FILTERS.map(([k, l]) => { const n = k === 'all' ? all.length : all.filter((x) => x.flags[k]).length; return `<button type="button" class="chip ${foodFilter === k ? 'on' : ''}" data-f="${k}">${l}${n ? ` <span class="muted">${n}</span>` : ''}</button>`; }).join('')}</div>
+    <div class="fd-info">${infoBtn('foodList')}</div>
     <div class="card fd-list" id="fdList"></div>
-    <p class="small muted" style="margin:0 4px 12px">Balken = Energieanteil <span style="color:var(--p)">Eiweiß</span> · <span style="color:var(--c)">KH</span> · <span style="color:var(--f)">Fett</span>. „+“ trägt ins Journal ein; entfernen kannst du Einträge unter „Meine“ im Journal.</p>`;
+`;
   const draw = () => {
     const terms = norm(foodQuery).split(/\s+/).filter(Boolean);
     const list = all.filter((x) => (foodFilter === 'all' || x.flags[foodFilter]) && (!terms.length || terms.every((t) => norm(x.n + ' ' + (x.brand || '')).includes(t))));

@@ -624,3 +624,4 @@ h2.ct { font-size: 0.8rem; font-weight: 400; color: var(--muted); margin: 0; let
 .sh-t { margin: 0; flex: 1; min-width: 0; font-size: 1.35rem; line-height: 1.2; }
 .sh-t .star-btn { vertical-align: middle; margin-left: 4px; }
 .sheet-head { gap: 10px; }
+.fd-info { display: flex; justify-content: flex-end; margin: -4px 4px 4px; }
