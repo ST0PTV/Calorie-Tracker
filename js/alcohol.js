@@ -249,7 +249,7 @@ function openAlcohol(iso, entry) {
     if (ent) Object.assign(ent, vals); else { ent = Object.assign({ id: uid() }, vals); list.push(ent); }
     alcSyncDiary(iso, ent);
     save(); toast(entry ? 'Gespeichert' : 'Eingetragen'); closeSheet();
-    if (!entry) setTimeout(() => openInfo('alcWarn'), 250); // Warnhinweis bei jedem neu eingetragenen Getränk
+    if (!entry && list.length === 1) setTimeout(() => openInfo('alcWarn'), 250); // Warnhinweis beim ersten Getränk des Tages
   };
   const del = $('#aDel');
   if (del) del.onclick = () => {
