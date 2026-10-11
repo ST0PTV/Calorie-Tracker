@@ -23,7 +23,7 @@ function openPantry(tab) {
   addTab = tab || 'scan';
   sheetMode = 'add';
   openSheet(`
-    <div class="sheet-head"><h1 style="margin:0">Lebensmittel vormerken</h1><button class="btn ghost" id="closeSheet">Fertig</button></div>
+    <div class="sheet-head"><h1 class="sh-t">Lebensmittel vormerken</h1><button class="btn ghost" id="closeSheet">Schließen</button></div>
     <div class="seg two" id="addSeg"><button data-t="scan">Barcode</button><button data-t="search">Suche</button></div>
     <div class="pantry-bar"><label class="switch" style="margin:0"><input type="checkbox" id="pFav" ${pantryFav ? 'checked' : ''}> als Favorit</label><span class="small muted">${pantryCount ? `${pantryCount} vorgemerkt` : 'nur speichern, nicht ins Journal'}</span></div>
     <div id="addBody"></div>`);

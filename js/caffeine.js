@@ -227,8 +227,7 @@ function openCaffeine(iso, entry) {
   const minToHm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
   let dur = entry ? (entry.dur || 0) : 15;
   openSheet(`
-    <div class="sheet-head"><button class="btn ghost" id="cBack">‹ Zurück</button><span></span></div>
-    <h1>${entry ? 'Eintrag bearbeiten' : 'Getränk hinzufügen'}</h1>
+    ${sheetHead('cBack', entry ? 'Eintrag bearbeiten' : 'Getränk hinzufügen', false)}
     <div class="seg five" id="cCats">${CAFF_CATS.map(([k, l]) => `<button type="button" data-c="${k}">${l}</button>`).join('')}</div>
     <div id="cList" class="caf-pick"></div>
     <div class="row">

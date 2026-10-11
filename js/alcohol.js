@@ -188,8 +188,7 @@ function openAlcohol(iso, entry) {
   let fed = entry ? !!entry.fed : alcFedAuto(iso, startMin);
   let fedTouched = !!entry;
   openSheet(`
-    <div class="sheet-head"><button class="btn ghost" id="aBack">‹ Zurück</button><span></span></div>
-    <h1>${entry ? 'Eintrag bearbeiten' : 'Alkohol eintragen'}</h1>
+    ${sheetHead('aBack', entry ? 'Eintrag bearbeiten' : 'Alkohol eintragen', false)}
     <div class="seg five" id="aCats">${ALC_CATS.map(([k, l]) => `<button type="button" data-c="${k}">${l}</button>`).join('')}</div>
     <div id="aList" class="caf-pick"></div>
     <label for="aName">Bezeichnung</label><input id="aName" type="text" value="${esc(entry ? entry.n : '')}" placeholder="z. B. Helles">

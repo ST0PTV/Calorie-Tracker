@@ -621,3 +621,6 @@ p, .info-body, .info-src, .sp-hint, .caf-note, .refs li { text-align: justify; -
 .w-other[hidden] { display: none; }
 /* Kartentitel: klein grau = Inhaltskarte (wie Wasser/Koffein/Alkohol) */
 h2.ct { font-size: 0.8rem; font-weight: 400; color: var(--muted); margin: 0; letter-spacing: 0; }
+.sh-t { margin: 0; flex: 1; min-width: 0; font-size: 1.35rem; line-height: 1.2; }
+.sh-t .star-btn { vertical-align: middle; margin-left: 4px; }
+.sheet-head { gap: 10px; }

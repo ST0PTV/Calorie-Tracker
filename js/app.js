@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.30.1';
+const APP_VERSION = '1.30.2';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -896,7 +896,14 @@ function bindSuggestionCard(iso, rerender) {
   };
 }
 
-/* ---------- Sheet ---------- */
+/* ---------- Sheet ----------
+   Kopfzeile: Hauptfenster (direkt geöffnet) = Titel links, „Schließen“ rechts;
+   Unterfenster (aus einem anderen Fenster) = „‹ Zurück“ links, Titel darunter. */
+function sheetHead(id, title, sub, extra = '') {
+  return sub
+    ? `<div class="sheet-head"><button class="btn ghost" id="${id}">‹ Zurück</button>${extra || '<span></span>'}</div><h1>${title}</h1>`
+    : `<div class="sheet-head"><h1 class="sh-t">${title}${extra}</h1><button class="btn ghost" id="${id}">Schließen</button></div>`;
+}
 let sheetMode = null;
 let addMeal = 'breakfast';
 let addTab = 'search';
@@ -922,7 +929,7 @@ function openAdd(meal) {
   addMeal = meal; sheetMode = 'add';
   const label = MEALS.find((m) => m.id === meal).label;
   openSheet(`
-    <div class="sheet-head"><h1 style="margin:0">${label}</h1><button class="btn ghost" id="closeSheet">Fertig</button></div>
+    <div class="sheet-head"><h1 class="sh-t">${label}</h1><button class="btn ghost" id="closeSheet">Schließen</button></div>
     <div class="seg" id="addSeg">
       <button data-t="search">Suche</button><button data-t="mine">Meine</button>
       <button data-t="scan">Barcode</button><button data-t="custom">Neu</button>
@@ -1162,9 +1169,7 @@ function openAmount(food, opts = {}) {
   const fav = isFav(foodId);
   const U = unitOf(food);
   openSheet(`
-    <div class="sheet-head"><button class="btn ghost" id="back">‹ Zurück</button>
-      <button class="btn ghost star-btn" id="favBtn" aria-label="Favorit">${fav ? '★' : '☆'}</button></div>
-    <h1>${esc(food.n)}</h1>
+    ${sheetHead('back', esc(food.n), !(edit || opts.direct), `<button class="btn ghost star-btn" id="favBtn" aria-label="Favorit">${fav ? '★' : '☆'}</button>`)}
     ${food.brand ? `<p class="muted">${esc(food.brand)}</p>` : ''}
     <p class="small muted">Pro 100 ${U}: ${fmt(food.k)} kcal · E ${r1(food.p)} g · KH ${r1(food.c)} g · F ${r1(food.f)} g · Ballastst. ${r1(food.fi)} g · Zucker ${r1(food.su)} g</p>
     <label for="grams">Menge in ${U === 'ml' ? 'Millilitern' : 'Gramm'}</label>
@@ -1257,8 +1262,7 @@ function openQuick(meal, entry) {
   sheetMode = 'quick';
   const e = entry || {};
   openSheet(`
-    <div class="sheet-head"><button class="btn ghost" id="back">‹ Zurück</button><span></span></div>
-    <h1>Schnelleintrag</h1>
+    ${sheetHead('back', 'Schnelleintrag', !entry)}
     <p class="small muted">Für Restaurant oder Unterwegs: nur die Gesamtwerte eintragen.</p>
     <label for="qN">Bezeichnung (optional)</label><input id="qN" type="text" value="${esc(e.n && e.n !== 'Schnelleintrag' ? e.n : '')}" placeholder="z. B. Pizza beim Italiener">
     <label for="qK">Kalorien (kcal)</label><input id="qK" inputmode="decimal" value="${e.k ?? ''}">
