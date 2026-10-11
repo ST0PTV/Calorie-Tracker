@@ -340,8 +340,10 @@ function caffHistoryHtml(days, range) {
   const c = state.caffeine; if (!c.enabled) return '';
   const ke = caffKe(c), thr = c.threshold;
   const info = days.map((d) => caffDayInfo(c, d, ke));
-  const tr = info.filter((x) => x.tracked);
-  const withC = info.filter((x) => x.n > 0);
+  // Durchschnitte ohne den laufenden Tag (außer es ist nur heute ausgewählt)
+  const today = isoDate(new Date()), done = (x) => days.length === 1 || x.iso !== today;
+  const tr = info.filter((x) => x.tracked && done(x));
+  const withC = info.filter((x) => x.n > 0 && done(x));
   const avg = tr.length ? tr.reduce((s, x) => s + x.mg, 0) / tr.length : 0;
   const avgLast = withC.length ? withC.reduce((s, x) => s + x.last, 0) / withC.length : null;
   const avgBed = withC.length ? withC.reduce((s, x) => s + x.bedLvl, 0) / withC.length : null;

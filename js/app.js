@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.29.1';
+const APP_VERSION = '1.29.2';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -1579,7 +1579,11 @@ function renderHistory() {
   const ib = histSel ? Math.max(ia, mdays.findIndex((x) => x.d === histSel.b)) : nDays - 1;
   const inSel = (i) => i >= ia && i <= ib;
   const sel = mdays.slice(ia, ib + 1).filter((x) => !x.fut);
-  const tracked = sel.filter((x) => x.n > 0);
+  // Heute ist noch nicht vorbei: in Durchschnitten nur, wenn ausschließlich heute ausgewählt ist
+  const onlyToday = sel.length === 1 && sel[0].d === today;
+  const skipToday = !onlyToday && sel.some((x) => x.d === today);
+  const done = sel.filter((x) => onlyToday || x.d !== today);
+  const tracked = done.filter((x) => x.n > 0);
   const avg = (key) => (tracked.length ? tracked.reduce((s, x) => s + x.t[key], 0) / tracked.length : 0);
   const withGoal = tracked.filter((x) => x.goal);
   const avgDiff = withGoal.length ? withGoal.reduce((s, x) => s + (x.t.k - x.goal), 0) / withGoal.length : null;
@@ -1639,15 +1643,15 @@ function renderHistory() {
     <div class="mlab"><span style="color:var(--p)">Eiweiß ${r0(avg('p'))} g · ${tracked.length ? sh(ep) : 0} %</span><span style="color:var(--c)">KH ${r0(avg('c'))} g · ${tracked.length ? sh(ec) : 0} %</span><span style="color:var(--f)">Fett ${r0(avg('f'))} g · ${tracked.length ? sh(ef) : 0} %</span></div></div>`;
 
   // 5) übrige Daten
-  const wd = sel.map((x) => waterOf(x.d)).filter((v) => v > 0);
+  const wd = done.map((x) => waterOf(x.d)).filter((v) => v > 0);
   const goalChanges = new Set(sel.map((x) => x.goal)).size > 1;
   const otherCard = `<div class="card">
     <div class="spread"><h2 style="margin:0">Weitere Werte</h2><span class="small muted">${selLabel}</span></div>
     <div class="spread" style="margin-top:8px"><span class="muted">Ø kcal</span><strong>${r0(avg('k'))} kcal</strong></div>
-    <div class="spread"><span class="muted">Getrackte Tage</span><strong>${tracked.length} / ${sel.length}</strong></div>
+    <div class="spread"><span class="muted">Getrackte Tage</span><strong>${tracked.length} / ${done.length}${skipToday ? ' <span class="muted small">(ohne heute)</span>' : ''}</strong></div>
     ${withGoal.length ? `<div class="spread"><span class="muted">Ø Differenz zum Ziel</span><strong>${avgDiff > 0 ? '+' : ''}${r0(avgDiff)} kcal</strong></div>` : ''}
     <div class="spread"><span class="muted">Ø Ballaststoffe</span><strong>${r0(avg('fi'))} g</strong></div>
-    ${state.alcohol.enabled ? (() => { const ad = sel.map((x) => (state.alcohol.log[x.d] || []).reduce((s2, e) => s2 + alcGrams(e.ml, e.vol), 0)); const tot = ad.reduce((p, q) => p + q, 0); const n = ad.filter((v) => v > 0).length; return `<div class="spread"><span class="muted">Alkohol gesamt (Tage mit Alkohol)</span><strong>${r0(tot)} g (${n})</strong></div>`; })() : ''}
+    ${state.alcohol.enabled ? (() => { const ad = done.map((x) => (state.alcohol.log[x.d] || []).reduce((s2, e) => s2 + alcGrams(e.ml, e.vol), 0)); const tot = ad.reduce((p, q) => p + q, 0); const n = ad.filter((v) => v > 0).length; return `<div class="spread"><span class="muted">Alkohol gesamt (Tage mit Alkohol)</span><strong>${r0(tot)} g (${n})</strong></div>`; })() : ''}
     <div class="spread"><span class="muted">Ø Zucker frei / natürlich</span><strong>${r0(avg('fs'))} / ${r0(avg('su') - avg('fs'))} g</strong></div>
     ${state.water.enabled ? `<div class="spread"><span class="muted">Ø Wasser</span><strong>${wd.length ? litres(wd.reduce((a, b) => a + b, 0) / wd.length) + ' l' : '–'}</strong></div>` : ''}</div>`;
 
