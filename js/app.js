@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.22.4';
+const APP_VERSION = '1.23.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -25,6 +25,7 @@ function emptyState() {
     diet: { type: 'all', allergens: [] },
     sugRatings: {}, // Bewertung je Lebensmittel-ID: -3 … +3; ab -2 nicht mehr vorgeschlagen
     wgoal: WG_DEFAULTS(), weightLog: {},
+    pantry: [], // vorgemerkte Lebensmittel (z. B. nach dem Einkauf)
     waterFoods: {}, // Lebensmittel, die standardmäßig zur Flüssigkeit zählen
     slices: {}, // gelerntes Scheibengewicht je Lebensmittel-ID (g)
     water: { enabled: true, goal: 1500, log: {} }, // log: { 'JJJJ-MM-TT': [ml, ml, …] }
@@ -99,6 +100,7 @@ function normalizeState(data) {
   if (!s.sugRatings || typeof s.sugRatings !== 'object') s.sugRatings = {};
   if (!s.slices || typeof s.slices !== 'object') s.slices = {};
   if (!s.waterFoods || typeof s.waterFoods !== 'object') s.waterFoods = {};
+  if (!Array.isArray(s.pantry)) s.pantry = [];
   s.wgoal = Object.assign(WG_DEFAULTS(), data.wgoal || {});
   if (!s.weightLog || typeof s.weightLog !== 'object') s.weightLog = {};
   s.water = Object.assign(emptyState().water, data.water || {});
@@ -306,6 +308,7 @@ function render() {
   if (tab === 'diary') renderDiary();
   else if (tab === 'history') renderHistory();
   else if (tab === 'timeline') renderTimeline();
+  else if (tab === 'food') renderFood();
   else renderSettings();
   window.scrollTo(0, 0);
 }
@@ -841,6 +844,7 @@ function closeSheet() {
 }
 
 function openAdd(meal) {
+  if (pantryMode) { openPantry(addTab === 'mine' ? 'search' : addTab); return; }
   addMeal = meal; sheetMode = 'add';
   const label = MEALS.find((m) => m.id === meal).label;
   openSheet(`
@@ -910,21 +914,23 @@ function drawMine() {
   const favs = state.favs.filter(hit);
   const recent = state.recent.filter((r) => !isFav(r.id)).slice(0, 30).filter(hit);
   const own = state.custom.filter(hit);
-  const delLabel = { fav: 'Aus Favoriten entfernen', recent: 'Aus „Zuletzt verwendet“ entfernen', own: 'Lebensmittel löschen' };
+  const pantry = (state.pantry || []).filter(hit);
+  const delLabel = { fav: 'Aus Favoriten entfernen', recent: 'Aus „Zuletzt verwendet“ entfernen', own: 'Lebensmittel löschen', pantry: 'Aus „Vorgemerkt“ entfernen' };
   const li = (f, i, key) => `<li data-i="${i}" class="mine-li"><div>${isFav(f.id) && key !== 'fav' ? '<span class="star">★</span>' : ''}${esc(f.n)}${{ off: '<span class="tag">Barcode</span>', custom: '<span class="tag">Eigenes</span>', recipe: '<span class="tag">Rezept</span>' }[f.src] || ''}<div class="meta">${f.brand ? esc(f.brand) + ' · ' : ''}${r0(f.k)} kcal / 100 ${unitOf(f)}</div></div>
     <button type="button" class="mine-del" data-del="${key}:${i}" aria-label="${delLabel[key]}" title="${delLabel[key]}">✕</button></li>`;
   const sec = (title, items, key) => items.length ? `<h2 class="sec">${title}</h2><ul class="list" data-sec="${key}">${items.map((f, i) => li(f, i, key)).join('')}</ul>` : '';
-  const any = state.favs.length || state.recent.length || state.custom.length;
+  const any = state.favs.length || state.recent.length || state.custom.length || (state.pantry || []).length;
   $('#mineList').innerHTML = !any ? '<div class="empty">Noch nichts vorhanden. Favoriten markierst du mit dem Stern beim Eintragen.</div>'
-    : (favs.length || recent.length || own.length) ? sec('★ Favoriten', favs, 'fav') + sec('Zuletzt verwendet', recent, 'recent') + sec('Eigene Lebensmittel & Rezepte', own, 'own')
+    : (favs.length || recent.length || own.length || pantry.length) ? sec('★ Favoriten', favs, 'fav') + sec('Vorgemerkt', pantry, 'pantry') + sec('Zuletzt verwendet', recent, 'recent') + sec('Eigene Lebensmittel & Rezepte', own, 'own')
     : '<div class="empty">Nichts gefunden.</div>';
-  const map = { fav: favs, recent, own };
+  const map = { fav: favs, recent, own, pantry };
   document.querySelectorAll('#mineList [data-sec]').forEach((ul) => bindList(ul, map[ul.dataset.sec], (f) => openAmount(f)));
   document.querySelectorAll('#mineList [data-del]').forEach((b) => b.onclick = (ev) => {
     ev.stopPropagation();
     const [key, i] = b.dataset.del.split(':'); const f = map[key][+i]; if (!f) return;
     if (key === 'own') { deleteOwnFood(f); return; }
-    if (key !== 'own' && !confirm(key === 'fav' ? `„${f.n}“ aus den Favoriten entfernen?` : `„${f.n}“ aus „Zuletzt verwendet“ entfernen?`)) return;
+    if (key !== 'own' && !confirm(key === 'fav' ? `„${f.n}“ aus den Favoriten entfernen?` : key === 'pantry' ? `„${f.n}“ aus „Vorgemerkt“ entfernen?` : `„${f.n}“ aus „Zuletzt verwendet“ entfernen?`)) return;
+    if (key === 'pantry') { state.pantry = state.pantry.filter((x) => x.id !== f.id); toast('Aus „Vorgemerkt“ entfernt'); save(); drawMine(); return; }
     if (key === 'fav') { state.favs = state.favs.filter((x) => x.id !== f.id); toast('Aus Favoriten entfernt'); }
     else { state.recent = state.recent.filter((x) => x.id !== f.id); toast('Aus „Zuletzt verwendet“ entfernt'); }
     save(); drawMine();
@@ -1070,6 +1076,7 @@ const r1n = (n) => Math.round((n || 0) * 10) / 10;
 
 /* ---------- Mengen-Dialog ---------- */
 function openAmount(food, opts = {}) {
+  if (pantryMode && !opts.edit) { pantryAdd(food); return; } // Vormerken: nur speichern
   stopScanner();
   const edit = !!opts.edit;
   sheetMode = 'amount';
@@ -1136,7 +1143,7 @@ function openAmount(food, opts = {}) {
   const lc = document.querySelector('#portions [data-last]');
   if (lc) lc.onclick = () => { g.value = r1(+lc.dataset.last); upd(); lastChip = lc; document.querySelectorAll('#portions .chip').forEach((c) => c.classList.toggle('on', c === lc)); };
   g.addEventListener('input', () => { lastChip = null; document.querySelectorAll('#portions .chip').forEach((c) => c.classList.remove('on')); });
-  const back = () => { if (edit) closeSheet(); else openAdd(addMeal); };
+  const back = () => { if (edit || opts.direct) closeSheet(); else openAdd(addMeal); };
   $('#back').onclick = back;
   $('#favBtn').onclick = () => {
     if (isFav(foodId)) { state.favs = state.favs.filter((x) => x.id !== foodId); $('#favBtn').textContent = '☆'; toast('Aus Favoriten entfernt'); }
@@ -1322,11 +1329,11 @@ async function lookupBarcode(code) {
 function renderNew() {
   $('#addBody').innerHTML = `
     <ul class="list choice">
-      <li id="newQuick"><div><strong>Schnelleintrag</strong><div class="meta">Nur kcal eintragen, z. B. im Restaurant</div></div><div class="meta">›</div></li>
+      ${pantryMode ? '' : '<li id="newQuick"><div><strong>Schnelleintrag</strong>'}${pantryMode ? '' : `<div class="meta">Nur kcal eintragen, z. B. im Restaurant</div></div><div class="meta">›</div></li>`}
       <li id="newFood"><div><strong>Eigenes Lebensmittel</strong><div class="meta">Nährwerte pro 100 g, z. B. von der Verpackung</div></div><div class="meta">›</div></li>
       <li id="newRecipe"><div><strong>Rezept</strong><div class="meta">Aus mehreren Zutaten zusammenstellen</div></div><div class="meta">›</div></li>
     </ul>`;
-  $('#newQuick').onclick = () => openQuick(addMeal);
+  if ($('#newQuick')) $('#newQuick').onclick = () => openQuick(addMeal);
   $('#newFood').onclick = () => openFoodForm();
   $('#newRecipe').onclick = () => openRecipe();
 }
