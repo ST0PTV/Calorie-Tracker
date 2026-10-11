@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.30.0';
+const APP_VERSION = '1.30.1';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -839,14 +839,14 @@ function sugDue(iso) {
 let sugIndex = 0;
 function suggestionCardHtml(iso) {
   if (!sugDue(iso)) return '';
-  if (!blsReady) return '<div class="card sug"><h2>Vorschlag für heute Abend</h2><p class="small muted">Lade Lebensmitteldaten…</p></div>';
+  if (!blsReady) return '<div class="card sug"><h2 class="ct">Vorschlag für heute Abend</h2><p class="small muted">Lade Lebensmitteldaten…</p></div>';
   const list = computeSuggestions(iso);
   const R = remainingFor(iso);
   const de = fmt;
   const open = `${de(R.k)} kcal${R.p != null ? ` · Eiweiß ${de(R.p)} g` : ''}${R.c != null ? ` · KH ${de(R.c)} g` : ''}${R.f != null ? ` · Fett ${de(R.f)} g` : ''}`;
   const prio = `<div class="seg three sug-prio">${[['kcal', 'Kalorien'], ['protein', 'Eiweiß zuerst'], ['balanced', 'Ausgewogen']].map(([k, l]) => `<button type="button" data-sugprio="${k}" class="${state.sug.priority === k ? 'active' : ''}">${l}</button>`).join('')}</div>`;
   if (!list.length) {
-    return `<div class="card sug"><h2>Vorschlag für heute Abend</h2><p class="small muted">Noch offen: ${open}</p>${prio}
+    return `<div class="card sug"><h2 class="ct">Vorschlag für heute Abend</h2><p class="small muted">Noch offen: ${open}</p>${prio}
       <p class="small muted">Keine passenden Lebensmittel gefunden. ${dietFiltersActive() ? 'Deine Ernährungs- und Allergie-Filter schließen viele Lebensmittel aus; eigene Lebensmittel brauchen dafür Angaben zu Ernährungsform und Allergenen.' : ''}</p></div>`;
   }
   const i = sugIndex % list.length;
@@ -864,7 +864,7 @@ function suggestionCardHtml(iso) {
   }).join('');
   const missKcal = Math.abs(after.k) > Math.max(80, 0.15 * R.k);
   return `<div class="card sug">
-    <div class="spread"><h2>Vorschlag für heute Abend</h2><span class="small muted">${i + 1}/${list.length}</span></div>
+    <div class="spread"><h2 class="ct">Vorschlag für heute Abend</h2><span class="small muted">${i + 1}/${list.length}</span></div>
     <p class="small muted">Noch offen: ${open}</p>
     ${prio}
     ${rows}
@@ -1676,7 +1676,7 @@ function renderHistory() {
   if (histMonth === curMonth) chips.push(['Heute', { a: today, b: today }]);
   const same = (s) => (s === null ? histSel === null : histSel && histSel.a === s.a && histSel.b === s.b);
   const chipHtml = chips.map(([t, s], i) => `<button class="hch ${same(s) ? 'active' : ''}" data-ch="${i}">${t}</button>`).join('');
-  const barCard = `<div class="card chart"><div class="spread"><h2 style="margin:0">Kalorien pro Tag</h2><span class="small muted">${selLabel}</span></div>
+  const barCard = `<div class="card chart"><div class="spread"><h2 class="ct">Kalorien pro Tag</h2><span class="small muted">${selLabel}</span></div>
     <div class="hch-row">${chipHtml}</div>
     <div class="hb-wrap" id="hWrap"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Kalorien pro Tag">${goalLine}${bars}</svg>${brush}</div>
 </div>`;
@@ -1684,7 +1684,7 @@ function renderHistory() {
   // 3) Ø Makros im Zeitraum
   const ep = avg('p') * 4, ec = avg('c') * 4, ef = avg('f') * 9, es = ep + ec + ef || 1;
   const sh = (v) => Math.round(v / es * 100);
-  const macroCard = `<div class="card"><div class="spread"><h2 style="margin:0">Ø Makros</h2><span class="small muted">${tracked.length ? 'Anteil an der Energie' : 'keine Daten'}</span></div>
+  const macroCard = `<div class="card"><div class="spread"><h2 class="ct">Ø Makros</h2><span class="small muted">${tracked.length ? 'Anteil an der Energie' : 'keine Daten'}</span></div>
     <div class="mbar"><span style="flex:${ep};background:var(--p)"></span><span style="flex:${ec};background:var(--c)"></span><span style="flex:${ef};background:var(--f)"></span></div>
     <div class="mlab"><span style="color:var(--p)">Eiweiß ${r0(avg('p'))} g · ${tracked.length ? sh(ep) : 0} %</span><span style="color:var(--c)">KH ${r0(avg('c'))} g · ${tracked.length ? sh(ec) : 0} %</span><span style="color:var(--f)">Fett ${r0(avg('f'))} g · ${tracked.length ? sh(ef) : 0} %</span></div></div>`;
 
@@ -1692,7 +1692,7 @@ function renderHistory() {
   const wd = done.map((x) => waterOf(x.d)).filter((v) => v > 0);
   const goalChanges = new Set(sel.map((x) => x.goal)).size > 1;
   const otherCard = `<div class="card">
-    <div class="spread"><h2 style="margin:0">Weitere Werte</h2><span class="small muted">${selLabel}</span></div>
+    <div class="spread"><h2 class="ct">Weitere Werte</h2><span class="small muted">${selLabel}</span></div>
     <div class="spread" style="margin-top:8px"><span class="muted">Ø kcal</span><strong>${fmt(avg('k'))} kcal</strong></div>
     <div class="spread"><span class="muted">Getrackte Tage</span><strong>${tracked.length} / ${done.length}${skipToday ? ' <span class="muted small">(ohne heute)</span>' : ''}</strong></div>
     ${withGoal.length ? `<div class="spread"><span class="muted">Ø Differenz zum Ziel</span><strong>${fmtS(avgDiff)} kcal</strong></div>` : ''}

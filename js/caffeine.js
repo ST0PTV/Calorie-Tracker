@@ -396,7 +396,7 @@ function caffHistoryHtml(days, range) {
         return `<div class="caf-night ${col}" title="${r0(x.bedLvl)} mg">${x.n || x.tracked ? r0(x.bedLvl) : '–'}</div>`;
       }).join('')}</div></div>`;
   }
-  return `<div class="card caf-hist"><div class="spread"><h2>Koffein</h2><span class="small muted">Ø ${r0(avg)} mg pro Tag</span></div>${chart}</div>
+  return `<div class="card caf-hist"><div class="spread"><h2 class="ct">Koffein</h2><span class="small muted">Ø ${r0(avg)} mg pro Tag</span></div>${chart}</div>
     <div class="card">
       <div class="spread"><span class="muted">Ø Koffein</span><strong>${r0(avg)} mg</strong></div>
       <div class="spread"><span class="muted">Ø letztes Getränk</span><strong>${avgLast != null ? hm(avgLast) : '–'}</strong></div>
