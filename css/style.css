@@ -498,3 +498,16 @@ label.sw input:checked::after { transform: translateX(18px); }
 .sf-bar span { display: block; height: 100%; border-radius: 2px; }
 .sf.su .sf-bar span { background: var(--su); } .sf.fi .sf-bar span { background: var(--fi); }
 .sf-nat { font-size: 0.6rem; color: var(--muted); margin-top: 4px; }
+
+/* Alkohol-Karte (nutzt die Koffein-Stile) */
+.alc .caf-big { color: #C79BF2; }
+.alc-chart .line { stroke: #C79BF2; }
+.alc-chart .s0 { stop-color: #C79BF2; stop-opacity: 0.35; }
+.alc-chart .s1 { stop-color: #C79BF2; stop-opacity: 0; }
+.alc-chart .dot { fill: #E8EEF7; stroke: #C79BF2; }
+.alc-chart .line.plan { stroke: #C79BF2; }
+.alc-chart .thr { stroke: var(--warn); }
+.alc .caf-time { background: rgba(199, 155, 242, 0.14); color: #C79BF2; }
+.alc .caf-add { background: #C79BF2; }
+.alc .cs-v { color: #C79BF2; }
+.alc .cs-v.good { color: #6FE0C1; } .alc .cs-v.mid { color: var(--caf); } .alc .cs-v.bad { color: var(--warn); }
