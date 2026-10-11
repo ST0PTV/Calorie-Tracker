@@ -8,6 +8,7 @@ let pantryFav = false;       // beim Vormerken zusätzlich als Favorit markieren
 let pantryCount = 0;         // in diesem Durchgang vorgemerkt
 let foodFilter = 'all';
 let foodQuery = '';
+let foodOpen = null; // Lebensmittel mit aufgeklappten Aktionen
 const PANTRY_MAX = 2000;
 
 function pantryAdd(food) {
@@ -71,11 +72,38 @@ function renderFood() {
       const e = (x.p || 0) * 4 + (x.c || 0) * 4 + (x.f || 0) * 9 || 1;
       return `<div class="fd-row" data-i="${i}"><div class="fd-main"><div class="fd-n">${x.flags.fav ? '<span class="star">★</span>' : ''}${esc(x.n)}${tagOf(x) ? `<span class="tag">${tagOf(x)}</span>` : ''}${x.flags.pantry ? '<span class="tag fd-p">vorgemerkt</span>' : ''}</div>
         <div class="fd-m"><span>${fmt(x.k)} kcal/100 ${unitOf(x)}</span><span class="fd-bar"><i style="flex:${((x.p || 0) * 4 / e).toFixed(3)};background:var(--p)"></i><i style="flex:${((x.c || 0) * 4 / e).toFixed(3)};background:var(--c)"></i><i style="flex:${((x.f || 0) * 9 / e).toFixed(3)};background:var(--f)"></i></span><span class="fd-e">E ${r1(x.p || 0)}</span></div></div>
-        <button type="button" class="fd-plus" data-plus="${i}" aria-label="${esc(x.n)} ins Journal eintragen">+</button></div>`;
+        <button type="button" class="fd-plus" data-plus="${i}" aria-label="${esc(x.n)} ins Journal eintragen">+</button></div>
+        ${foodOpen === x.id ? `<div class="fd-acts">
+          <button type="button" class="chip" data-act="add" data-i="${i}">Ins Journal</button>
+          <button type="button" class="chip" data-act="fav" data-i="${i}">${x.flags.fav ? '☆ Kein Favorit' : '★ Favorit'}</button>
+          ${x.flags.pantry ? `<button type="button" class="chip" data-act="pantry" data-i="${i}">Aus Vorgemerkt entfernen</button>` : ''}
+          ${x.flags.recent ? `<button type="button" class="chip" data-act="recent" data-i="${i}">Aus Zuletzt entfernen</button>` : ''}
+          ${x.flags.own || x.flags.recipe ? `<button type="button" class="chip" data-act="edit" data-i="${i}">Bearbeiten</button><button type="button" class="chip warn" data-act="del" data-i="${i}">Löschen</button>` : ''}
+        </div>` : ''}`;
     }).join('') : `<div class="empty">${all.length ? 'Nichts gefunden.' : 'Noch keine Lebensmittel. Nach dem Einkauf einfach „Scannen“ tippen.'}</div>`;
     const pick = (i) => { const f = list[+i]; if (!f) return; addMeal = mealByTime(); openAmount(f, { direct: true }); };
     document.querySelectorAll('#fdList [data-plus]').forEach((b) => b.onclick = (ev) => { ev.stopPropagation(); pick(b.dataset.plus); });
-    document.querySelectorAll('#fdList .fd-row').forEach((r) => r.onclick = () => pick(r.dataset.i));
+    document.querySelectorAll('#fdList .fd-row').forEach((r) => r.onclick = () => { const f = list[+r.dataset.i]; foodOpen = f && foodOpen !== f.id ? f.id : null; draw(); });
+    document.querySelectorAll('#fdList [data-act]').forEach((b) => b.onclick = (ev) => {
+      ev.stopPropagation(); const f = list[+b.dataset.i]; if (!f) return;
+      const act = b.dataset.act;
+      if (act === 'add') { pick(b.dataset.i); return; }
+      if (act === 'edit') { const own = state.custom.find((c) => c.id === f.id); if (own) { if (own.src === 'recipe') openRecipe(own); else openFoodForm(own); } return; }
+      if (act === 'fav') {
+        if (isFav(f.id)) state.favs = state.favs.filter((y) => y.id !== f.id); else state.favs.unshift(foodSnap(f));
+        save(); toast(isFav(f.id) ? 'Als Favorit markiert' : 'Kein Favorit mehr');
+      } else if (act === 'pantry') {
+        if (!confirm(`„${f.n}“ aus „Vorgemerkt“ entfernen?`)) return;
+        state.pantry = state.pantry.filter((y) => y.id !== f.id); save(); toast('Aus „Vorgemerkt“ entfernt');
+      } else if (act === 'recent') {
+        if (!confirm(`„${f.n}“ aus „Zuletzt verwendet“ entfernen?`)) return;
+        state.recent = state.recent.filter((y) => y.id !== f.id); save(); toast('Aus „Zuletzt verwendet“ entfernt');
+      } else if (act === 'del') {
+        if (!confirm(`„${f.n}“ löschen? Bereits eingetragene Mahlzeiten bleiben erhalten.`)) return;
+        removeOwnFood(f.id); toast('Gelöscht');
+      }
+      foodOpen = null; renderFood();
+    });
   };
   $('#fdQ').oninput = (ev) => { foodQuery = ev.target.value; draw(); };
   document.querySelectorAll('#fdF [data-f]').forEach((b) => b.onclick = () => { foodFilter = b.dataset.f; document.querySelectorAll('#fdF [data-f]').forEach((x) => x.classList.toggle('on', x === b)); draw(); });
