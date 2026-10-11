@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.29.3';
+const APP_VERSION = '1.29.4';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -1564,7 +1564,7 @@ INFO.hcal = () => {
   const dir = goalDir(isoDate(new Date()));
   const now = { lose: 'Abnehmen', gain: 'Zunehmen', keep: 'Gewicht halten' }[dir];
   const why = state.wgoal && state.wgoal.on && state.wgoal.target && state.profile.weight ? 'aus deinem Gewichtsziel' : 'aus dem Ernährungsziel des Tages (Muskelaufbau = zunehmen, Fettabbau = abnehmen, sonst halten)';
-  return { body: `<p>Der Ring zeigt, wie viel vom Kalorienziel des Tages gegessen wurde. Die Farbe zeigt, ob das zu deinem Ziel passt. Aktuell: <strong>${now}</strong> – abgeleitet ${why}.</p>`,
+  return { body: `<p>Der Ring zeigt, wie viel vom Kalorienziel des Tages gegessen wurde. Die Farbe zeigt, ob das zu deinem Ziel passt – im Kalender und genauso bei den Balken „Kalorien pro Tag“. Aktuell: <strong>${now}</strong> – abgeleitet ${why}.</p>`,
     pts: [['<span style="color:var(--good)">●</span> Grün – Ziel erreicht', 'Abnehmen: unter dem Kalorienziel · Zunehmen: Ziel erreicht oder darüber · Halten: höchstens ±10 % daneben'],
       ['<span style="color:var(--warn)">●</span> Orange – verfehlt', 'Abnehmen: über dem Ziel · Zunehmen: darunter · Halten: mehr als 10 % daneben'],
       ['<span style="color:var(--accent)">●</span> Cyan – heute, läuft noch', 'Das Ziel soll erreicht werden, der Tag ist aber noch nicht vorbei'],
@@ -1615,7 +1615,8 @@ function renderHistory() {
   const bars = mdays.map((x, i) => {
     const h = (H - 18) - y(x.t.k);
     const lbl = (i % 5 === 0 || i === nDays - 1) ? `<text x="${pad + i * bw + bw / 2}" y="${H - 4}" text-anchor="middle">${i + 1}</text>` : '';
-    return `<rect class="b ${x.goal && x.t.k > x.goal ? 'over' : ''}" style="opacity:${!histSel || inSel(i) ? 1 : 0.3}" x="${pad + i * bw + bw * 0.15}" y="${y(x.t.k)}" width="${bw * 0.7}" height="${Math.max(0, h)}" rx="2"></rect>${lbl}`;
+    const st = x.n > 0 ? dayGoalState(x.d, x.t.k, x.goal) : null; // gleiche Farbe wie der Kalender-Ring
+    return `<rect class="b ${st || ''}" style="opacity:${!histSel || inSel(i) ? 1 : 0.3}" x="${pad + i * bw + bw * 0.15}" y="${y(x.t.k)}" width="${bw * 0.7}" height="${Math.max(0, h)}" rx="2"></rect>${lbl}`;
   }).join('');
   let path = '';
   mdays.forEach((x, i) => {
