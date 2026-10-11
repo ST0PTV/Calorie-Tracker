@@ -663,3 +663,4 @@ h2.ct { font-size: 0.8rem; font-weight: 400; color: var(--muted); margin: 0; let
 .ev { font-weight: 600; } .ev.good { color: var(--good); } .ev.mid { color: var(--c); } .ev.bad { color: var(--warn); }
 .info-src a { color: var(--accent); }
 .info-src { text-align: left; } .info-body p.nojust { text-align: left; }
+.entry .etime { display: inline-flex; align-items: center; gap: 3px; justify-content: flex-end; }
