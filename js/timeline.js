@@ -287,7 +287,8 @@ function tlSettingsBind(rerender) {
 }
 var INFO = globalThis.INFO || {}; globalThis.INFO = INFO; // Info-Texte (Blatt von unten), Anzeige in app.js
 INFO.sleep = { body: '<p>Bett- und Aufstehzeit gelten für Koffein (Pegel zur Bettzeit, Schlafzone) und die Timeline (Essfenster, Magen zur Bettzeit, Plan-Vorschlag).</p>' };
-INFO.sex = { body: '<p>Das Geschlecht verfeinert die Promille-Schätzung und das Magen-Modell der Timeline (Frauen entleeren den Magen im Mittel langsamer) und passt den Eisen-Hinweis bei den Supplements an.</p><p>Kalorien-, Eiweiß-, Ballaststoff- und Zuckerziele sind laut den genutzten Quellen pro kg bzw. pro kcal für beide gleich. „Keine Angabe“ nutzt jeweils Mittelwerte.</p>', pts: [['Promille', 'Verteilungsfaktor 0,7 / 0,6 bzw. aus dem BMI'], ['Magen-Modell', 'Faktor 0,9 / 1,1'], ['Eisen-Hinweis', '11 mg / 14–16 mg pro Tag']], src: 'Datz 1987 · Caballero-Plasencia 1999 · Maudens 2014 · DGE 2024' };
+INFO.sex = { body: '<p>Das Geschlecht verfeinert die Promille-Schätzung und das Magen-Modell der Timeline (Frauen entleeren den Magen im Mittel langsamer) und passt den Eisen-Hinweis bei den Supplements an.</p><p>Beim Gewichtsziel bestimmt es die Formel für den geschätzten Grundumsatz und die Kalorien-Untergrenze (Frauen 1.200, Männer 1.500 kcal). Eiweiß-, Ballaststoff- und Zuckerziele sind laut den genutzten Quellen pro kg bzw. pro kcal für beide gleich. „Keine Angabe“ nutzt jeweils Mittelwerte bzw. die Untergrenze 1.200 kcal.</p>', pts: [['Grundumsatz', 'DGE-Formel für Frauen bzw. Männer'], ['Untergrenze', '1.200 / 1.500 kcal pro Tag'], ['Promille', 'Verteilungsfaktor 0,7 / 0,6 bzw. aus dem BMI'], ['Magen-Modell', 'Faktor 0,9 / 1,1'], ['Eisen-Hinweis', '11 mg / 14–16 mg pro Tag']], src: 'Datz 1987 · Caballero-Plasencia 1999 · Maudens 2014 · DGE 2024' };
+INFO.age = { body: '<p>Das Alter braucht nur die Schätzung des Grundumsatzes beim Gewichtsziel (DGE-Formel): Mit jedem Lebensjahr sinkt er um rund 3–4 kcal pro Tag. Gespeichert wird nur das Jahr, und nur auf diesem Gerät.</p>', src: 'DGE · Müller et al. 2004' };
 INFO.weight = { body: '<p>Das Gewicht ist die Grundlage der Makroziele im Tagesziel. Bei einer Änderung werden sie ab heute neu berechnet; frühere Tage behalten ihre Werte.</p><p>Außerdem nutzt es die Timeline für Eiweiß pro Mahlzeit und der Alkohol-Tracker für die Promille-Schätzung.</p>' };
 INFO.height = { body: '<p>Mit Gewicht und Größe ergibt sich der BMI. Daraus berechnet die App den Verteilungsfaktor für die Promille-Schätzung genauer als mit festen Werten.</p><p>Die Formel stammt aus einer Studie mit 50 Personen (BMI 16–36) und erklärt nur einen Teil der Unterschiede zwischen Menschen.</p>', src: 'Maudens 2014' };
 INFO.tlSplit = { body: '<p>So verteilt der Plan-Vorschlag dein Kalorienziel auf Frühstück, Mittag, Snack und Abend. Snack auf 0 % = drei Mahlzeiten.</p><p>Eine belegte „beste“ Verteilung gibt es nicht: In einer Studie änderte viel Energie morgens statt abends nichts am Gewichtsverlust, aber das Hungergefühl.</p>', src: 'Ruddick-Collins 2022' };
@@ -300,12 +301,13 @@ function bodySettingsHtml() {
       <div><label for="bdBed">Bettzeit ${infoBtn('sleep')}</label><input id="bdBed" type="time" value="${esc(c.bed)}"></div>
       <div><label for="bdWake">Aufstehen</label><input id="bdWake" type="time" value="${esc(c.wake)}"></div>
     </div>
-    <label>Geschlecht ${infoBtn('sex')}</label>
+    <label>Geschlecht (optional) ${infoBtn('sex')}</label>
     <div class="seg three" id="bdSex">${[['m', 'Mann'], ['f', 'Frau'], ['', 'Keine Angabe']].map(([k, l]) => `<button type="button" data-sx="${k}" class="${(state.profile.sex || '') === k ? 'active' : ''}">${l}</button>`).join('')}</div>
     <div class="row">
       <div><label for="bdW">Körpergewicht (kg) ${infoBtn('weight')}</label><input id="bdW" inputmode="decimal" value="${w != null ? r1(w) : ''}" placeholder="z. B. 80"></div>
       <div><label for="bdH">Körpergröße (cm) ${infoBtn('height')}</label><input id="bdH" inputmode="numeric" value="${state.profile.height != null ? r0(state.profile.height) : ''}" placeholder="z. B. 180"></div>
     </div>
+    <label for="bdY">Geburtsjahr (optional) ${infoBtn('age')}</label><input id="bdY" inputmode="numeric" value="${state.profile.birthYear || ''}" placeholder="z. B. 1995">
   </div>`;
 }
 function bodySettingsBind() {
@@ -317,6 +319,12 @@ function bodySettingsBind() {
     document.querySelectorAll('#bdSex [data-sx]').forEach((x) => x.classList.toggle('active', x === b));
     toast('Gespeichert');
   });
+  $('#bdY').onchange = (ev) => {
+    if (ev.target.value.trim() === '') { state.profile.birthYear = null; save(); return; }
+    const v = num(ev.target.value), y = new Date().getFullYear();
+    if (v == null || v < y - 100 || v > y - 18) { toast(`Bitte ein Geburtsjahr zwischen ${y - 100} und ${y - 18} eingeben.`); ev.target.value = state.profile.birthYear || ''; return; }
+    state.profile.birthYear = Math.round(v); save(); toast('Gespeichert');
+  };
   $('#bdH').onchange = (ev) => {
     if (ev.target.value.trim() === '') { state.profile.height = null; save(); return; }
     const v = num(ev.target.value);

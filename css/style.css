@@ -651,3 +651,15 @@ h2.ct { font-size: 0.8rem; font-weight: 400; color: var(--muted); margin: 0; let
 .set-group > .set-card:not(.collapsed) { padding-bottom: 14px; }
 .set-t { display: flex; flex-direction: column; min-width: 0; }
 .set-sub { font-size: 0.7rem; font-weight: 400; color: var(--muted); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Gewichtsziel: Tempo-Auswahl */
+.wg-src button { font-size: 0.74rem; line-height: 1.2; }
+.wg-opts { display: flex; flex-direction: column; gap: 6px; }
+.wg-opt { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 9px 11px; border-radius: 14px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03); color: var(--ink); font: inherit; cursor: pointer; }
+.wg-opt.on { border-color: var(--accent); background: var(--accent-soft); }
+.wg-rad { width: 16px; height: 16px; flex: 0 0 16px; border-radius: 50%; border: 2px solid var(--muted); box-sizing: border-box; }
+.wg-opt.on .wg-rad { border-color: var(--accent); background: radial-gradient(var(--accent) 0 3px, transparent 3.5px); }
+.wg-ot { flex: 1; display: flex; flex-direction: column; font-size: 0.82rem; } .wg-ot .muted { font-size: 0.72rem; }
+.wg-ok { font-weight: 600; font-size: 0.85rem; white-space: nowrap; } .wg-ok.warn { color: var(--warn); margin: 0; }
+.wg-plan .warn { margin: 8px 0 0; line-height: 1.4; text-align: justify; }
+.wg-plan p.muted { text-align: left; }
