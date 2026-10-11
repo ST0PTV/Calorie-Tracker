@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.18.0';
+const APP_VERSION = '1.19.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -29,6 +29,7 @@ function emptyState() {
     timeline: TL_DEFAULTS(),
     profile: { weight: null, sex: null },
     sugarPct: 10, showSF: false,
+    alcohol: ALC_DEFAULTS(),
     caffeine: CAFF_DEFAULTS(), // log: { 'JJJJ-MM-TT': [{ id, min (Minuten seit 0 Uhr), mg, n, dur (Minuten) }] }
   };
 }
@@ -100,6 +101,8 @@ function normalizeState(data) {
   s.profile = Object.assign({ weight: null, sex: null }, data.profile || {});
   if (data.showSF == null) s.showSF = !!(s.goalHistory || []).some((h) => h.fiber || h.sugar);
   if (![5, 10].includes(s.sugarPct)) s.sugarPct = 10;
+  s.alcohol = Object.assign(ALC_DEFAULTS(), data.alcohol || {});
+  if (!s.alcohol.log || typeof s.alcohol.log !== 'object') s.alcohol.log = {};
   s.caffeine = Object.assign(CAFF_DEFAULTS(), data.caffeine || {});
   if (!s.caffeine.log || typeof s.caffeine.log !== 'object') s.caffeine.log = {};
   // Übernahme aus Versionen ohne Ziel-Historie: bisheriges Ziel gilt ab dem ersten Tagebuch-Tag
@@ -396,6 +399,7 @@ function renderDiary() {
   html += suppCardHtml(currentDate);
   html += waterCardHtml(currentDate);
   html += caffCardHtml(currentDate);
+  html += alcCardHtml(currentDate);
   html += suggestionCardHtml(currentDate);
 
   for (const m of MEALS) {
@@ -428,6 +432,7 @@ function renderDiary() {
   bindSuggestionCard(currentDate, () => { const y = window.scrollY; renderDiary(); window.scrollTo(0, y); });
   bindWaterCard(currentDate, () => { const y = window.scrollY; renderDiary(); window.scrollTo(0, y); });
   caffBindCard(currentDate);
+  alcBindCard(currentDate);
   suppBind(currentDate, () => { const y = window.scrollY; renderDiary(); window.scrollTo(0, y); });
 
   $('#prevDay').onclick = () => { currentDate = addDays(currentDate, -1); openMeals.clear(); renderDiary(); };
@@ -446,6 +451,8 @@ function renderDiary() {
   v.querySelectorAll('[data-entry]').forEach((el) => el.onclick = () => {
     const e = entries.find((x) => x.id === el.dataset.entry);
     if (!e) return;
+    const ae = e.alcId && ((state.alcohol.log[currentDate] || []).find((x) => x.id === e.alcId));
+    if (ae) { openAlcohol(currentDate, ae); return; }
     const ce = e.cafId && ((state.caffeine.log[currentDate] || []).find((x) => x.id === e.cafId));
     if (ce) openCaffeine(currentDate, ce); else if (e.quick) openQuick(e.meal, e); else openAmount(e, { edit: true });
   });
@@ -1445,6 +1452,7 @@ function renderHistory() {
     <div class="spread"><span class="muted">Getrackte Tage</span><strong>${tracked.length} / ${sel.length}</strong></div>
     ${withGoal.length ? `<div class="spread"><span class="muted">Ø Differenz zum Ziel</span><strong>${avgDiff > 0 ? '+' : ''}${r0(avgDiff)} kcal</strong></div>` : ''}
     <div class="spread"><span class="muted">Ø Ballaststoffe</span><strong>${r0(avg('fi'))} g</strong></div>
+    ${state.alcohol.enabled ? (() => { const ad = sel.map((x) => (state.alcohol.log[x.d] || []).reduce((s2, e) => s2 + alcGrams(e.ml, e.vol), 0)); const tot = ad.reduce((p, q) => p + q, 0); const n = ad.filter((v) => v > 0).length; return `<div class="spread"><span class="muted">Alkohol gesamt (Tage mit Alkohol)</span><strong>${r0(tot)} g (${n})</strong></div>`; })() : ''}
     <div class="spread"><span class="muted">Ø Zucker frei / natürlich</span><strong>${r0(avg('fs'))} / ${r0(avg('su') - avg('fs'))} g</strong></div>
     ${state.water.enabled ? `<div class="spread"><span class="muted">Ø Wasser</span><strong>${wd.length ? litres(wd.reduce((a, b) => a + b, 0) / wd.length) + ' l' : '–'}</strong></div>` : ''}</div>`;
 
@@ -1492,6 +1500,7 @@ const SET_ICONS = {
   'Tagesziel': ['#5BE7F5', '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/>'],
   'Wasser': ['#7AB8FF', '<path d="M12 3s6 6.2 6 10.5A6 6 0 0 1 6 13.5C6 9.2 12 3 12 3z"/>'],
   'Supplements': ['#6FE0C1', '<g transform="rotate(-35 12 12)"><rect x="3" y="7.5" width="18" height="9" rx="4.5"/><path d="M12 7.5v9"/></g>'],
+  'Alkohol': ['#C79BF2', '<path d="M7 3h10l-1 8a4 4 0 0 1-8 0L7 3z"/><path d="M12 15v6M8.5 21h7"/>'],
   'Koffein': ['#E2B36B', '<path d="M5 9h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5V9z"/><path d="M16 10h1.5a2.5 2.5 0 0 1 0 5H16"/><path d="M9 3v3M12.5 3v3"/>'],
   'Timeline': ['#5BE7F5', '<path d="M4 12h16"/><circle cx="7" cy="12" r="2"/><circle cx="13" cy="12" r="2"/><path d="M17 8v8"/>'],
   'Schlaf & Körper': ['#B9A6FF', '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>'],
@@ -1561,6 +1570,7 @@ function renderSettingsInner() {
       <p class="small muted" style="margin-top:6px">Richtwert der DGE: 1,5 l Getränke pro Tag; bei Hitze, Sport oder körperlicher Arbeit mehr. Die EFSA nennt 2,5 l (Männer) bzw. 2,0 l (Frauen) Gesamtwasser – inklusive Wasser aus Lebensmitteln.</p>
     </div>
     ${caffSettingsHtml()}
+    ${alcSettingsHtml()}
     ${suppSettingsHtml()}
     ${tlSettingsHtml()}
     <div class="card">
@@ -1605,6 +1615,7 @@ function renderSettingsInner() {
       <ul class="refs"><li>Deutsche Gesellschaft für Ernährung: Richtwert 1,5 l Getränke pro Tag für Erwachsene (zitiert nach Verbraucherzentrale NRW). <a href="https://www.verbraucherzentrale.nrw/wissen/lebensmittel/gesund-ernaehren/wie-viel-sollte-man-am-tag-trinken-24202" target="_blank" rel="noopener">Link</a></li>
         <li>EFSA NDA Panel (2010). Scientific Opinion on Dietary Reference Values for water. EFSA Journal 8(3):1459. <a href="https://www.efsa.europa.eu/en/press/news/nda100326" target="_blank" rel="noopener">Pressemitteilung</a></li></ul>
       ${caffSourcesHtml()}
+      ${alcSourcesHtml()}
       <p style="margin-top:10px"><strong style="color:var(--ink)">Standardportionen</strong></p>
       <ul class="refs"><li>SINU – Società Italiana di Nutrizione Umana (2024). LARN – Livelli di Assunzione di Riferimento di Nutrienti ed energia per la popolazione italiana, V Revisione: Porzioni standard. Werte übernommen aus: ATS Brescia (2025), Porzioni standard degli alimenti per la popolazione adulta. <a href="https://www.ats-brescia.it/documents/3432658/78612060/Porzioni+standard+degli+alimenti+per+la+popolazione+adulta.pdf/2ce817e7-0713-bbe6-56c7-767285a575dd" target="_blank" rel="noopener">PDF</a></li>
         <li>Eier, Gewichtsklasse M: 53 bis unter 63 g mit Schale, VO (EG) Nr. 589/2008 Art. 4.</li></ul>
@@ -1704,6 +1715,7 @@ function renderSettingsInner() {
   });
   const keepScroll = () => { const y = window.scrollY; renderSettings(); window.scrollTo(0, y); };
   caffSettingsBind();
+  alcSettingsBind();
   suppSettingsBind();
   bodySettingsBind();
   tlSettingsBind(keepScroll);
@@ -1767,7 +1779,7 @@ render();
 loadBls();
 // Koffein-Pegel altert mit der Zeit: Tagebuch (heute) jede Minute und beim Zurückkehren in die App auffrischen
 function refreshCaffeine() {
-  if (tab !== 'diary' || sheetMode || document.visibilityState !== 'visible' || !(state.caffeine.enabled || (state.supp.enabled && state.supp.remind)) || currentDate !== isoDate(new Date())) return;
+  if (tab !== 'diary' || sheetMode || document.visibilityState !== 'visible' || !(state.caffeine.enabled || state.alcohol.enabled || (state.supp.enabled && state.supp.remind)) || currentDate !== isoDate(new Date())) return;
   const y = window.scrollY; renderDiary(); window.scrollTo(0, y);
 }
 setInterval(refreshCaffeine, 60000);
