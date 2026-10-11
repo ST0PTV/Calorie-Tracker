@@ -217,7 +217,7 @@ function tlPlanHtml(iso, isToday, nowH) {
   const over = p.rest === 0 && p.eatenAll > p.goal;
   return `<div class="card"><div class="spread"><span class="small muted">Vorschlag für ${tlDe(p.goal)} kcal · Bett ${esc(state.caffeine.bed)}</span><span class="small acc">${p.items.length} Mahlzeiten</span></div>${win}</div>
     <div class="card tp-list">${rows}${over ? `<p class="small muted" style="margin:8px 0 0">Das Tagesziel ist schon erreicht (${tlDe(p.eatenAll)} kcal).</p>` : ''}</div>
-    <div class="card"><h2 style="margin:0 0 6px">So entsteht der Vorschlag</h2>
+    <div class="card"><h2 class="ct" style="margin-bottom:6px">So entsteht der Vorschlag</h2>
       <p class="small muted" style="margin:0;line-height:1.6">· Essfenster: ${T.first} h nach dem Aufstehen bis ${T.gap} h vor dem Schlafen, Mahlzeiten gleichmäßig verteilt<br>
       · Aufteilung ${TL_ORDER.map((m) => T.split[m] || 0).join(' / ')} % (${esc(TL_PRESETS[T.preset].label)}, in den Einstellungen änderbar)<br>
       · Eiweiß ≈ 0,4–0,55 g pro kg je Mahlzeit${p.weight ? ` (bei ${r1(p.weight)} kg)` : ''}<br>
