@@ -552,7 +552,7 @@ p, .info-body, .info-src, .sp-hint, .caf-note, .refs li { text-align: justify; -
 .fd-shop-h { display: flex; align-items: center; gap: 12px; }
 .fd-ico { width: 50px; height: 50px; flex: 0 0 50px; border-radius: 16px; background: var(--accent-soft); border: 1px solid rgba(91, 231, 245, 0.35); display: grid; place-items: center; color: var(--accent); font-size: 1.3rem; }
 .fd-t { font-size: 1rem; font-weight: 600; }
-.fd-btns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.fd-btns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .fd-btns .btn { min-height: 40px; padding: 0 6px; }
 .fd-chips { margin: 10px 0; flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
 .fd-chips .chip { white-space: nowrap; min-height: 34px; padding: 6px 12px; }
