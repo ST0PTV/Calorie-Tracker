@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.33.1';
+const APP_VERSION = '1.33.2';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -18,7 +18,7 @@ const OFF_FIELDS = 'code,product_name,product_name_de,brands,nutriments,serving_
 /* ---------- Speicher ---------- */
 function emptyState() {
   return {
-    settings: { goal: null, protein: null, carbs: null, fat: null, fiber: null, sugar: null },
+    settings: { goal: null, protein: null, carbs: null, fat: null, fiber: null, sugar: null }, // nur noch zum Import alter Backups (vor dem Zielverlauf)
     goalHistory: [], // [{ from: 'JJJJ-MM-TT', goal, protein, carbs, fat, fiber, sugar }], sortiert nach Datum
     days: {}, custom: [], recent: [], favs: [], offCache: {}, lastBackup: null,
     sug: { enabled: true, time: '16:00', count: 2, priority: 'protein', minKcal: 200 },
@@ -143,7 +143,6 @@ function applyProfileWeightMacros(w) {
   if (m && !m.carbsNegative) { entry.protein = m.protein; entry.carbs = m.carbs; entry.fat = m.fat; msg = `Gewicht gespeichert – Makroziele ab heute angepasst (E ${m.protein} g · F ${m.fat} g)`; }
   else if (m && m.carbsNegative) msg = 'Gewicht gespeichert – Eiweiß und Fett übersteigen das Kalorienziel, Makroziele unverändert';
   state.goalHistory = state.goalHistory.filter((h) => h.from !== today).concat([entry]).sort((a, b) => a.from.localeCompare(b.from));
-  const nc = goalsFor(today); GOAL_KEYS.forEach((k) => { state.settings[k] = nc[k] ?? null; });
   return msg;
 }
 // Ballaststoff- und Zuckerziel: bei Presets automatisch (DGE ≥ 30 g; freier Zucker < 10 % bzw. 5 % der kcal, WHO), bei „Eigene“ manuell
@@ -2033,14 +2032,11 @@ function renderSettingsInner() {
     const prev = goalsFor(from);
     if (state.goalHistory.length && GOAL_KEYS.every((k) => (prev[k] ?? null) === (entry[k] ?? null))) { toast('Keine Änderung'); return; }
     state.goalHistory = state.goalHistory.filter((h) => h.from !== from).concat([entry]).sort((a, b) => a.from.localeCompare(b.from));
-    // „settings“ spiegelt das heute gültige Ziel (für ältere Backups/Versionen)
-    const cur = goalsFor(today); GOAL_KEYS.forEach((k) => { state.settings[k] = cur[k] ?? null; });
     save(); toast(from === today ? 'Gespeichert – gilt ab heute' : `Gespeichert – gilt ab ${fmtD(from)}`); renderSettings();
   };
   document.querySelectorAll('[data-delgoal]').forEach((b) => b.onclick = () => {
     if (!confirm('Diesen Eintrag aus dem Ziel-Verlauf löschen? Die betroffenen Tage nutzen dann das vorherige Ziel.')) return;
     state.goalHistory = state.goalHistory.filter((h) => h.from !== b.dataset.delgoal);
-    const cur = goalsFor(today); GOAL_KEYS.forEach((k) => { state.settings[k] = cur[k] ?? null; });
     save(); toast('Gelöscht'); renderSettings();
   });
   const keepScroll = () => { const y = window.scrollY; renderSettings(); window.scrollTo(0, y); };
