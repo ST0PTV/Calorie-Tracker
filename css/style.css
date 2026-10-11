@@ -497,3 +497,4 @@ label.sw input:checked::after { transform: translateX(18px); }
 .sf-bar { height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
 .sf-bar span { display: block; height: 100%; border-radius: 2px; }
 .sf.su .sf-bar span { background: var(--su); } .sf.fi .sf-bar span { background: var(--fi); }
+.sf-nat { font-size: 0.6rem; color: var(--muted); margin-top: 4px; }

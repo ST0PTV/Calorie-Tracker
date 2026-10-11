@@ -4,7 +4,7 @@ Aufruf:
     python3 tools/convert_bls.py BLS_4_0_Daten_2025_DE.xlsx data/bls.json
 
 Übernommen werden nur Code, Name, Energie (kcal), Eiweiß, Kohlenhydrate, Fett,
-Ballaststoffe und Zucker je 100 g. Die Spaltennamen werden beim ersten Lauf ausgegeben und müssen ggf. unten in
+Ballaststoffe, Zucker (plus abgeleiteter freier Zucker) je 100 g. Die Spaltennamen werden beim ersten Lauf ausgegeben und müssen ggf. unten in
 COLUMN_HINTS angepasst werden.
 
 Quelle: Max Rubner-Institut (2025). Bundeslebensmittelschlüssel (BLS), Version 4.0.
@@ -25,6 +25,8 @@ COLUMN_HINTS = {
     "f": ["fat fett [g/100g]"],
     "fi": ["fibt ballaststoffe, gesamt [g/100g]"],
     "su": ["sugar zucker (mono- und disaccharide), gesamt [g/100g]"],
+    "lac": ["lacs lactose [g/100g]"],
+    "gal": ["gals galactose [g/100g]"],
 }
 
 # ---------------------------------------------------------------------------
@@ -118,6 +120,51 @@ BASICS = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Freier Zucker (fs, g/100 g) nach WHO-Definition: zugesetzte Mono-/Disaccharide
+# sowie Zucker in Honig, Sirup, Fruchtsaft und -konzentrat. Nicht frei: Zucker in
+# ganzem Obst/Gemüse und Milchzucker. Der BLS hat keine Spalte "zugesetzt" –
+# abgeleitet aus Hauptgruppe und Namen (Heuristik, keine Messung). Bei gesüßten
+# Milchprodukten wird der Milchzucker (Laktose; bei laktosefrei ≈ 2 × Galaktose)
+# abgezogen. Bei gesüßtem Obst/Gerichten zählt der gesamte Zucker als frei.
+# ---------------------------------------------------------------------------
+NOT_SWEET = RX(r"ungesüßt|ungezuckert|ohne Zucker|zuckerfrei|ohne Zuckerzusatz")
+SAVOURY = RX(r"(?i)fleisch|rind|schwein|huhn|hähnchen|pute|ente|gans|lamm|wild|fisch|lachs|hering|thunfisch|wurst|speck|schinken|gemüse|kartoffel|käse|tomate|pilz|zwiebel|kohl|kraut|suppe|brühe|pesto|bratling|linse|bohne|erbse|nudel|teigwaren|(?<!milch)reis\b|pizza|lasagne|gurke|paprika|rote bete|möhre|karotte|spinat|lauch|curry|chili|gulasch|eintopf|salat")
+SPICE = RX(r"(?i)salz|pfeffer|paprika|zimt|kümmel|muskat|kräuter|petersilie|basilikum|oregano|thymian|rosmarin|majoran|dill|schnittlauch|gewürz(?!ketchup)|senfkörner|senfsaat|ingwer|knoblauch|zwiebel|chili|kurkuma|koriander|anis|nelke|kardamom|vanilleschote|safran|lorbeer|wacholder|piment|fenchel|hefe|gelatine|agar|backpulver|natron|essig(?!.*balsam)")
+SWEET = RX(r"(?i:kompott|gelee|krokant|creme(?!suppe| ?fra)|pudding|[a-zäöü]grütze|rote grütze|grieß(?:brei|flammeri)|flammeri|mousse|parfait|sorbet|tiramisu|strudel|crêpe|crepe|kaiserschmarrn|dampfnudel|germknödel|obstsalat|fruchtsalat|(?:beer|frucht|vanille|schoko|nuss|sahne|speise|milch|joghurt|zitronen|mango|aprikosen|pfirsich|kirsch|mokka|wasser|stracciatella|soft|kaffee|walnuss|haselnuss|pistazien|eier|quark|cassis|himbeer|erdbeer|bananen)eis\b|^eis\b|eistorte|eisbecher|bratapfel|krapfen|zabaione|rumtopf|melba|plotzer|baba\b|schnee\b|schaum(?!wein)|weinchaudeau|kirschsauce|fruchtsauce|beerensauce|preiselbeer|johannisbeersauce|erdbeersauce|vanillesauce|glasur|füllung für|für gebäck|ketchup|grillsauce|marzipan|ganache|pektin)|gezuckert|gesüßt|Zucker(?!rübe|mais|schote|erbse|hut|melone|frei)|Sirup|Honig(?!melone|gurke)|Konfitüre|Marmelade|kandiert|[Ss]chok|Nougat|Karamell|Praline|Dessert|Speiseeis|Torte|Kuchen|Likör|Limonade|Cola|Brause|Kakao|Fruchtzubereitung|Konfekt|Bonbon|Gummi|Lakritz|Waffel|Keks|Plätzchen|Baiser|Fruchtsoße|Süßspeise|Milchreis|Fruchtjoghurt")
+JUICE = RX(r"saft|nektar(?!in)|Saft|Nektar(?!in)")
+CEREAL_SWEET = RX(r"(?i)cerealien|müsli|flakes|crisp|pops|malzextrakt|riegel|granola")
+BREAD_SWEET = RX(r"Stuten|Brioche|Hefezopf|Milchbrötchen|Rosinen|Früchtebrot|Toastbrot süß")
+DAIRY_SWEET = RX(r"Frucht|Kakao|Vanille|Milchmisch|Milchshake|Eis\b|Kondensmilch.*gezuckert")
+COND_SWEET = RX(r"[Zz]ucker|standmittel|Tortenguss|Vanillin|Dessert|Pudding|Chutney|Orangeat|Zitronat|Ketchup|Soße|Sauce|Senf|Balsam|Sirup|Honig|Konfitüre|gezuckert")
+
+
+def free_sugar(code, name, su, lac, gal):
+    if not su:
+        return 0
+    g = code[0]
+    nm = NOT_SWEET.sub("", name)
+    sweet = bool(SWEET.search(nm)) and not NOT_SWEET.search(name)
+    milk = (lac or 0) + 2 * (gal or 0)
+    if g in "SDNPQTUVW":
+        return su
+    if NOT_SWEET.search(name) and g not in "SDNP":
+        return 0
+    if g == "R":
+        return 0 if (SPICE.search(name) and not COND_SWEET.search(nm)) else su
+    if g == "F":
+        return su if (JUICE.search(name.split(",")[0]) and not RX(r"Konserve|Konzentrat").search(name)) or sweet or RX(r"Konzentrat").search(name) else 0
+    if g == "M":
+        return max(0, round(su - milk, 2)) if (sweet or DAIRY_SWEET.search(nm)) else 0
+    if g in "XY":
+        return max(0, round(su - milk, 2)) if (sweet or (su >= 8 and not SAVOURY.search(name))) else 0
+    if g == "C":
+        return su if (sweet or CEREAL_SWEET.search(nm)) and not NOT_SWEET.search(name) else 0
+    if g == "B":
+        return su if (sweet or BREAD_SWEET.search(nm)) else 0
+    return su if sweet else 0  # E, G, H, K
+
+
 def find_columns(header):
     cols = {}
     low = [str(h or "").strip().lower() for h in header]
@@ -170,6 +217,7 @@ def main(src, dst):
             "fi": to_num(r[cols["fi"]]) or 0,
             "su": to_num(r[cols["su"]]) or 0,
         })
+        foods[-1]["fs"] = round(free_sugar(str(r[cols["id"]]), str(name).strip(), foods[-1]["su"], to_num(r[cols["lac"]]), to_num(r[cols["gal"]])), 2)
         d, a = classify(str(r[cols["id"]]), str(name).strip())
         if d is not None:
             foods[-1]["d"] = d
@@ -182,7 +230,7 @@ def main(src, dst):
         "meta": {
             "source": "Max Rubner-Institut (2025). Bundeslebensmittelschlüssel (BLS), Version 4.0. Karlsruhe.",
             "doi": "10.25826/Data20251217-134202-0",
-            "note": "Auszug: Energie, Makronährstoffe, Ballaststoffe und Zucker je 100 g; Ernährungsform/Allergene abgeleitet (siehe tools/convert_bls.py).",
+            "note": "Auszug: Energie, Makronährstoffe, Ballaststoffe, Zucker und freier Zucker (abgeleitet) je 100 g; Ernährungsform/Allergene abgeleitet (siehe tools/convert_bls.py).",
             "count": len(foods),
         },
         "foods": foods,
