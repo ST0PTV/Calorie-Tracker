@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.34.0';
+const APP_VERSION = '1.35.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -28,7 +28,7 @@ function emptyState() {
     pantry: [], // vorgemerkte Lebensmittel (z. B. nach dem Einkauf)
     waterFoods: {}, // Lebensmittel, die standardmäßig zur Flüssigkeit zählen
     slices: {}, // gelerntes Scheibengewicht je Lebensmittel-ID (g)
-    water: { enabled: true, goal: 1500, step: 250, log: {} }, // log: { 'JJJJ-MM-TT': [{ id, ml, min }, …] }
+    water: { enabled: true, goal: 1500, step: 250, log: {}, hist: [] }, // log: { 'JJJJ-MM-TT': [{ id, ml, min }, …] }; hist: Zielverlauf [{ from, goal }]
     supp: SUPP_DEFAULTS(),
     timeline: TL_DEFAULTS(),
     profile: { weight: null, sex: null, height: null, birthYear: null },
@@ -105,6 +105,8 @@ function normalizeState(data) {
   if (!s.weightLog || typeof s.weightLog !== 'object') s.weightLog = {};
   s.water = Object.assign(emptyState().water, data.water || {});
   if (!s.water.log || typeof s.water.log !== 'object') s.water.log = {};
+  if (!Array.isArray(s.water.hist) || !s.water.hist.length) s.water.hist = [{ from: '2000-01-01', goal: s.water.goal || 1500 }]; // ältere Daten: bisheriges Ziel gilt rückwirkend
+  s.water.hist.sort((a, b) => a.from.localeCompare(b.from));
   s.supp = suppNormalize(data.supp);
   s.timeline = tlNormalize(data.timeline);
   s.profile = Object.assign({ weight: null, sex: null, height: null, birthYear: null }, data.profile || {});
@@ -554,6 +556,13 @@ const waterManual = (iso) => wEntries(iso).reduce((a, x) => a + (x.ml || 0), 0);
 const foodWaterList = (iso) => (state.days[iso] || []).filter((e) => e.water && isLiq(e) && !e.cafId && !e.alcId);
 const foodWater = (iso) => foodWaterList(iso).reduce((a, e) => a + (e.grams || 0), 0);
 const waterOf = (iso) => waterManual(iso) + caffWater(iso) + foodWater(iso);
+// Wasserziel, das an einem Tag galt (wie beim Kalorienziel: Änderungen gelten ab dem Tag der Änderung)
+function waterGoalFor(iso) {
+  const h = state.water.hist || [];
+  let g = h.length ? h[0].goal : state.water.goal;
+  for (const e of h) { if (e.from <= iso) g = e.goal; else break; }
+  return g || 1500;
+}
 const litres = (ml) => (ml / 1000).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const minHM = (m) => (m == null ? '–' : `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`);
 function waterAdd(iso, ml) {
@@ -573,7 +582,7 @@ function waterRows(iso) {
 }
 function waterCardHtml(iso) {
   if (!state.water.enabled) return '';
-  const W = state.water, goal = W.goal || 1500, step = W.step || 250;
+  const W = state.water, goal = waterGoalFor(iso), step = W.step || 250;
   const ml = waterOf(iso), isToday = iso === isoDate(new Date());
   const rows = waterRows(iso);
   const add = `data-water-add aria-label="${step} ml Wasser eintragen"`;
@@ -1652,6 +1661,25 @@ INFO.hcal = () => {
       ['<span style="color:var(--accent)">●</span> Cyan – heute, läuft noch', 'Das Ziel soll erreicht werden, der Tag ist aber noch nicht vorbei'],
       ['◌ Gestrichelt – nicht getrackt', 'Kein Eintrag an diesem Tag']] };
 };
+// Serien beim Wasser: aufeinanderfolgende Tage mit erreichtem Ziel (heute zählt nur, wenn schon erreicht)
+function waterStreaks(today) {
+  const keys = Object.keys(state.water.log).concat(Object.keys(state.days), Object.keys(state.caffeine.log)).filter((d) => d <= today).sort();
+  if (!keys.length) return { cur: 0, best: 0 };
+  let best = 0, run = 0, cur = 0;
+  for (let d = keys[0]; d <= today; d = addDays(d, 1)) {
+    const ok = waterOf(d) >= waterGoalFor(d);
+    if (ok) { run++; best = Math.max(best, run); } else if (d !== today) run = 0;
+    if (d === today) cur = run;
+  }
+  return { cur, best };
+}
+function waterDrop(frac, i, isToday, none) {
+  const p = Math.max(0, Math.min(1, frac)), top = (3 + (1 - p) * 19).toFixed(1);
+  const path = 'M12 2.5s7 7 7 11.8A7 7 0 0 1 5 14.3C5 9.5 12 2.5 12 2.5z';
+  return `<svg class="wd-drop${p >= 1 ? ' full' : ''}${none ? ' none' : ''}${isToday ? ' today' : ''}" viewBox="0 0 24 24">${none ? '' : `<clipPath id="wdc${i}"><rect x="0" y="${top}" width="24" height="24"/></clipPath><path class="f" d="${path}" clip-path="url(#wdc${i})"/>`}<path class="o" d="${path}"/></svg>`;
+}
+INFO.wStat = { body: '<p>Jeder Tropfen ist ein Tag. Er ist so weit gefüllt, wie viel vom Wasserziel dieses Tages getrunken wurde; ganz gefüllt und kräftig = Ziel erreicht. Jeder Tag wird mit dem Ziel bewertet, das damals galt.</p>',
+  pts: [['Ø pro Tag', 'nur Tage mit Wasser; heute zählt erst, wenn nur heute gewählt ist'], ['Ziel erreicht', 'Tage mit erreichtem Ziel / Tage mit Wasser im Zeitraum'], ['Serie', 'Tage in Folge mit erreichtem Ziel bis heute; „beste“ = längste Serie bisher'], ['Gestrichelt', 'heute (läuft noch) bzw. leerer Tropfen = kein Wasser eingetragen']] };
 function renderHistory() {
   const today = isoDate(new Date());
   const curMonth = today.slice(0, 7);
@@ -1729,7 +1757,22 @@ function renderHistory() {
     <div class="mlab"><span style="color:var(--p)">Eiweiß ${r0(avg('p'))} g · ${tracked.length ? sh(ep) : 0} %</span><span style="color:var(--c)">KH ${r0(avg('c'))} g · ${tracked.length ? sh(ec) : 0} %</span><span style="color:var(--f)">Fett ${r0(avg('f'))} g · ${tracked.length ? sh(ef) : 0} %</span></div></div>`;
 
   // 5) übrige Daten
-  const wd = done.map((x) => waterOf(x.d)).filter((v) => v > 0);
+  // 4) Wasser: Tropfen-Kalender (Füllung = Anteil am Ziel des jeweiligen Tages)
+  let waterCard = '';
+  if (state.water.enabled) {
+    const wdone = done.map((x) => ({ d: x.d, ml: waterOf(x.d), g: waterGoalFor(x.d) })).filter((x) => x.ml > 0);
+    const wAvg = wdone.length ? wdone.reduce((a, b) => a + b.ml, 0) / wdone.length : null;
+    const wHit = wdone.filter((x) => x.ml >= x.g).length;
+    const st = waterStreaks(today);
+    let wc = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((w) => `<div class="hc-w">${w}</div>`).join('') + '<div></div>'.repeat(off);
+    mdays.forEach((x, i) => {
+      const ml = x.fut ? 0 : waterOf(x.d), g = waterGoalFor(x.d);
+      wc += `<div class="wd-d ${histSel && !inSel(i) ? 'dim' : ''}" aria-label="${x.d}${ml ? ', ' + litres(ml) + ' l von ' + litres(g) + ' l' : ''}">${x.fut ? '<span class="wd-dot"></span>' : waterDrop(ml / g, i, x.d === today, !ml)}<span class="hc-n">${i + 1}</span></div>`;
+    });
+    waterCard = `<div class="card wd"><div class="spread"><h2 class="ct"><svg class="wd-ic" viewBox="0 0 24 24"><path d="M12 3s6 6.2 6 10.5A6 6 0 0 1 6 13.5C6 9.2 12 3 12 3z"/></svg>Wasser</h2><span class="small muted">${selLabel}</span></div>
+      <div class="wd-stats"><div><b>${wAvg != null ? litres(wAvg) + ' l' : '–'}</b><span>Ø pro Tag${skipToday ? ' (ohne heute)' : ''}</span></div><div><b class="wv">${wHit} / ${wdone.length}</b><span>Ziel erreicht</span></div><div><b>${st.cur} ${st.cur === 1 ? 'Tag' : 'Tage'}</b><span>Serie · beste ${st.best}</span></div></div>
+      <div class="wd-grid">${wc}</div><div class="hc-leg">${infoBtn('wStat')}</div></div>`;
+  }
   const goalChanges = new Set(sel.map((x) => x.goal)).size > 1;
   const otherCard = `<div class="card">
     <div class="spread"><h2 class="ct">Weitere Werte</h2><span class="small muted">${selLabel}</span></div>
@@ -1739,14 +1782,14 @@ function renderHistory() {
     <div class="spread"><span class="muted">Ø Ballaststoffe</span><strong>${r0(avg('fi'))} g</strong></div>
     ${state.alcohol.enabled ? (() => { const ad = done.map((x) => (state.alcohol.log[x.d] || []).reduce((s2, e) => s2 + alcGrams(e.ml, e.vol), 0)); const tot = ad.reduce((p, q) => p + q, 0); const n = ad.filter((v) => v > 0).length; return `<div class="spread"><span class="muted">Alkohol gesamt (Tage mit Alkohol)</span><strong>${r0(tot)} g (${n})</strong></div>`; })() : ''}
     <div class="spread"><span class="muted">Ø Zucker frei / natürlich</span><strong>${r0(avg('fs'))} / ${r0(avg('su') - avg('fs'))} g</strong></div>
-    ${state.water.enabled ? `<div class="spread"><span class="muted">Ø Wasser</span><strong>${wd.length ? litres(wd.reduce((a, b) => a + b, 0) / wd.length) + ' l' : '–'}</strong></div>` : ''}</div>`;
+</div>`;
 
   const cDays = sel.map((x) => x.d);
   const nextOff = histMonth >= curMonth;
   $('#view').innerHTML = `
     <div class="topbar"><div><div class="sub">${HIST_MON[M - 1]} ${Y}</div><div class="day">Analytics</div></div>
       <div class="nav"><button class="icon-btn" id="hmPrev" aria-label="Vorheriger Monat">‹</button><button class="icon-btn" id="hmNext" aria-label="Nächster Monat" ${nextOff ? 'disabled' : ''}>›</button></div></div>
-    ${calCard}${barCard}${macroCard}${cDays.length ? caffHistoryHtml(cDays, cDays.length >= 15 ? 30 : 7) : ''}${otherCard}`;
+    ${calCard}${barCard}${macroCard}${waterCard}${cDays.length ? caffHistoryHtml(cDays, cDays.length >= 15 ? 30 : 7) : ''}${otherCard}`;
   caffHistoryBind(cDays, cDays.length >= 15 ? 30 : 7, () => { const sy = window.scrollY; renderHistory(); window.scrollTo(0, sy); });
 
   const rerender = () => { const sy = window.scrollY; renderHistory(); window.scrollTo(0, sy); };
@@ -2048,7 +2091,10 @@ function renderSettingsInner() {
   $('#wGoal').onchange = (ev) => {
     const l = num(ev.target.value);
     if (l == null || l < 0.5 || l > 6) { toast('Bitte zwischen 0,5 und 6 Liter eingeben.'); ev.target.value = litres(state.water.goal); return; }
-    state.water.goal = Math.round(l * 1000); save(); toast(`Wasserziel ${litres(state.water.goal)} l`);
+    state.water.goal = Math.round(l * 1000);
+    const td = isoDate(new Date());
+    state.water.hist = (state.water.hist || []).filter((h) => h.from !== td).concat([{ from: td, goal: state.water.goal }]).sort((a, b) => a.from.localeCompare(b.from));
+    save(); toast(`Wasserziel ${litres(state.water.goal)} l ab heute`);
   };
   const setStep = (v) => { if (v == null || v < 50 || v > 2000) { toast('Bitte 50–2000 ml eingeben.'); $('#wStep').value = state.water.step || 250; return; } state.water.step = Math.round(v); save(); toast(`Plus = ${state.water.step} ml`); keepScroll(); };
   $('#wStep').onchange = (ev) => setStep(num(ev.target.value));
