@@ -413,7 +413,7 @@ label.sw input:checked::after { transform: translateX(18px); }
 .hc-in { box-sizing: border-box; display: block; position: absolute; left: 50%; top: 50%; width: 28px; height: 28px; margin: -14px 0 0 -14px; border-radius: 50%; background: #101828; }
 .hc-n { position: relative; font-size: 0.72rem; font-weight: 600; }
 .hc-n.dim { color: #4A586C; }
-.hc-leg { display: flex; gap: 12px; justify-content: center; margin-top: 8px; }
+.hc-leg { display: flex; justify-content: flex-end; margin-top: 4px; }
 .hc-leg i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
 .hc-leg i.e { background: none; border: 1px dashed var(--line-strong); }
 .hch-row { display: flex; gap: 6px; margin: 10px 0 6px; flex-wrap: wrap; }
@@ -601,3 +601,4 @@ p, .info-body, .info-src, .sp-hint, .caf-note, .refs li { text-align: justify; -
 .hero .sf-row { margin-top: 12px; }
 .info-i.warn { background: rgba(255, 154, 107, 0.16); color: var(--warn); font: 700 16px/1 'Sora', sans-serif; }
 .hm-h > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.info-pts > div { text-align: justify; hyphens: auto; }
