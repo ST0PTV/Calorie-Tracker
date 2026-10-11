@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.30.2';
+const APP_VERSION = '1.30.3';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -1756,6 +1756,8 @@ const SET_ICONS = {
   'Schlaf & Körper': ['#B9A6FF', '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>'],
   'Abend-Vorschläge': ['#B9A6FF', '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>'],
   'Lebensmittel teilen': ['#7AB8FF', '<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.9l7.6-3.8M8.2 13.1l7.6 3.8"/>'],
+  'Backup': ['#9DB4CF', '<path d="M4 8h16v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V8z"/><path d="M3 4h18v4H3z"/><path d="M12 11v6M9 14l3 3 3-3"/>'],
+  'Quellen & Lizenzen': ['#A9B3C1', '<path d="M5 4h9a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3V4z"/><path d="M17 20h2V6"/><path d="M8 8h6M8 11.5h6"/>'],
   'Ernährung & Allergien': ['#6FE0C1', '<path d="M5 19c0-8 5-13 14-14 0 9-5 14-14 14z"/><path d="M5 19l8-8"/>'],
 };
 const setOpen = new Set(); // aufgeklappte Einstellungs-Bereiche (beim Öffnen der Einstellungen alle zugeklappt)
