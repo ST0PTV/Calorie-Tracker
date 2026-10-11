@@ -664,3 +664,12 @@ h2.ct { font-size: 0.8rem; font-weight: 400; color: var(--muted); margin: 0; let
 .info-src a { color: var(--accent); }
 .info-src { text-align: left; } .info-body p.nojust { text-align: left; }
 .entry .etime { display: inline-flex; align-items: center; gap: 3px; justify-content: flex-end; }
+
+/* Einstellungen: Gruppen-Karten (Variante B) */
+.set-gh { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin: 14px 6px 6px; }
+.card.set-group { padding: 2px 14px; }
+.set-group > .set-card { background: none; border: 0; border-radius: 0; box-shadow: none; margin: 0; padding: 10px 0; }
+.set-group > .set-card + .set-card { border-top: 1px solid var(--line); }
+.set-group > .set-card:not(.collapsed) { padding-bottom: 14px; }
+.set-t { display: flex; flex-direction: column; min-width: 0; }
+.set-sub { font-size: 0.7rem; font-weight: 400; color: var(--muted); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
