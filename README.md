@@ -48,6 +48,12 @@ Ein schlanker Kalorien-Tracker als Web-App (PWA) fürs iPhone. Er läuft komplet
 2. Teilen-Symbol → **Zum Home-Bildschirm**.
 3. Über das neue Symbol starten und unter „Einstellungen“ das Tagesziel eintragen.
 
+## Lizenz des Codes
+
+Der eigene Code steht während der Entwicklungszeit unter der [MIT-Lizenz](LICENSE): Jeder darf ihn kostenlos nutzen, verändern, weitergeben und weiterentwickeln – auch in eigenen Projekten –, solange der Lizenzhinweis erhalten bleibt. Es gibt keine Gewährleistung.
+
+Für bereits veröffentlichte Versionen gilt die Lizenz dauerhaft. Künftige Versionen können unter einer anderen Lizenz erscheinen; das wird dann hier vermerkt. Fremdinhalte (siehe unten) behalten ihre eigenen Lizenzen.
+
 ## Quellen und Lizenzen
 
 - **Lebensmitteldaten:** Max Rubner-Institut (2025). Bundeslebensmittelschlüssel (BLS), Version 4.0. Karlsruhe. DOI: [10.25826/Data20251217-134202-0](https://doi.org/10.25826/Data20251217-134202-0). Die Datei `data/bls.json` ist ein Auszug (Energie, Makronährstoffe, Ballaststoffe und Zucker je 100 g), erzeugt mit `tools/convert_bls.py`.
