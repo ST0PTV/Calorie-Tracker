@@ -181,7 +181,8 @@ h2.sec { margin: 18px 0 4px; font-size: 0.85rem; font-weight: 600; color: var(--
 .chart svg { width: 100%; height: auto; display: block; }
 .chart .goal { stroke: var(--warn); stroke-dasharray: 4 4; }
 .chart .b { fill: var(--accent); }
-.chart .b.over { fill: var(--warn); }
+.chart .b.ok { fill: var(--good); }
+.chart .b.miss { fill: var(--warn); }
 .chart text { fill: var(--muted); font-size: 10px; font-family: 'Sora', sans-serif; }
 
 .toast {
