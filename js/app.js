@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.29.5';
+const APP_VERSION = '1.29.6';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -1662,8 +1662,8 @@ function renderHistory() {
   const cDays = sel.map((x) => x.d);
   const nextOff = histMonth >= curMonth;
   $('#view').innerHTML = `
-    <div class="spread hm-head"><h1 style="margin:0">Analytics</h1>
-      <div class="hm-nav"><button class="hm-b" id="hmPrev" aria-label="Vorheriger Monat">‹</button><span class="hm-t">${HIST_MON[M - 1]} ${Y}</span><button class="hm-b" id="hmNext" aria-label="Nächster Monat" ${nextOff ? 'disabled' : ''}>›</button></div></div>
+    <div class="topbar"><div><div class="sub">${HIST_MON[M - 1]} ${Y}</div><div class="day">Analytics</div></div>
+      <div class="nav"><button class="icon-btn" id="hmPrev" aria-label="Vorheriger Monat">‹</button><button class="icon-btn" id="hmNext" aria-label="Nächster Monat" ${nextOff ? 'disabled' : ''}>›</button></div></div>
     ${calCard}${barCard}${macroCard}${cDays.length ? caffHistoryHtml(cDays, cDays.length >= 15 ? 30 : 7) : ''}${otherCard}`;
   caffHistoryBind(cDays, cDays.length >= 15 ? 30 : 7, () => { const sy = window.scrollY; renderHistory(); window.scrollTo(0, sy); });
 
