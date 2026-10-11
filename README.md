@@ -15,7 +15,7 @@ Ein schlanker Kalorien-Tracker als Web-App (PWA) fürs iPhone. Er läuft komplet
 
 - Journal mit vier Mahlzeiten, Tagesziel, Makros, Ballaststoffen und Zucker
 - Tagesziel mit Datum (Ziel-Historie); Makro-Presets (Ausgewogen, Muskelaufbau, Fettabbau, Eigene) aus Körpergewicht × Faktor
-- Wasserzähler (+250 ml / +500 ml, Rückgängig, Tagesziel einstellbar, Standard 1,5 l nach DGE-Richtwert)
+- Wasserzähler im Tracker-Stil: Plus trägt die eingestellte Menge ein (Standard 250 ml), Details mit Liste aller Getränke inkl. Koffein- und Journal-Getränken, Balken nach Herkunft; Tagesziel einstellbar, Standard 1,5 l nach DGE-Richtwert
 - Koffein-Tracker: Pegel im Körper mit Kurve bis zum nächsten Morgen, „unter X mg ab …“, Vorschau/Planung neuer Getränke zur Bettzeit; Auswertung als Heatmap in „Analytics“ pro Tag, bei 30 Tagen als Heatmap (Stunde × Tag)
 - Kalorien-Übersicht im Journal: Ring nach Herkunft der kcal (Eiweiß, Kohlenhydrate, Fett; übrige kcal z. B. aus Alkohol grau), Makro-Balken daneben; Umschalter Übrig/Gegessen (gespeichert), Makros in g
 - Flüssigkeiten (Getränke, Milch, Säfte, Pflanzendrinks, Barcode-Produkte mit ml-Angabe, eigene Lebensmittel mit Häkchen „Flüssigkeit“) werden in ml eingegeben und angezeigt; **Annahme 1 ml ≈ 1 g** (Dichte 1,0; Milch ca. 1,03, Saft ca. 1,04 – Abweichung bis ca. 4 %)

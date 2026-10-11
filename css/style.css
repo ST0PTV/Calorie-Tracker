@@ -242,26 +242,12 @@ input[type=time] { min-height: 48px; -webkit-appearance: none; appearance: none;
 
 /* Wasserzähler (Design W2) */
 :root { --water: #7AB8FF; }
-.card.water { display: block; padding: 14px; }
-.water-row { display: flex; gap: 16px; align-items: stretch; margin-top: 6px; }
-.vessel { position: relative; width: 74px; flex: 0 0 74px; min-height: 150px; border-radius: 14px 14px 22px 22px; border: 2px solid rgba(255, 255, 255, 0.18); overflow: hidden; box-sizing: border-box; }
-.vessel .fill { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(180deg, rgba(122, 184, 255, 0.8), rgba(122, 184, 255, 0.4)); transition: height .5s ease; }
-.vessel .wave { position: absolute; left: -2px; width: 78px; height: 14px; transition: bottom .5s ease; }
-.vessel .wave path { fill: rgba(122, 184, 255, 0.8); }
-.vessel i { position: absolute; left: 6px; right: 6px; border-top: 1px dashed rgba(255, 255, 255, 0.18); }
-.water-body { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; gap: 10px; }
-.water-big { font-size: 2.1rem; font-weight: 300; letter-spacing: -0.02em; }
-.water-rest { font-size: 0.78rem; color: var(--water); }
-.water-btns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.water-btns .btn { min-height: 44px; padding: 8px 6px; font-size: 0.85rem; }
-.water-btns .btn:not(.secondary) { background: var(--water); color: #0D1320; }
-.water-undo { justify-content: flex-start; padding: 0; min-height: 32px; font-size: 0.78rem; color: var(--ink); }
-@media (prefers-reduced-motion: reduce) { .vessel .fill, .vessel .wave { transition: none; } }
+
 
 /* Koffein-Tracker (Entwürfe K1 Dashboard, K2 Eingabe, K3 Verlauf mit Heatmap) */
 :root { --caf: #E2B36B; --good: #6FE0C1; --lilac: #B9A6FF; }
 .good { color: var(--good); } .mid { color: var(--c); } .bad { color: var(--warn); }
-.card.caf { padding: 14px; }
+.card.caf, .card.water { padding: 14px; }
 .caf-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
 .caf-big { font-size: 2.6rem; font-weight: 300; letter-spacing: -0.03em; color: var(--caf); line-height: 1.1; }
 .caf-pill { display: inline-flex; align-items: center; margin-top: 4px; padding: 7px 11px; border-radius: 999px; font-size: 0.76rem; border: 1px solid; white-space: nowrap; }
@@ -616,3 +602,20 @@ p, .info-body, .info-src, .sp-hint, .caf-note, .refs li { text-align: justify; -
 .tk-empty .tk-div { margin: 6px 0 0; }
 .icon-btn:disabled { opacity: 0.35; cursor: default; }
 .topbar { min-height: 60px; box-sizing: content-box; }
+
+/* Wasser im Tracker-Stil (W5) */
+.water .caf-big, .water .tk-e-v, .water .tk-sum .tk-v { color: var(--water); }
+.water .tk-plus { background: var(--water); box-shadow: 0 4px 14px rgba(122, 184, 255, 0.3); }
+.caf-pill.water { color: var(--ink); background: rgba(122, 184, 255, 0.10); border-color: rgba(122, 184, 255, 0.4); }
+.w-bar { display: flex; gap: 2px; height: 10px; border-radius: 5px; overflow: hidden; background: rgba(255, 255, 255, 0.08); margin-top: 12px; }
+.w-bar i { display: block; height: 100%; } .w-bar i.w { background: var(--water); } .w-bar i.c { background: var(--caf); } .w-bar i.f { background: var(--accent); }
+.w-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid rgba(255, 255, 255, 0.06); cursor: default; }
+.w-row[data-wopen] { cursor: pointer; }
+.w-row .caf-time.w-w { background: rgba(122, 184, 255, 0.14); color: var(--water); }
+.w-row .caf-time.w-f { background: rgba(91, 231, 245, 0.12); color: var(--accent); }
+.w-n { flex: 1; min-width: 0; font-size: 0.86rem; } .w-n small { display: block; font-size: 0.68rem; color: var(--muted); }
+.w-row strong { font-size: 0.86rem; white-space: nowrap; }
+.w-del { width: 30px; height: 30px; border-radius: 9px; border: 1px solid var(--line); background: none; color: var(--muted); cursor: pointer; }
+.w-go { width: 30px; text-align: center; color: var(--muted); font-size: 0.8rem; }
+.w-more, .w-other { margin-top: 10px; }
+.w-other[hidden] { display: none; }

@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.29.7';
+const APP_VERSION = '1.30.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -28,7 +28,7 @@ function emptyState() {
     pantry: [], // vorgemerkte Lebensmittel (z. B. nach dem Einkauf)
     waterFoods: {}, // Lebensmittel, die standardmäßig zur Flüssigkeit zählen
     slices: {}, // gelerntes Scheibengewicht je Lebensmittel-ID (g)
-    water: { enabled: true, goal: 1500, log: {} }, // log: { 'JJJJ-MM-TT': [ml, ml, …] }
+    water: { enabled: true, goal: 1500, step: 250, log: {} }, // log: { 'JJJJ-MM-TT': [{ id, ml, min }, …] }
     supp: SUPP_DEFAULTS(),
     timeline: TL_DEFAULTS(),
     profile: { weight: null, sex: null, height: null },
@@ -357,7 +357,7 @@ function sfHalf(cls, label, val, target, kind, natural) {
 }
 /* ---------- Info-Knöpfe (Blatt von unten) ---------- */
 const INFO_STATIC = {
-  water: { body: '<p>Richtwert der DGE: 1,5 l Getränke pro Tag; bei Hitze, Sport oder körperlicher Arbeit mehr. Die EFSA nennt 2,5 l (Männer) bzw. 2,0 l (Frauen) Gesamtwasser – inklusive Wasser aus Lebensmitteln.</p><p>Koffein-Getränke zählen mit ihren ml, Alkohol zählt nicht. Andere Getränke aus dem Journal (z. B. Schorle, Milch) zählen, wenn du im Eintrag „Zur Flüssigkeit zählen“ anhakst – die App merkt sich das je Lebensmittel.</p>', src: 'DGE · EFSA 2010' },
+  water: { body: '<p>Richtwert der DGE: 1,5 l Getränke pro Tag; bei Hitze, Sport oder körperlicher Arbeit mehr. Die EFSA nennt 2,5 l (Männer) bzw. 2,0 l (Frauen) Gesamtwasser – inklusive Wasser aus Lebensmitteln.</p><p>Koffein-Getränke zählen mit ihren ml, Alkohol zählt nicht. Andere Getränke aus dem Journal (z. B. Schorle, Milch) zählen, wenn du im Eintrag „Zur Flüssigkeit zählen“ anhakst – die App merkt sich das je Lebensmittel.</p><p>Das Plus trägt die in den Einstellungen gewählte Menge ein. Der Balken zeigt, woher das Wasser kommt: <span style="color:var(--water)">blau</span> = eigene Einträge, <span style="color:var(--caf)">gold</span> = Koffein-Getränke, <span style="color:var(--accent)">cyan</span> = Getränke aus dem Journal.</p>', src: 'DGE · EFSA 2010' },
   sug: { body: '<p>Die Vorschläge erscheinen im Journal, wenn du die App nach dieser Uhrzeit öffnest und noch mindestens so viele kcal offen sind. Vorgeschlagen wird zuerst aus deinen bisherigen Einträgen, sonst aus gängigen Kochzutaten.</p><p>Mit 👍/👎 bewertest du einzelne Lebensmittel; zweimal 👎 schließt sie aus. Eine Benachrichtigung zur Uhrzeit ist ohne Server nicht möglich – mit einer Kurzbefehle-Automation kann iOS die App aber zur gewünschten Zeit öffnen.</p>' },
   share: { body: '<p>Exportiert werden alle Lebensmittel, die du gescannt, im Journal getrackt, selbst angelegt oder vorgemerkt hast – jeweils nur Name, Marke und Nährwerte pro 100 g, dazu Barcode-Daten und Scheibengewichte. Favoriten-Markierungen, Datum, Mengen und Mahlzeiten aus dem Journal, Gewicht, Ziele und Einstellungen sind nicht enthalten.</p><p>Beim Import werden nur fehlende Lebensmittel ergänzt: eigene Lebensmittel unter „Eigene“, alle anderen unter „Vorgemerkt“. Was schon vorhanden ist, bleibt unverändert. Wird ein vollständiges Backup gewählt, werden daraus ebenfalls nur die Lebensmittel übernommen.</p><p>Die Datei läuft über das Teilen-Menü (z. B. AirDrop, Nachrichten) und nicht über einen Server der App.</p>' },
   diet: { body: '<p>Gilt für die Vorschläge. Erkannt wird anhand der BLS-Lebensmittelgruppe und des Namens, bei Barcode-Produkten über Open Food Facts, bei eigenen Lebensmitteln über deine Angaben.</p><p>Ist etwas unklar (z. B. Fertiggerichte), wird es nicht vorgeschlagen. Sulfite sind nicht erkennbar.</p>' },
@@ -541,41 +541,83 @@ function renderDiary() {
 /* ---------- Wasser ----------
    Standardziel 1,5 l Getränke pro Tag (Richtwert der DGE); EFSA (2010): angemessene Gesamtwasserzufuhr
    2,5 l (Männer) bzw. 2,0 l (Frauen) inklusive Wasser aus Lebensmitteln. */
-const waterManual = (iso) => (state.water.log[iso] || []).reduce((a, b) => a + b, 0);
+// Wasser-Einträge: { id, ml, min } (min = Minuten seit 0 Uhr; ältere Einträge waren reine Zahlen ohne Uhrzeit)
+const wEntries = (iso) => (state.water.log[iso] || []).map((x, i) => (typeof x === 'number' ? { id: 'w' + i, ml: x, min: null } : x));
+const waterManual = (iso) => wEntries(iso).reduce((a, x) => a + (x.ml || 0), 0);
 // ml aus Journal-Einträgen, bei denen „zur Flüssigkeit zählen“ gesetzt ist (z. B. Schorle, Milch)
-const foodWater = (iso) => (state.days[iso] || []).filter((e) => e.water && isLiq(e) && !e.cafId && !e.alcId).reduce((a, e) => a + (e.grams || 0), 0);
+const foodWaterList = (iso) => (state.days[iso] || []).filter((e) => e.water && isLiq(e) && !e.cafId && !e.alcId);
+const foodWater = (iso) => foodWaterList(iso).reduce((a, e) => a + (e.grams || 0), 0);
 const waterOf = (iso) => waterManual(iso) + caffWater(iso) + foodWater(iso);
 const litres = (ml) => (ml / 1000).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const minHM = (m) => (m == null ? '–' : `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`);
+function waterAdd(iso, ml) {
+  const now = new Date(), min = iso === isoDate(now) ? now.getHours() * 60 + now.getMinutes() : null;
+  (state.water.log[iso] = state.water.log[iso] || []).push({ id: uid(), ml: Math.round(ml), min });
+  save(); if (navigator.vibrate) navigator.vibrate(20);
+}
+// Alle Getränke des Tages, die zum Wasser zählen (eigene Einträge, Koffein-Getränke, Journal-Getränke)
+function waterRows(iso) {
+  const rows = wEntries(iso).map((x) => ({ kind: 'w', id: x.id, min: x.min, n: 'Wasser', ml: x.ml }));
+  (state.caffeine.log[iso] || []).filter((x) => x.tr && x.ml > 0).forEach((x) => rows.push({ kind: 'c', id: x.id, min: x.min, n: x.n || 'Koffein-Getränk', ml: x.ml, src: 'aus Koffein' }));
+  foodWaterList(iso).forEach((e) => {
+    const min = e.t ? hmToMin(e.t) : (state.timeline.enabled ? Math.round(tlMealTime(iso, e.meal).h * 60) : null);
+    rows.push({ kind: 'f', id: e.id, min, n: e.n, ml: e.grams || 0, src: 'aus dem Journal' });
+  });
+  return rows.sort((a, b) => (a.min ?? -1) - (b.min ?? -1));
+}
 function waterCardHtml(iso) {
   if (!state.water.enabled) return '';
-  const ml = waterOf(iso), goal = state.water.goal || 1500;
-  const pct = Math.max(0, Math.min(100, (ml / goal) * 100));
-  const n = (state.water.log[iso] || []).length;
+  const W = state.water, goal = W.goal || 1500, step = W.step || 250;
+  const ml = waterOf(iso), isToday = iso === isoDate(new Date());
+  const rows = waterRows(iso);
+  const add = `data-water-add aria-label="${step} ml Wasser eintragen"`;
+  if (!rows.length) return `<div class="card water tk-empty">
+    <div class="small muted">Wasser</div><div class="tk-e-v">0,00<span class="muted small"> l</span></div>
+    ${trackerFoot('water', add, '', '')}
+  </div>`;
+  const parts = [[waterManual(iso), 'w'], [caffWater(iso), 'c'], [foodWater(iso), 'f']];
+  const bar = parts.map(([v, k]) => (v > 0 ? `<i class="${k}" style="width:${Math.min(100, v / goal * 100).toFixed(1)}%"></i>` : '')).join('');
+  const done = ml >= goal;
+  const pill = `<span class="caf-pill ${done ? 'ok' : 'water'}">${done ? 'Ziel erreicht ✓' : `noch ${litres(goal - ml)} l`}</span>`;
+  const fromCaf = caffWater(iso);
+  const summary = `${isToday ? 'Heute' : 'Getrunken:'} ${rows.length} ${rows.length === 1 ? 'Eintrag' : 'Einträge'}${fromCaf ? ` · <span class="muted">${litres(fromCaf).replace(/0$/, '')} l aus Kaffee</span>` : ''}`;
+  const list = rows.map((r) => `<div class="w-row" ${r.kind === 'w' ? '' : `data-wopen="${r.kind}:${esc(r.id)}" role="button" tabindex="0"`}>
+      <span class="caf-time w-${r.kind}">${minHM(r.min)}</span>
+      <span class="w-n">${esc(r.n)}${r.src ? `<small>${r.src}</small>` : ''}</span>
+      <strong>${fmt(r.ml)} ml</strong>
+      ${r.kind === 'w' ? `<button type="button" class="w-del" data-wdel="${esc(r.id)}" aria-label="Eintrag löschen">✕</button>` : '<span class="w-go">↗</span>'}</div>`).join('');
+  const details = `<div class="w-list">${list}</div>
+    <div class="row w-more"><button type="button" class="btn secondary" data-water-ml="500">+ 500 ml</button><button type="button" class="btn secondary" id="wOther">Andere Menge</button></div>
+    <div class="row w-other" hidden><input id="wOtherMl" inputmode="numeric" placeholder="ml, z. B. 330"><button type="button" class="btn" id="wOtherOk">Eintragen</button></div>`;
   return `<div class="card water">
-    <div class="small muted water-title">Wasser</div>
-    <div class="water-row">
-    <div class="vessel" role="img" aria-label="Wasser ${r0(pct)} Prozent des Tagesziels">
-      <div class="fill" style="height:${pct}%"></div>
-      <svg class="wave" viewBox="0 0 74 14" preserveAspectRatio="none" style="bottom:calc(${pct}% - 7px)" aria-hidden="true"><path d="M0 7 Q 9 1 18 7 T 37 7 T 56 7 T 76 7 V 14 H 0 Z"></path></svg>
-      <i style="top:25%"></i><i style="top:50%"></i><i style="top:75%"></i>
-    </div>
-    <div class="water-body">
-      <div>
-        <div><span class="water-big">${litres(ml)}</span><span class="muted small"> / ${litres(goal)} l</span></div>
-      </div>
-      <div class="water-btns"><button class="btn" data-water="250">+ 250 ml</button><button class="btn secondary" data-water="500">+ 500 ml</button></div>
-      ${n ? `<button class="btn ghost water-undo" id="waterUndo">↶ Rückgängig (${state.water.log[iso][n - 1]} ml)</button>` : '<div class="small muted water-undo">Tippe, wenn du etwas getrunken hast.</div>'}
-    </div>
-    </div>
+    <div class="caf-head"><div><div class="small muted">Wasser ${infoBtn('water')}</div><div class="caf-big">${litres(ml)}<span class="muted small"> / ${litres(goal)} l</span></div></div>${pill}</div>
+    <div class="w-bar">${bar}</div>
+    ${trackerFoot('water', add, summary, details)}
   </div>`;
 }
 function bindWaterCard(iso, rerender) {
-  document.querySelectorAll('[data-water]').forEach((b) => b.onclick = () => {
-    (state.water.log[iso] = state.water.log[iso] || []).push(+b.dataset.water);
-    save(); if (navigator.vibrate) navigator.vibrate(20); rerender();
+  trackerBind();
+  document.querySelectorAll('[data-water-add]').forEach((b) => b.onclick = () => { waterAdd(iso, state.water.step || 250); rerender(); });
+  document.querySelectorAll('[data-water-ml]').forEach((b) => b.onclick = () => { waterAdd(iso, +b.dataset.waterMl); rerender(); });
+  const o = $('#wOther'); if (o) o.onclick = () => { const r = document.querySelector('.w-other'); r.hidden = !r.hidden; if (!r.hidden) $('#wOtherMl').focus(); };
+  const ok = $('#wOtherOk'); if (ok) ok.onclick = () => {
+    const v = num($('#wOtherMl').value);
+    if (v == null || v < 10 || v > 3000) { toast('Bitte 10–3000 ml eingeben.'); return; }
+    waterAdd(iso, v); rerender();
+  };
+  document.querySelectorAll('[data-wdel]').forEach((b) => b.onclick = (ev) => {
+    ev.stopPropagation();
+    const x = wEntries(iso).find((y) => y.id === b.dataset.wdel); if (!x) return;
+    if (!confirm(`${fmt(x.ml)} ml Wasser löschen?`)) return;
+    state.water.log[iso] = wEntries(iso).filter((y) => y.id !== x.id);
+    if (!state.water.log[iso].length) delete state.water.log[iso];
+    save(); rerender();
   });
-  const u = $('#waterUndo');
-  if (u) u.onclick = () => { const l = state.water.log[iso] || []; l.pop(); if (!l.length) delete state.water.log[iso]; save(); rerender(); };
+  document.querySelectorAll('[data-wopen]').forEach((el) => el.onclick = () => {
+    const [k, id] = el.dataset.wopen.split(':');
+    if (k === 'c') { const e = (state.caffeine.log[iso] || []).find((x) => x.id === id); if (e) openCaffeine(iso, e); }
+    else { const e = (state.days[iso] || []).find((x) => x.id === id); if (e) openAmount(e, { edit: true }); }
+  });
 }
 
 /* ---------- Ernährungsform & Allergene ---------- */
@@ -1771,7 +1813,11 @@ function renderSettingsInner() {
     <div class="card">
       <h2>Wasser</h2>
       <label class="switch"><input type="checkbox" id="wOn" ${state.water.enabled ? 'checked' : ''}> Wasserzähler im Journal anzeigen</label>
-      <label for="wGoal">Tagesziel (Liter) ${infoBtn('water')}</label><input id="wGoal" inputmode="decimal" value="${litres(state.water.goal)}">
+      <div class="row">
+        <div><label for="wGoal">Tagesziel (Liter) ${infoBtn('water')}</label><input id="wGoal" inputmode="decimal" value="${litres(state.water.goal)}"></div>
+        <div><label for="wStep">Menge pro Plus (ml)</label><input id="wStep" inputmode="numeric" value="${state.water.step || 250}"></div>
+      </div>
+      <div class="chips portions" id="wStepQ">${[200, 250, 330, 500].map((v) => `<button type="button" class="chip ${(state.water.step || 250) === v ? 'on' : ''}" data-v="${v}">${v} ml</button>`).join('')}</div>
     </div>
     ${caffSettingsHtml()}
     ${alcSettingsHtml()}
@@ -1935,6 +1981,9 @@ function renderSettingsInner() {
     if (l == null || l < 0.5 || l > 6) { toast('Bitte zwischen 0,5 und 6 Liter eingeben.'); ev.target.value = litres(state.water.goal); return; }
     state.water.goal = Math.round(l * 1000); save(); toast(`Wasserziel ${litres(state.water.goal)} l`);
   };
+  const setStep = (v) => { if (v == null || v < 50 || v > 2000) { toast('Bitte 50–2000 ml eingeben.'); $('#wStep').value = state.water.step || 250; return; } state.water.step = Math.round(v); save(); toast(`Plus = ${state.water.step} ml`); keepScroll(); };
+  $('#wStep').onchange = (ev) => setStep(num(ev.target.value));
+  document.querySelectorAll('#wStepQ [data-v]').forEach((b) => b.onclick = () => setStep(+b.dataset.v));
   $('#sgTime').onchange = (ev) => { if (ev.target.value) { state.sug.time = ev.target.value; save(); toast(`Vorschläge ab ${ev.target.value} Uhr`); } };
   $('#sgMin').onchange = (ev) => { const v = num(ev.target.value); if (v != null && v >= 0) { state.sug.minKcal = Math.round(v); save(); } };
   document.querySelectorAll('#sgCount button').forEach((b) => b.onclick = () => { state.sug.count = +b.dataset.n; save(); keepScroll(); });
