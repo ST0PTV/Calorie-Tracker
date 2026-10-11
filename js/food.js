@@ -51,7 +51,7 @@ function renderFood() {
     <div class="topbar"><div><div class="sub">Deine Lebensmittel</div><div class="day">Essen</div></div>
       <div class="nav"><button class="btn" id="fdAdd" style="min-height:40px;padding:0 14px">＋ Hinzufügen</button></div></div>
     <div class="card fd-shop">
-      <div class="fd-shop-h"><div class="fd-ico">▥</div><div><div class="fd-t">Einkauf erfassen</div><div class="small muted">Barcodes nacheinander scannen – landet unter „Meine“, nicht im Journal</div></div></div>
+      <div class="fd-shop-h"><div class="fd-ico">▥</div><div class="fd-t">Einkauf erfassen</div></div>
       <div class="fd-btns"><button class="btn" id="fdScan">Scannen</button><button class="btn secondary" id="fdSearch">Suchen</button><button class="btn secondary" id="fdNew">Neu</button></div>
       ${pantry.length ? `<div class="small muted">Zuletzt vorgemerkt: <span style="color:var(--ink)">${pantry.map((x) => esc(x.n)).join(' · ')}</span></div>` : ''}
     </div>
