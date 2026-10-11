@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.26.0';
+const APP_VERSION = '1.26.1';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -369,8 +369,8 @@ function openInfo(key) {
   closeInfo();
   const el = document.createElement('div');
   el.id = 'infoSheet';
-  el.innerHTML = `<div class="info-back"></div><div class="info-panel" role="dialog" aria-modal="true" aria-label="Info"><div class="info-grip"></div>
-    <div class="info-h"><span class="info-i">i</span><h1>Info</h1></div>
+  el.innerHTML = `<div class="info-back"></div><div class="info-panel" role="dialog" aria-modal="true" aria-label="${i.title || 'Info'}"><div class="info-grip"></div>
+    <div class="info-h"><span class="info-i ${i.warn ? 'warn' : ''}">${i.warn ? '!' : 'i'}</span><h1>${i.title || 'Info'}</h1></div>
     <div class="info-body">${i.body}</div>
     ${i.pts ? `<div class="info-pts">${i.pts.map(([b, m]) => `<div><strong>${b}</strong>${m ? ` <span class="muted">· ${m}</span>` : ''}</div>`).join('')}</div>` : ''}
     ${i.src ? `<div class="info-src small muted">Quellen: ${i.src}</div>` : ''}

@@ -91,6 +91,7 @@ function alcFedAuto(iso, min) {
   return (state.days[iso] || []).some((e) => !e.alcId && !e.cafId && !isLiq(e) && entryTotals(e).k >= 100 && (() => { const t = tlEntryTime(iso, e); return t <= h && t >= h - 3; })());
 }
 
+INFO.alcWarn = { title: 'Hinweis', warn: true, body: '<p><strong>Grobe Schätzung, keine Messung.</strong> Der angezeigte Promillewert ist eine Hochrechnung nach der Widmark-Formel aus Getränk, Uhrzeit, Gewicht und Geschlecht. Der tatsächliche Wert kann deutlich höher oder niedriger liegen.</p><p>Die Anzeige ist <strong>nicht geeignet, um die Fahrtüchtigkeit zu beurteilen</strong>. Wer getrunken hat, sollte nicht fahren.</p>' };
 function alcSyncDiary(iso, ent) {
   const day = (state.days[iso] = (state.days[iso] || []).filter((x) => x.alcId !== ent.id));
   if (!ent.del && ent.kcal > 0) {
@@ -159,7 +160,6 @@ function alcCardHtml(iso) {
       <div class="caf-stat"><span class="cs-l">Höchstwert</span><span class="cs-v ${pk[1] >= 0.5 ? 'bad' : pk[1] >= 0.3 ? 'mid' : 'good'}">${alcFmt(pk[1])}<small> ‰</small></span><span class="cs-s">${pk[1] > 0 ? 'um ' + caffFmt(pk[0], iso) : ''}</span></div>
     </div>` : ''}
     ${rows ? `<div class="caf-list-day">${rows}</div>` : ''}
-    <p class="small muted" style="margin:8px 0 0">Grobe Schätzung, keine Messung – nicht geeignet, um die Fahrtüchtigkeit zu beurteilen.</p>
     <button class="btn block caf-add" data-alc-add>+ Getränk hinzufügen</button>
   </div>`;
 }
@@ -249,6 +249,7 @@ function openAlcohol(iso, entry) {
     if (ent) Object.assign(ent, vals); else { ent = Object.assign({ id: uid() }, vals); list.push(ent); }
     alcSyncDiary(iso, ent);
     save(); toast(entry ? 'Gespeichert' : 'Eingetragen'); closeSheet();
+    if (!entry) setTimeout(() => openInfo('alcWarn'), 250); // Warnhinweis bei jedem neu eingetragenen Getränk
   };
   const del = $('#aDel');
   if (del) del.onclick = () => {
