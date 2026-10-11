@@ -155,7 +155,7 @@ function caffCardHtml(iso) {
     const clr = caffClear(doses, nowH, thr, ke);
     if (clr <= nowH + 1 / 12) pill = `<span class="caf-pill ok">unter ${r0(thr)} mg</span>`;
     else pill = `<span class="caf-pill ${clr <= bed ? 'ok' : 'late'}">unter ${r0(thr)} mg ab <strong>${caffFmt(clr, iso)}</strong></span>`;
-  } else { big = r0(total); cap = 'mg an diesem Tag'; }
+  } else { big = r0(total); cap = 'mg'; }
   const over = total > c.limit;
   const rows = day.map((e) => {
     const left = isToday ? caffLevel([{ t: caffAbs(iso, e.min), mg: e.mg, dur: (e.dur || 0) / 60 }], nowH, ke) : null;
