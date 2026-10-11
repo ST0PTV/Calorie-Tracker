@@ -35,7 +35,6 @@ function wgApplyGoal(goal) {
   const m = calcMacros(goal, entry.weight, entry.pf, entry.ff);
   if (m && !m.carbsNegative) { entry.protein = m.protein; entry.carbs = m.carbs; entry.fat = m.fat; }
   state.goalHistory = state.goalHistory.filter((h) => h.from !== today).concat([entry]).sort((a, b) => a.from.localeCompare(b.from));
-  const nc = goalsFor(today); GOAL_KEYS.forEach((k) => { state.settings[k] = nc[k] ?? null; });
 }
 // Nach Gewichtsänderung: bei aktivem Ziel mit „automatisch“ neu rechnen. Gibt eine Meldung zurück oder null.
 function wgOnWeight(w) {
