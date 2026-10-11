@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.24.3';
+const APP_VERSION = '1.24.4';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -299,7 +299,7 @@ let currentDate = isoDate(new Date());
 document.querySelectorAll('.tabbar button').forEach((b) => b.addEventListener('click', () => {
   goTab(b.dataset.tab);
 }));
-function goTab(t) { tab = t; render(); }
+function goTab(t, openSec) { if (t === 'settings' && tab !== 'settings') { setOpen.clear(); if (openSec) setOpen.add(openSec); } tab = t; render(); }
 function render() {
   if (tab === 'timeline' && !state.timeline.enabled) tab = 'diary';
   tlTabbar();
@@ -1647,7 +1647,7 @@ const SET_ICONS = {
   'Lebensmittel teilen': ['#7AB8FF', '<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.9l7.6-3.8M8.2 13.1l7.6 3.8"/>'],
   'Ernährung & Allergien': ['#6FE0C1', '<path d="M5 19c0-8 5-13 14-14 0 9-5 14-14 14z"/><path d="M5 19l8-8"/>'],
 };
-const setOpen = new Set(['Tagesziel']); // aufgeklappte Einstellungs-Bereiche
+const setOpen = new Set(); // aufgeklappte Einstellungs-Bereiche (beim Öffnen der Einstellungen alle zugeklappt)
 function renderSettings() {
   renderSettingsInner();
   document.querySelectorAll('#view > .card > h2:not(.sec)').forEach((h) => {

@@ -165,7 +165,7 @@ function alcCardHtml(iso) {
 }
 function alcBindCard(iso) {
   const a = document.querySelector('[data-alc-add]'); if (a) a.onclick = () => openAlcohol(iso);
-  const s = document.querySelector('[data-alc-set]'); if (s) s.onclick = () => { setOpen.add('Schlaf & Körper'); goTab('settings'); };
+  const s = document.querySelector('[data-alc-set]'); if (s) s.onclick = () => { goTab('settings', 'Schlaf & Körper'); };
   document.querySelectorAll('[data-alc-entry]').forEach((b) => b.onclick = () => {
     const e = (state.alcohol.log[iso] || []).find((x) => x.id === b.dataset.alcEntry); if (e) openAlcohol(iso, e);
   });
