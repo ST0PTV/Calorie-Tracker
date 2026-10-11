@@ -105,7 +105,7 @@ Standardziel 1,5 l Getränke pro Tag (Richtwert der DGE, zitiert nach [Verbrauch
 
 ## Barcode-Kamera
 
-- Der Kamera-Stream wird nach dem Schließen des Scanners 3 Minuten behalten (Kamera dann deaktiviert), damit iOS beim erneuten Öffnen nicht erneut nach der Erlaubnis fragt. Bekannt ist, dass iOS-Home-Bildschirm-Apps die Erlaubnis nicht dauerhaft speichern ([WebKit-Bug 215884](https://bugs.webkit.org/show_bug.cgi?id=215884)); ob das Behalten des Streams die Abfrage zuverlässig verhindert, ist nicht bestätigt.
+- Die Kamera wird nach jedem Scan bzw. beim Schließen des Scanners sofort ausgeschaltet. iOS-Home-Bildschirm-Apps speichern die Kamera-Erlaubnis nicht dauerhaft ([WebKit-Bug 215884](https://bugs.webkit.org/show_bug.cgi?id=215884)); die Abfrage kann daher bei jedem Scan erscheinen. Abhilfe: in Safari für die Seite „Kamera: Erlauben“ setzen.
 - Fokus: Auflösung bis 1920×1080, Hauptkamera statt Ultraweitwinkel (falls erkennbar), Autofokus „continuous“ nur wenn das Gerät ihn anbietet, TRY_HARDER und Abtastung alle 150 ms. Die Wirkung auf dem iPhone ist ungetestet.
 
 ## Flüssigkeiten und Koffein-Getränke im Journal

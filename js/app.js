@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.22.2';
+const APP_VERSION = '1.22.3';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -924,6 +924,7 @@ function drawMine() {
     ev.stopPropagation();
     const [key, i] = b.dataset.del.split(':'); const f = map[key][+i]; if (!f) return;
     if (key === 'own') { deleteOwnFood(f); return; }
+    if (key !== 'own' && !confirm(key === 'fav' ? `„${f.n}“ aus den Favoriten entfernen?` : `„${f.n}“ aus „Zuletzt verwendet“ entfernen?`)) return;
     if (key === 'fav') { state.favs = state.favs.filter((x) => x.id !== f.id); toast('Aus Favoriten entfernt'); }
     else { state.recent = state.recent.filter((x) => x.id !== f.id); toast('Aus „Zuletzt verwendet“ entfernt'); }
     save(); drawMine();
@@ -1218,11 +1219,10 @@ function renderScan() {
   $('#lookup').onclick = () => { const c = ($('#code').value || '').replace(/\D/g, ''); if (c) lookupBarcode(c); };
   startScanner();
 }
-/* Kamera: Der Stream wird kurz behalten (CAM_KEEP_MS), damit iOS beim erneuten Öffnen des Scanners nicht jedes Mal
-   neu nach der Erlaubnis fragt. Außerdem: hohe Auflösung, Hauptkamera statt Ultraweitwinkel (schlechter Nahfokus),
+/* Kamera: wird nach jedem Scan bzw. beim Schließen sofort freigegeben (Wunsch: kein dauerhaft aktives Kamera-Symbol;
+   iOS fragt dafür in Home-Bildschirm-Apps ggf. erneut nach der Erlaubnis). Außerdem: hohe Auflösung, Hauptkamera statt Ultraweitwinkel (schlechter Nahfokus),
    kontinuierlicher Autofokus, falls vom Gerät angeboten. */
 let camStream = null, camTimer = null;
-const CAM_KEEP_MS = 3 * 60 * 1000;
 const camLive = () => camStream && camStream.getVideoTracks().some((t) => t.readyState === 'live');
 function camRelease() { clearTimeout(camTimer); camTimer = null; if (camStream) { camStream.getTracks().forEach((t) => t.stop()); camStream = null; } }
 async function getCamStream() {
@@ -1271,8 +1271,8 @@ function stopScanner() {
     try { scanner.stopContinuousDecode(); } catch (e) { /* ok */ }
     scanner = null;
     const v = document.getElementById('video'); if (v) { try { v.pause(); v.srcObject = null; } catch (e) { /* ok */ } }
-    if (camStream) { camStream.getVideoTracks().forEach((t) => { t.enabled = false; }); clearTimeout(camTimer); camTimer = setTimeout(camRelease, CAM_KEEP_MS); }
   }
+  camRelease(); // Kamera nach dem Scannen bzw. Schließen sofort ganz ausschalten
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && !scanner) camRelease(); });
 
