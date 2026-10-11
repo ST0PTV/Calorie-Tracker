@@ -1,5 +1,5 @@
 /* Reiter „Essen“: Übersicht über die eigenen Lebensmittel (Vorgemerkt, Favoriten, Eigene, Rezepte, Zuletzt) mit
-   Makro-Balken; „Einkauf erfassen“ öffnet das Vormerken-Blatt (Barcode/Suche/Neu), das Lebensmittel nur speichert,
+   Makro-Balken; „Einkauf erfassen“ öffnet das Vormerken-Blatt (Barcode/Suche), das Lebensmittel nur speichert,
    ohne sie ins Journal einzutragen. „+“ trägt ein Lebensmittel direkt ins Journal ein. */
 'use strict';
 let pantryMode = false;      // true: Auswahl im Hinzufügen-Blatt merkt das Lebensmittel nur vor
@@ -23,7 +23,7 @@ function openPantry(tab) {
   sheetMode = 'add';
   openSheet(`
     <div class="sheet-head"><h1 style="margin:0">Lebensmittel vormerken</h1><button class="btn ghost" id="closeSheet">Fertig</button></div>
-    <div class="seg three" id="addSeg"><button data-t="scan">Barcode</button><button data-t="search">Suche</button><button data-t="custom">Neu</button></div>
+    <div class="seg two" id="addSeg"><button data-t="scan">Barcode</button><button data-t="search">Suche</button></div>
     <div class="pantry-bar"><label class="switch" style="margin:0"><input type="checkbox" id="pFav" ${pantryFav ? 'checked' : ''}> als Favorit</label><span class="small muted">${pantryCount ? `${pantryCount} vorgemerkt` : 'nur speichern, nicht ins Journal'}</span></div>
     <div id="addBody"></div>`);
   $('#closeSheet').onclick = () => { pantryMode = false; pantryCount = 0; closeSheet(); };
@@ -52,7 +52,7 @@ function renderFood() {
       <div class="nav"><button class="btn" id="fdAdd" style="min-height:40px;padding:0 14px">＋ Hinzufügen</button></div></div>
     <div class="card fd-shop">
       <div class="fd-shop-h"><div class="fd-ico">▥</div><div class="fd-t">Einkauf erfassen</div></div>
-      <div class="fd-btns"><button class="btn" id="fdScan">Scannen</button><button class="btn secondary" id="fdSearch">Suchen</button><button class="btn secondary" id="fdNew">Neu</button></div>
+      <div class="fd-btns"><button class="btn" id="fdScan">Scannen</button><button class="btn secondary" id="fdSearch">Suchen</button></div>
       ${pantry.length ? `<div class="small muted">Zuletzt vorgemerkt: <span style="color:var(--ink)">${pantry.map((x) => esc(x.n)).join(' · ')}</span></div>` : ''}
     </div>
     <input id="fdQ" type="search" placeholder="In deinen Lebensmitteln suchen" autocomplete="off" value="${esc(foodQuery)}">
@@ -77,7 +77,6 @@ function renderFood() {
   document.querySelectorAll('#fdF [data-f]').forEach((b) => b.onclick = () => { foodFilter = b.dataset.f; document.querySelectorAll('#fdF [data-f]').forEach((x) => x.classList.toggle('on', x === b)); draw(); });
   $('#fdScan').onclick = () => openPantry('scan');
   $('#fdSearch').onclick = () => openPantry('search');
-  $('#fdNew').onclick = () => openPantry('custom');
   $('#fdAdd').onclick = () => openPantry('search');
   draw();
 }

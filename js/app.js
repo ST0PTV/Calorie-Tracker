@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.24.0';
+const APP_VERSION = '1.24.1';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -845,7 +845,7 @@ function closeSheet() {
 }
 
 function openAdd(meal) {
-  if (pantryMode) { openPantry(addTab === 'mine' ? 'search' : addTab); return; }
+  if (pantryMode) { openPantry(['mine', 'custom'].includes(addTab) ? 'search' : addTab); return; }
   addMeal = meal; sheetMode = 'add';
   const label = MEALS.find((m) => m.id === meal).label;
   openSheet(`
