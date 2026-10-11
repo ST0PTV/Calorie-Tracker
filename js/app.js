@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.21.0';
+const APP_VERSION = '1.22.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -24,6 +24,7 @@ function emptyState() {
     sug: { enabled: true, time: '16:00', count: 2, priority: 'protein', minKcal: 200 },
     diet: { type: 'all', allergens: [] },
     sugRatings: {}, // Bewertung je Lebensmittel-ID: -3 … +3; ab -2 nicht mehr vorgeschlagen
+    wgoal: WG_DEFAULTS(), weightLog: {},
     slices: {}, // gelerntes Scheibengewicht je Lebensmittel-ID (g)
     water: { enabled: true, goal: 1500, log: {} }, // log: { 'JJJJ-MM-TT': [ml, ml, …] }
     supp: SUPP_DEFAULTS(),
@@ -96,6 +97,8 @@ function normalizeState(data) {
   if (!Array.isArray(s.diet.allergens)) s.diet.allergens = [];
   if (!s.sugRatings || typeof s.sugRatings !== 'object') s.sugRatings = {};
   if (!s.slices || typeof s.slices !== 'object') s.slices = {};
+  s.wgoal = Object.assign(WG_DEFAULTS(), data.wgoal || {});
+  if (!s.weightLog || typeof s.weightLog !== 'object') s.weightLog = {};
   s.water = Object.assign(emptyState().water, data.water || {});
   if (!s.water.log || typeof s.water.log !== 'object') s.water.log = {};
   s.supp = suppNormalize(data.supp);
@@ -119,6 +122,11 @@ function normalizeState(data) {
 }
 // Neues Körpergewicht: Profil speichern und die heute gültigen Makroziele ab heute neu berechnen (frühere Tage bleiben unverändert)
 function applyProfileWeight(w) {
+  const m1 = applyProfileWeightMacros(w);
+  const m2 = w != null ? wgOnWeight(w) : null;
+  return m2 ? `Gewicht gespeichert – ${m2}` : m1;
+}
+function applyProfileWeightMacros(w) {
   state.profile.weight = w;
   if (w == null || !state.goalHistory.length) return null;
   const today = isoDate(new Date());
@@ -1590,6 +1598,7 @@ const SET_ICONS = {
   'Alkohol': ['#C79BF2', '<path d="M7 3h10l-1 8a4 4 0 0 1-8 0L7 3z"/><path d="M12 15v6M8.5 21h7"/>'],
   'Koffein': ['#E2B36B', '<path d="M5 9h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5V9z"/><path d="M16 10h1.5a2.5 2.5 0 0 1 0 5H16"/><path d="M9 3v3M12.5 3v3"/>'],
   'Timeline': ['#5BE7F5', '<path d="M4 12h16"/><circle cx="7" cy="12" r="2"/><circle cx="13" cy="12" r="2"/><path d="M17 8v8"/>'],
+  'Gewichtsziel': ['#6FE0C1', '<path d="M4 18l5-6 4 3 7-9"/><path d="M15 6h5v5"/>'],
   'Schlaf & Körper': ['#B9A6FF', '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>'],
   'Abend-Vorschläge': ['#B9A6FF', '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>'],
   'Ernährung & Allergien': ['#6FE0C1', '<path d="M5 19c0-8 5-13 14-14 0 9-5 14-14 14z"/><path d="M5 19l8-8"/>'],
@@ -1624,7 +1633,7 @@ function renderSettingsInner() {
     <div class="set-top"><button class="set-back" id="setBack" aria-label="Zurück">‹</button><h1>Einstellungen</h1></div>
     <div class="card">
       <h2>Tagesziel</h2>
-      <label for="sGoal">Kalorien pro Tag (kcal)</label><input id="sGoal" inputmode="decimal" value="${s.goal ?? ''}" placeholder="z. B. Tagesbedarf aus Garmin">
+      <label for="sGoal">Kalorien pro Tag (kcal)</label><input id="sGoal" inputmode="decimal" value="${s.goal ?? ''}" placeholder="z. B. Tagesbedarf aus Garmin">${state.wgoal.on ? '<p class="small muted" style="margin:4px 0 0">Wird aus dem Gewichtsziel berechnet (Karte „Gewichtsziel“).</p>' : ''}
       <p class="small muted" style="margin:6px 0 0">Körpergewicht: <strong style="color:var(--ink)">${state.profile.weight != null ? r1(state.profile.weight) + ' kg' : 'noch nicht eingetragen'}</strong> – änderbar unter „Schlaf &amp; Körper“.</p>
       <label>Ernährungsziel ${infoBtn('preset')}</label>
       <div class="seg" id="presetSeg">${Object.entries(PRESETS).map(([k, p]) => `<button type="button" data-preset="${k}">${p.label}</button>`).join('')}</div>
@@ -1648,6 +1657,7 @@ function renderSettingsInner() {
       ${hist.length ? `<h2 class="sec">Verlauf der Ziele</h2><ul class="list goals">${hist.map((h) => `<li><div>ab ${fmtD(h.from)}${h.from <= today && goalsFor(today) === h ? '<span class="tag">aktuell</span>' : ''}<div class="meta">${h.goal ? `${r0(h.goal).toLocaleString('de-DE')} kcal` : 'kein kcal-Ziel'}${h.preset && PRESETS[h.preset] ? ` · ${PRESETS[h.preset].label}` : ''}${h.weight ? ` · ${r1(h.weight)} kg` : ''}${[['protein', 'Eiweiß'], ['carbs', 'KH'], ['fat', 'Fett'], ['fiber', 'Ballastst.'], ['sugar', 'Zucker max.']].filter(([k]) => h[k]).map(([k, l]) => ` · ${l} ${r0(h[k])} g`).join('')}</div></div>
         ${hist.length > 1 ? `<button class="btn ghost rm" data-delgoal="${h.from}" aria-label="Ziel ab ${fmtD(h.from)} löschen">✕</button>` : ''}</li>`).join('')}</ul>` : ''}
     </div>
+    ${wgSettingsHtml()}
     ${bodySettingsHtml()}
     <div class="card">
       <h2>Wasser</h2>
@@ -1801,6 +1811,7 @@ function renderSettingsInner() {
   alcSettingsBind();
   suppSettingsBind();
   bodySettingsBind();
+  wgSettingsBind(keepScroll);
   tlSettingsBind(keepScroll);
   $('#sgOn').onchange = (ev) => { state.sug.enabled = ev.target.checked; save(); };
   $('#wOn').onchange = (ev) => { state.water.enabled = ev.target.checked; save(); };

@@ -535,3 +535,7 @@ p, .info-body, .info-src, .sp-hint, .caf-note, .refs li { text-align: justify; -
 .linkbtn { background: none; border: 0; padding: 6px 0; margin-top: 4px; color: var(--accent); font: inherit; font-size: 0.78rem; cursor: pointer; }
 .slcalc { margin-top: 4px; padding: 10px 12px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line); }
 .slcalc label { margin-top: 0; }
+.wg-plan { margin: 12px 0 4px; padding: 12px 14px; }
+.wg-plan .spread { font-size: 0.82rem; }
+.wg-res { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 0.95rem !important; }
+.wg-res strong { color: var(--accent); font-size: 1.05rem; }
