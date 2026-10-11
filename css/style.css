@@ -599,3 +599,4 @@ p, .info-body, .info-src, .sp-hint, .caf-note, .refs li { text-align: justify; -
 .hero-foot { font-size: 0.7rem; color: var(--muted); text-align: center; margin-top: 12px; }
 .hero .gear { top: 14px; width: 36px; height: 36px; }
 .hero .sf-row { margin-top: 12px; }
+.info-i.warn { background: rgba(255, 154, 107, 0.16); color: var(--warn); font: 700 16px/1 'Sora', sans-serif; }
