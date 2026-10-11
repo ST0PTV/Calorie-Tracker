@@ -60,6 +60,13 @@ function suppIcon(form, c, size = 32) {
 }
 const SUPP_CHECK = (c, s) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="${c}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
+// Eisen-Referenzwert (DGE, 2024) je nach Geschlecht aus „Schlaf & Körper“
+function suppIronRef() {
+  const sx = (typeof state !== 'undefined' && state.profile) ? state.profile.sex : null;
+  if (sx === 'm') return 'Bedarf laut DGE (2024) für Männer: 11 mg/Tag.';
+  if (sx === 'f') return 'Bedarf laut DGE (2024) für Frauen: 14–16 mg/Tag (je nach Alter; in Schwangerschaft 27 mg) – Frauen vor den Wechseljahren haben durch die Menstruation häufiger einen Mangel.';
+  return 'Bedarf laut DGE (2024): Männer 11 mg, Frauen 14–16 mg pro Tag.';
+}
 /* ---------- Tagebuch: Leiste + Erinnerung ---------- */
 let suppSnoozeUntil = 0; // nur im Speicher: nach dem App-Start erscheint die Erinnerung wieder
 function suppOpenItems(iso) { return suppItemsFor(iso).filter((x) => !suppTaken(iso, x.id)); }
@@ -124,7 +131,7 @@ function suppItemHtml(x) {
       <label>Zu welcher Mahlzeit / Uhrzeit</label>
       <div class="chips">${SUPP_SLOTS.map(([k, l]) => chip(`data-slot="${k}"`, l, x.slot === k)).join('')}</div>
       ${x.slot === 'time' ? `<input type="time" data-f="time" value="${esc(x.time)}" style="margin-top:8px">` : ''}
-      ${h ? `<div class="sp-hint"><strong>Hinweis:</strong> ${esc(h.t)}${x.kind === 'creatine' && x.unit === 'g' && x.amount > 5 ? ' <span class="warn">Deine Menge liegt über 3–5 g.</span>' : ''}<div class="muted">Quelle: <a href="${h.u}" target="_blank" rel="noopener">${esc(h.s)}</a></div></div>` : ''}
+      ${h ? `<div class="sp-hint"><strong>Hinweis:</strong> ${esc(h.t)}${x.kind === 'iron' ? ' ' + esc(suppIronRef()) : ''}${x.kind === 'creatine' && x.unit === 'g' && x.amount > 5 ? ' <span class="warn">Deine Menge liegt über 3–5 g.</span>' : ''}<div class="muted">Quelle: <a href="${h.u}" target="_blank" rel="noopener">${esc(h.s)}</a></div></div>` : ''}
       <button type="button" class="btn danger block" data-del style="margin-top:12px">Supplement löschen</button></div>`;
   }
   return `<div class="sp-item ${open ? 'open' : ''}" data-id="${esc(x.id)}">

@@ -388,11 +388,19 @@ function caffHistoryBind(days, range, rerender) {
 }
 
 /* ---------- Einstellungen ---------- */
+// Koffein-Abbau: Das Geschlecht selbst beeinflusst CYP1A2 laut Übersichtsarbeit nicht wesentlich (Grzegorzewski 2022);
+// östrogenhaltige Pille verlängert die Halbwertszeit (Abernethy & Todd 1985: 7,9 vs. 5,4 h), Schwangerschaft ebenfalls.
+function caffSexNote() {
+  const sx = state.profile && state.profile.sex;
+  if (sx === 'f') return '<strong style="color:var(--ink)">Für Frauen:</strong> Östrogenhaltige Pille verlängert die Halbwertszeit deutlich (Studie: 7,9 statt 5,4 h). Wenn das zutrifft, Halbwertszeit eher auf 7–8 h setzen. In der Schwangerschaft gilt laut EFSA ein Richtwert von 200 mg/Tag.';
+  return 'Das Geschlecht allein ändert den Koffein-Abbau kaum; deshalb dasselbe Modell für alle.';
+}
 function caffSettingsHtml() {
   const c = state.caffeine;
   return `<div class="card">
     <h2>Koffein</h2>
     <label class="switch"><input type="checkbox" id="cfOn" ${c.enabled ? 'checked' : ''}> Koffein-Tracker anzeigen</label>
+    <p class="small muted" id="cfSexNote" style="margin:0 0 6px">${caffSexNote()}</p>
     <p class="small muted" style="margin:0 0 4px">Bettzeit ${esc(c.bed)} · Aufstehen ${esc(c.wake)} – änderbar unter „Schlaf &amp; Körper“.</p>
     <div class="row">
       <div><label for="cfHl">Halbwertszeit (h)</label><input id="cfHl" inputmode="decimal" value="${r1(c.halfLife)}"></div>

@@ -70,10 +70,14 @@ function tlEvents(iso) {
    nach 1/2/4 h ≈ 80/40/3 % – innerhalb der Normalwerte der Szintigrafie (Abell et al. 2008: 37–90 / 30–60 / 0–10 %).
    Größere und fettreichere Mahlzeiten → längeres T½ (Annahme, Größenordnung nicht belegt); Getränke T½ 0,4 h. */
 function tlHalf(ev) {
-  if (ev.liq) return 0.4;
+  if (ev.liq) return 0.4 * tlSexF();
   const fs = ev.kcal ? (ev.f * 9) / ev.kcal : 0;
-  return Math.min(4.5, Math.max(0.75, 1.75 * Math.pow(Math.max(ev.kcal, 50) / 250, 0.3) * (1 + 0.5 * fs)));
+  return Math.min(4.5, Math.max(0.75, 1.75 * tlSexF() * Math.pow(Math.max(ev.kcal, 50) / 250, 0.3) * (1 + 0.5 * fs)));
 }
+// Frauen entleeren den Magen im Mittel langsamer (Datz 1987: Feststoffe T½ 92 vs. 60 min, n = 15/15;
+// Caballero-Plasencia 1999, n = 200: langsamer, kein Zyklusphasen-Effekt). Bewusst gedämpfter Faktor 0,9 / 1,1,
+// damit beide Kurven innerhalb der gemischtgeschlechtlichen Normalwerte (Abell 2008) bleiben.
+function tlSexF() { const sx = typeof state !== 'undefined' && state.profile && state.profile.sex; return sx === 'm' ? 0.9 : sx === 'f' ? 1.1 : 1; }
 function tlRemain(ev, t) { const dt = t - ev.h; return dt < 0 ? 0 : ev.kcal * Math.pow(2, -Math.pow(dt / tlHalf(ev), 2)); }
 function tlStomach(evs, t) { return evs.reduce((s, ev) => s + tlRemain(ev, t), 0); }
 function tlPhases(ev) { const s = ev.h + 1.82 * tlHalf(ev); return { stomachEnd: s, absorbEnd: s + (ev.liq ? 1 : 3) }; } // 90 % entleert; Darmphase grob +3 h
@@ -291,14 +295,22 @@ function bodySettingsHtml() {
       <div><label for="bdBed">Bettzeit</label><input id="bdBed" type="time" value="${esc(c.bed)}"></div>
       <div><label for="bdWake">Aufstehen</label><input id="bdWake" type="time" value="${esc(c.wake)}"></div>
     </div>
+    <label>Geschlecht</label>
+    <div class="seg three" id="bdSex">${[['m', 'Mann'], ['f', 'Frau'], ['', 'Keine Angabe']].map(([k, l]) => `<button type="button" data-sx="${k}" class="${(state.profile.sex || '') === k ? 'active' : ''}">${l}</button>`).join('')}</div>
     <label for="bdW">Körpergewicht (kg)</label><input id="bdW" inputmode="decimal" value="${w != null ? r1(w) : ''}" placeholder="z. B. 80">
-    <p class="small muted" style="margin-top:6px">Bett- und Aufstehzeit gelten für Koffein und Timeline. Das Gewicht gilt für die Makroziele im Tagesziel (bei Änderung ab heute neu berechnet; frühere Tage behalten ihre Werte) und für Eiweiß pro Mahlzeit in der Timeline.</p>
+    <p class="small muted" style="margin-top:6px">Bett- und Aufstehzeit gelten für Koffein und Timeline. Das Geschlecht passt das Magen-Modell der Timeline an (Frauen im Mittel langsamere Magenentleerung) und den Eisen-Hinweis bei den Supplements; Kalorien-, Eiweiß-, Ballaststoff- und Zuckerziele sind laut den genutzten Quellen pro kg bzw. pro kcal für beide gleich. Das Gewicht gilt für die Makroziele im Tagesziel (bei Änderung ab heute neu berechnet; frühere Tage behalten ihre Werte) und für Eiweiß pro Mahlzeit in der Timeline.</p>
   </div>`;
 }
 function bodySettingsBind() {
   const c = state.caffeine;
   const time = (id, key, label) => { $(id).onchange = (ev) => { if (ev.target.value) { c[key] = ev.target.value; save(); toast(`${label} ${ev.target.value} Uhr`); } }; };
   time('#bdBed', 'bed', 'Bettzeit'); time('#bdWake', 'wake', 'Aufstehen');
+  document.querySelectorAll('#bdSex [data-sx]').forEach((b) => b.onclick = () => {
+    state.profile.sex = b.dataset.sx || null; save();
+    document.querySelectorAll('#bdSex [data-sx]').forEach((x) => x.classList.toggle('active', x === b));
+    const cn = document.getElementById('cfSexNote'); if (cn) cn.innerHTML = caffSexNote();
+    toast('Gespeichert');
+  });
   $('#bdW').onchange = (ev) => {
     const v = num(ev.target.value);
     if (ev.target.value.trim() === '') { state.profile.weight = null; save(); return; }
