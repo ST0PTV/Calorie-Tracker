@@ -50,7 +50,7 @@ function renderFood() {
   const pantry = (state.pantry || []).slice(0, 3);
   $('#view').innerHTML = `
     <div class="topbar"><div><div class="sub">Deine Lebensmittel</div><div class="day">Essen</div></div>
-      <div class="nav"><button class="btn" id="fdAdd" style="min-height:40px;padding:0 14px">＋ Hinzufügen</button></div></div>
+</div>
     <div class="card fd-shop">
       <div class="fd-shop-h"><div class="fd-ico">▥</div><div class="fd-t">Einkauf erfassen</div></div>
       <div class="fd-btns"><button class="btn" id="fdScan">Scannen</button><button class="btn secondary" id="fdSearch">Suchen</button></div>
@@ -78,6 +78,5 @@ function renderFood() {
   document.querySelectorAll('#fdF [data-f]').forEach((b) => b.onclick = () => { foodFilter = b.dataset.f; document.querySelectorAll('#fdF [data-f]').forEach((x) => x.classList.toggle('on', x === b)); draw(); });
   $('#fdScan').onclick = () => openPantry('scan');
   $('#fdSearch').onclick = () => openPantry('search');
-  $('#fdAdd').onclick = () => openPantry('search');
   draw();
 }
