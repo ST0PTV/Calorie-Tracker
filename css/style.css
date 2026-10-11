@@ -221,8 +221,6 @@ ul.refs a { color: var(--accent); word-break: break-all; }
 .sug-row .grow { flex: 1; min-width: 0; }
 .sug-row .meta { font-size: 0.76rem; color: var(--muted); margin-top: 2px; }
 .sug-row .meta strong { color: var(--ink); }
-.rate { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); font-size: 1.05rem; cursor: pointer; flex: 0 0 auto; filter: grayscale(1); opacity: 0.75; }
-.rate.on { filter: none; opacity: 1; border-color: var(--accent); background: var(--accent-soft); }
 .sug-after { margin: 8px 0 4px; }
 .card.sug .row { margin-top: 10px; }
 .btn:disabled { opacity: 0.45; cursor: default; }
@@ -625,3 +623,24 @@ h2.ct { font-size: 0.8rem; font-weight: 400; color: var(--muted); margin: 0; let
 .sh-t .star-btn { vertical-align: middle; margin-left: 4px; }
 .sheet-head { gap: 10px; }
 .fd-info { display: flex; justify-content: flex-end; margin: -4px 4px 4px; }
+
+/* Vorschlags-Karte kompakt (Punkt 13): eine Zeile je Lebensmittel, Bewertung über „⋯“-Menü */
+.card.sug { padding: 14px 16px 10px; }
+.sug-rows { margin-top: 6px; }
+.sug-row { padding: 9px 0; gap: 10px; }
+.sug-row .grow > div:first-child { font-size: 0.9rem; }
+.sug-r { font-size: 0.6rem; margin-left: 6px; vertical-align: middle; } .sug-r.up { color: var(--good); } .sug-r.dn { color: var(--warn); }
+.sug-more { position: relative; flex: 0 0 auto; }
+.sug-dots { width: 36px; height: 36px; border-radius: 10px; border: 0; background: none; color: var(--muted); font-size: 1.2rem; letter-spacing: 1px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.sug-dots[aria-expanded="true"] { background: rgba(255, 255, 255, 0.06); color: var(--ink); }
+.sug-menu { position: absolute; right: 0; top: 40px; z-index: 5; width: 190px; padding: 4px; border-radius: 14px; background: #1B2333; border: 1px solid rgba(255, 255, 255, 0.12); box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45); }
+.sug-menu button { display: block; width: 100%; text-align: left; border: 0; background: none; color: var(--ink); font: inherit; font-size: 0.82rem; padding: 10px 12px; border-radius: 10px; cursor: pointer; }
+.sug-menu button:active { background: rgba(255, 255, 255, 0.06); }
+.sug-menu button.warn { color: var(--warn); margin: 0; }
+.sug-rcp { font-size: 0.74rem; margin-top: 6px; line-height: 1.45; text-align: justify; hyphens: auto; }
+.sug-rcp .muted { margin-top: 4px; }
+.sug-after { margin: 8px 0 10px; } .warn-t { color: var(--warn); } .ok-t { color: var(--good); }
+.sug-btns { display: grid; grid-template-columns: 1.4fr 1fr; gap: 8px; }
+.sug-btns .btn { min-height: 44px; }
+.sug-tog { margin-top: 4px; }
+.sug-det { margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--line); }

@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.30.4';
+const APP_VERSION = '1.31.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -247,6 +247,9 @@ let bls = [];
 let blsMap = new Map();
 let blsReady = false;
 let blsMeta = null;
+// Hinterlegte Rezepte (data/recipes.json): nur für Vorschläge, kein eigener Reiter, nicht änderbar
+let rcps = [];
+let rcpMap = new Map();
 async function loadBls() {
   try {
     const res = await fetch('data/bls.json');
@@ -255,6 +258,11 @@ async function loadBls() {
     bls = (data.foods || []).map((x) => ({ src: 'bls', id: 'bls:' + x.id, n: x.n, k: x.k, p: x.p, c: x.c, f: x.f, fi: x.fi || 0, su: x.su || 0, fs: x.fs, d: x.d, a: x.a, b: x.b }));
     blsMap = new Map(bls.map((f) => [f.id, f]));
   } catch (e) { bls = []; }
+  try {
+    const rr = await (await fetch('data/recipes.json')).json();
+    rcps = (rr.recipes || []).map((x) => Object.assign({}, x, { src: 'rcp', serving: x.g }));
+    rcpMap = new Map(rcps.map((r) => [r.id, r]));
+  } catch (e) { rcps = []; }
   blsReady = true;
   if (sheetMode === 'add') renderAddResults();
   else if (!sheetMode && tab === 'diary') renderDiary();
@@ -647,6 +655,10 @@ function foodInfo(id, depth = 0) {
     const b = blsMap.get(id);
     return { d: b && b.d != null ? b.d : null, a: b && b.d != null ? (b.a || []) : null, group: id[4] };
   }
+  if (id.startsWith('rcp:')) {
+    const r = rcpMap.get(id);
+    return { d: r ? r.d : null, a: r ? r.a : null, group: 'R' };
+  }
   if (id.startsWith('off:')) {
     const o = state.offCache[id.slice(4)];
     return { d: o && o.d != null ? o.d : null, a: o && o.d != null ? (o.a || []) : null, group: null };
@@ -686,6 +698,7 @@ const SUG_WEIGHTS = {
 };
 // Realistische Portionsgrenzen [min, max, Schritt] in g, grob nach Energiedichte und Eiweißgehalt
 function sugBounds(f) {
+  if (f.src === 'rcp') { const s = f.g * 0.25; return [Math.round(f.g * 0.5), Math.round(f.g * 1.5), Math.round(s)]; } // ½ bis 1½ Portionen
   if (f.k >= 600) return [5, 40, 5];          // Öle, Nüsse
   if (f.k >= 300) return [30, 150, 10];       // trockene Getreide/Hülsenfrüchte, Hartkäse
   if (f.f >= 20) return [30, 150, 10];        // fettreicher Käse u. Ä.
@@ -712,7 +725,7 @@ function sugCandidates() {
       const id = e.ref || e.id;
       let cur = hist.get(id);
       if (!cur) {
-        const live = id.startsWith('bls:') ? blsMap.get(id) : state.custom.find((x) => x.id === id) || (id.startsWith('off:') ? state.offCache[id.slice(4)] : null);
+        const live = id.startsWith('bls:') ? blsMap.get(id) : id.startsWith('rcp:') ? rcpMap.get(id) : state.custom.find((x) => x.id === id) || (id.startsWith('off:') ? state.offCache[id.slice(4)] : null);
         const base = live || e;
         cur = Object.assign({ id, n: base.n, src: base.src || e.src, count: 0, dinner: 0, last: d }, nutrientsOf(base));
         hist.set(id, cur);
@@ -725,6 +738,7 @@ function sugCandidates() {
     if (!f.k || f.k < 10) return false;
     const inf = foodInfo(f.id);
     if (f.id.startsWith('bls:') && !SUG_GROUPS.includes(inf.group)) return false;
+    if (f.id.startsWith('rcp:')) { const r = rcpMap.get(f.id); if (!r || !/[as]/.test(r.meal)) return false; } // abends: Hauptgerichte und Snacks
     return dietAllows(inf);
   };
   const fromHist = [...hist.values()].filter(ok)
@@ -732,7 +746,8 @@ function sugCandidates() {
     .map((f) => Object.assign(f, { fromHistory: true }));
   const have = new Set(fromHist.map((f) => f.id));
   const basics = bls.filter((f) => f.b && !have.has(f.id) && ok(f)).map((f) => Object.assign({}, f, { fromHistory: false, count: 0, dinner: 0 }));
-  return fromHist.concat(basics);
+  const recipes = rcps.filter((r) => !have.has(r.id) && ok(r)).map((r) => Object.assign({}, r, { fromHistory: false, count: 0, dinner: 0 }));
+  return fromHist.concat(recipes, basics);
 }
 function sugError(tot, R, W) {
   const ek = (tot.k - R.k) / R.k;
@@ -770,7 +785,7 @@ function optimizeCombo(foods, R, W) {
 function sugPref(foods) {
   let p = 0;
   for (const f of foods) {
-    p += -0.06 * (state.sugRatings[f.id] || 0) - 0.04 * Math.log(1 + (f.count || 0)) - 0.08 * Math.log(1 + (f.dinner || 0)) + (f.fromHistory ? 0 : 0.12);
+    p += -0.06 * (state.sugRatings[f.id] || 0) - 0.04 * Math.log(1 + (f.count || 0)) - 0.08 * Math.log(1 + (f.dinner || 0)) + (f.fromHistory || f.src === 'rcp' ? 0 : 0.12);
     if (f.fromHistory && !f.dinner && f.count >= 2) p += 0.2;    // bisher nur zu anderen Mahlzeiten gegessen
   }
   const groups = foods.map((f) => (f.id.startsWith('bls:') ? f.id[4] : f.id));
@@ -778,6 +793,13 @@ function sugPref(foods) {
   if (foods.filter((f) => f.k < 60).length >= 2) p += 0.3;       // zwei kalorienarme Gemüse füllen kaum auf
   if (foods.filter((f) => f.c >= 50).length >= 2) p += 0.15;     // zwei Sättigungsbeilagen (z. B. Reis + Nudeln)
   if (foods.filter((f) => f.p >= 15).length >= 2) p += 0.1;      // zwei Hauptkomponenten Fleisch/Fisch/Tofu
+  // dasselbe Lebensmittel zweimal (z. B. Rezept „Edamame“ + Zutat „Sojabohne (Edamame)“)
+  const ws = foods.map((f) => new Set(norm(f.n).split(/\s+/).filter((w) => w.length >= 5)));
+  if (ws.length >= 2 && ws.some((s1, i) => ws.some((s2, j) => j > i && [...s1].some((w) => s2.has(w))))) p += 0.8;
+  const rc = foods.filter((f) => f.src === 'rcp');
+  if (rc.filter((f) => /[ma]/.test(f.meal)).length >= 2) p += 1;  // nie zwei Hauptgerichte
+  // Zu einem Gericht passen nur leichte Ergänzungen (Obst, Gemüse, Joghurt) oder ein Snack-Rezept, keine zweite Hauptkomponente
+  if (rc.some((f) => /[ma]/.test(f.meal)) && foods.some((f) => f.src !== 'rcp' && (f.k >= 120 || f.p >= 10))) p += 0.6;
   return p;
 }
 let sugCache = { key: null, list: [] };
@@ -785,7 +807,7 @@ function computeSuggestions(iso) {
   const R = remainingFor(iso);
   if (!R || R.k <= 0) return [];
   const S = state.sug;
-  const key = JSON.stringify([iso, R, S.count, S.priority, state.diet, state.sugRatings, Object.keys(state.days).length, state.custom.length, bls.length]);
+  const key = JSON.stringify([iso, R, S.count, S.priority, state.diet, state.sugRatings, Object.keys(state.days).length, state.custom.length, bls.length, rcps.length]);
   if (sugCache.key === key) return sugCache.list;
   const W = SUG_WEIGHTS[S.priority] || SUG_WEIGHTS.protein;
   const pool = sugCandidates();
@@ -797,6 +819,7 @@ function computeSuggestions(iso) {
   } else {
     for (let i = 0; i < pool.length; i++) for (let j = i + 1; j < pool.length; j++) pairsOrSingles.push([pool[i], pool[j]]);
   }
+  if (n >= 2) pool.filter((f) => f.src === 'rcp' && /[ma]/.test(f.meal)).forEach((r) => pairsOrSingles.push([r])); // ein Gericht allein
   for (const foods of pairsOrSingles) {
     const o = optimizeCombo(foods, R, W);
     results.push({ foods, ...o, score: o.err + sugPref(foods) });
@@ -838,61 +861,75 @@ function sugDue(iso) {
   return !!R && R.k >= (S.minKcal || 200);
 }
 let sugIndex = 0;
+let sugMenu = null; // offenes „⋯“-Menü (Lebensmittel-ID)
+const sugPortion = (f, g) => (f.src === 'rcp' ? `${r1(g / f.g)} ${g / f.g === 1 ? 'Portion' : 'Portionen'} · ${fmt(g)} g` : `${fmt(g)} ${unitOf(f)}`);
 function suggestionCardHtml(iso) {
   if (!sugDue(iso)) return '';
-  if (!blsReady) return '<div class="card sug"><h2 class="ct">Vorschlag für heute Abend</h2><p class="small muted">Lade Lebensmitteldaten…</p></div>';
+  const head = (right) => `<div class="spread"><h2 class="ct">Vorschlag für heute Abend ${infoBtn('sugCard')}</h2><span class="small muted">${right}</span></div>`;
+  if (!blsReady) return `<div class="card sug">${head('')}<p class="small muted">Lade Lebensmitteldaten…</p></div>`;
   const list = computeSuggestions(iso);
   const R = remainingFor(iso);
   const de = fmt;
-  const open = `${de(R.k)} kcal${R.p != null ? ` · Eiweiß ${de(R.p)} g` : ''}${R.c != null ? ` · KH ${de(R.c)} g` : ''}${R.f != null ? ` · Fett ${de(R.f)} g` : ''}`;
+  const openTxt = `${de(R.k)} kcal${R.p != null ? ` · E ${de(R.p)} g` : ''}${R.c != null ? ` · KH ${de(R.c)} g` : ''}${R.f != null ? ` · F ${de(R.f)} g` : ''}`;
   const prio = `<div class="seg three sug-prio">${[['kcal', 'Kalorien'], ['protein', 'Eiweiß zuerst'], ['balanced', 'Ausgewogen']].map(([k, l]) => `<button type="button" data-sugprio="${k}" class="${state.sug.priority === k ? 'active' : ''}">${l}</button>`).join('')}</div>`;
   if (!list.length) {
-    return `<div class="card sug"><h2 class="ct">Vorschlag für heute Abend</h2><p class="small muted">Noch offen: ${open}</p>${prio}
+    return `<div class="card sug">${head('')}<p class="small muted" style="margin:6px 0">Noch offen: ${openTxt}</p>${prio}
       <p class="small muted">Keine passenden Lebensmittel gefunden. ${dietFiltersActive() ? 'Deine Ernährungs- und Allergie-Filter schließen viele Lebensmittel aus; eigene Lebensmittel brauchen dafür Angaben zu Ernährungsform und Allergenen.' : ''}</p></div>`;
   }
   const i = sugIndex % list.length;
   const s = list[i];
   const after = { k: R.k - s.tot.k, p: R.p != null ? R.p - s.tot.p : null };
+  const missKcal = Math.abs(after.k) > Math.max(80, 0.15 * R.k);
+  const open = !!(state.cardOpen || {}).sug;
   const rows = s.foods.map((f, j) => {
     const x = per(f, s.grams[j]);
     const r = state.sugRatings[f.id] || 0;
+    const menu = sugMenu === f.id ? `<div class="sug-menu" role="menu">
+        <button type="button" role="menuitem" data-rate="${esc(f.id)}" data-v="1">Öfter vorschlagen</button>
+        <button type="button" role="menuitem" data-rate="${esc(f.id)}" data-v="-1">Seltener vorschlagen</button>
+        <button type="button" role="menuitem" class="warn" data-rate="${esc(f.id)}" data-v="-9">Nie mehr vorschlagen</button></div>` : '';
+    const rc = f.src === 'rcp' ? rcpMap.get(f.id) : null;
+    const ingr = rc && open ? `<div class="sug-rcp"><div>${rc.items.map(([id, g]) => `${fmt(g * s.grams[j] / f.g)} g ${esc((blsMap.get('bls:' + id) || { n: id }).n.split(',')[0])}`).join(' · ')}</div><div class="muted">${esc(rc.steps)}</div></div>` : '';
     return `<div class="sug-row">
-      <div class="grow"><div>${esc(f.n)}</div>
-        <div class="meta"><strong>${s.grams[j]} ${unitOf(f)}</strong> · ${de(x.k)} kcal · E ${r0(x.p)} g · KH ${r0(x.c)} g · F ${r0(x.f)} g${f.fromHistory ? '' : ' · <span class="tag">neu</span>'}</div></div>
-      <button class="rate ${r > 0 ? 'on' : ''}" data-rate="${esc(f.id)}" data-v="1" aria-label="${esc(f.n)} gut bewerten">👍</button>
-      <button class="rate ${r < 0 ? 'on' : ''}" data-rate="${esc(f.id)}" data-v="-1" aria-label="${esc(f.n)} schlecht bewerten">👎</button>
+      <div class="grow"><div>${esc(f.n)}${rc ? '<span class="tag">Rezept</span>' : ''}${r > 0 ? '<span class="sug-r up" title="öfter">▲</span>' : r < 0 ? '<span class="sug-r dn" title="seltener">▼</span>' : ''}</div>
+        <div class="meta"><strong>${sugPortion(f, s.grams[j])}</strong> · ${de(x.k)} kcal${open ? ` · E ${r0(x.p)} · KH ${r0(x.c)} · F ${r0(x.f)} g` : ''}</div>${ingr}</div>
+      <div class="sug-more"><button type="button" class="sug-dots" data-sugmenu="${esc(f.id)}" aria-label="Bewerten: ${esc(f.n)}" aria-expanded="${sugMenu === f.id}">⋯</button>${menu}</div>
     </div>`;
   }).join('');
-  const missKcal = Math.abs(after.k) > Math.max(80, 0.15 * R.k);
+  const res = `Danach noch <strong>${de(Math.max(0, after.k))} kcal</strong> offen${after.k < 0 ? ` <span class="warn-t">(${de(-after.k)} kcal über Ziel)</span>` : ''}${after.p != null ? ` · Eiweiß ${after.p > 0.5 ? `noch ${de(after.p)} g` : '<span class="ok-t">gedeckt</span>'}` : ''}${missKcal ? ' · <span class="warn-t">Ziel nicht ganz erreichbar</span>' : ''}`;
   return `<div class="card sug">
-    <div class="spread"><h2 class="ct">Vorschlag für heute Abend ${infoBtn('sugCard')}</h2><span class="small muted">${i + 1}/${list.length}</span></div>
-    <p class="small muted">Noch offen: ${open}</p>
-    ${prio}
-    ${rows}
-    <p class="small muted sug-after">Danach: ${after.k >= 0 ? `noch ${de(after.k)} kcal offen` : `${de(-after.k)} kcal über Ziel`}${after.p != null ? ` · Eiweiß ${after.p > 0.5 ? `noch ${de(after.p)} g offen` : 'gedeckt'}` : ''}${missKcal ? '<br>Ziel nicht ganz erreichbar' : ''}</p>
-    <div class="row"><button class="btn" id="sugTake">Übernehmen</button><button class="btn secondary" id="sugNext" ${list.length < 2 ? 'disabled' : ''}>Anderer Vorschlag</button></div>
+    ${head(`${i + 1}/${list.length}`)}
+    <div class="sug-rows">${rows}</div>
+    <p class="small sug-after">${res}</p>
+    <div class="sug-btns"><button class="btn" id="sugTake">Übernehmen</button><button class="btn secondary" id="sugNext" ${list.length < 2 ? 'disabled' : ''}>Anderer</button></div>
+    <button type="button" class="tk-sum sug-tog" id="sugTog" aria-expanded="${open}"><span></span><span class="tk-chev">${open ? 'Weniger' : 'Details'} <i>${open ? '▴' : '▾'}</i></span></button>
+    ${open ? `<div class="sug-det"><div class="small muted">Noch offen</div><div class="small">${openTxt}</div><div class="small muted" style="margin-top:8px">Priorität</div>${prio}</div>` : ''}
   </div>`;
 }
 function bindSuggestionCard(iso, rerender) {
   const card = document.querySelector('.card.sug'); if (!card) return;
   card.querySelectorAll('[data-sugprio]').forEach((b) => b.onclick = () => { state.sug.priority = b.dataset.sugprio; sugIndex = 0; save(); rerender(); });
-  card.querySelectorAll('[data-rate]').forEach((b) => b.onclick = () => {
+  card.querySelectorAll('[data-sugmenu]').forEach((b) => b.onclick = (ev) => { ev.stopPropagation(); sugMenu = sugMenu === b.dataset.sugmenu ? null : b.dataset.sugmenu; rerender(); });
+  card.querySelectorAll('[data-rate]').forEach((b) => b.onclick = (ev) => {
+    ev.stopPropagation();
     const id = b.dataset.rate; const v = +b.dataset.v;
-    const r = Math.max(-3, Math.min(3, (state.sugRatings[id] || 0) + v));
-    state.sugRatings[id] = r; save();
+    const r = v === -9 ? -3 : Math.max(-3, Math.min(3, (state.sugRatings[id] || 0) + v));
+    state.sugRatings[id] = r; sugMenu = null; save();
     toast(v > 0 ? 'Wird öfter vorgeschlagen' : r <= -2 ? 'Wird nicht mehr vorgeschlagen' : 'Wird seltener vorgeschlagen');
     rerender();
   });
-  const nx = $('#sugNext'); if (nx) nx.onclick = () => { sugIndex++; rerender(); };
+  card.addEventListener('click', () => { if (sugMenu) { sugMenu = null; rerender(); } });
+  const tg = $('#sugTog'); if (tg) tg.onclick = () => { state.cardOpen = Object.assign({}, state.cardOpen, { sug: !(state.cardOpen || {}).sug }); save(); rerender(); };
+  const nx = $('#sugNext'); if (nx) nx.onclick = () => { sugIndex++; sugMenu = null; rerender(); };
   const tk = $('#sugTake'); if (tk) tk.onclick = () => {
     const list = computeSuggestions(iso); const s = list[sugIndex % list.length];
     const target = (state.days[iso] = state.days[iso] || []);
     s.foods.forEach((f, j) => {
-      target.push(Object.assign({ id: uid(), meal: 'dinner', grams: s.grams[j], ref: f.id, src: f.src, n: f.n, brand: f.brand || '', liq: isLiq(f) }, nutrientsOf(f)));
+      target.push(Object.assign({ id: uid(), meal: 'dinner', grams: s.grams[j], ref: f.id, src: f.src, n: f.n, brand: f.brand || '', liq: isLiq(f), serving: f.src === 'rcp' ? f.g : undefined }, nutrientsOf(f)));
       state.recent = [Object.assign(foodSnap(f), { lastGrams: s.grams[j] })].concat(state.recent.filter((x) => x.id !== f.id)).slice(0, 60);
       state.sugRatings[f.id] = Math.min(3, (state.sugRatings[f.id] || 0) + 1);
     });
-    save(); openMeals.add('dinner'); sugIndex = 0; toast('Zum Abendessen hinzugefügt'); rerender();
+    save(); openMeals.add('dinner'); sugIndex = 0; sugMenu = null; toast('Zum Abendessen hinzugefügt'); rerender();
   };
 }
 
@@ -1840,7 +1877,7 @@ function renderSettingsInner() {
       <div class="seg three" id="sgCount">${[1, 2, 3].map((n) => `<button type="button" data-n="${n}" class="${state.sug.count === n ? 'active' : ''}">${n}</button>`).join('')}</div>
       <label>Priorität</label>
       <div class="seg three" id="sgPrio">${[['kcal', 'Kalorien'], ['protein', 'Eiweiß zuerst'], ['balanced', 'Ausgewogen']].map(([k, l]) => `<button type="button" data-p="${k}" class="${state.sug.priority === k ? 'active' : ''}">${l}</button>`).join('')}</div>
-      ${Object.keys(state.sugRatings).length ? `<h2 class="sec">Bewertete Lebensmittel</h2><ul class="list goals">${Object.entries(state.sugRatings).sort((a, b) => a[1] - b[1]).map(([id, r]) => `<li><div>${esc((blsMap.get(id) || state.custom.find((x) => x.id === id) || state.offCache[id.slice(4)] || { n: id }).n)}<div class="meta">${r <= -2 ? 'ausgeschlossen' : r < 0 ? 'seltener' : 'bevorzugt'} (${r > 0 ? '+' : ''}${r})</div></div><button class="btn ghost rm" data-unrate="${esc(id)}" aria-label="Bewertung zurücksetzen">✕</button></li>`).join('')}</ul>` : ''}
+      ${Object.keys(state.sugRatings).length ? `<h2 class="sec">Bewertete Lebensmittel</h2><ul class="list goals">${Object.entries(state.sugRatings).sort((a, b) => a[1] - b[1]).map(([id, r]) => `<li><div>${esc((blsMap.get(id) || rcpMap.get(id) || state.custom.find((x) => x.id === id) || state.offCache[id.slice(4)] || { n: id }).n)}<div class="meta">${r <= -2 ? 'ausgeschlossen' : r < 0 ? 'seltener' : 'bevorzugt'} (${r > 0 ? '+' : ''}${r})</div></div><button class="btn ghost rm" data-unrate="${esc(id)}" aria-label="Bewertung zurücksetzen">✕</button></li>`).join('')}</ul>` : ''}
     </div>
     <div class="card">
       <h2>Ernährung & Allergien</h2>
