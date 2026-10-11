@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.25.1';
+const APP_VERSION = '1.26.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -32,7 +32,7 @@ function emptyState() {
     supp: SUPP_DEFAULTS(),
     timeline: TL_DEFAULTS(),
     profile: { weight: null, sex: null, height: null },
-    sugarPct: 10, showSF: false,
+    sugarPct: 10, showSF: false, heroMode: 'left', heroUnit: 'g',
     alcohol: ALC_DEFAULTS(),
     caffeine: CAFF_DEFAULTS(), // log: { 'JJJJ-MM-TT': [{ id, min (Minuten seit 0 Uhr), mg, n, dur (Minuten) }] }
   };
@@ -387,6 +387,49 @@ document.addEventListener('click', (e) => {
   e.preventDefault(); e.stopPropagation(); openInfo(b.dataset.info);
 }, true);
 const openMeals = new Set();   // aufgeklappte Mahlzeiten (nur für diese Sitzung)
+/* Kalorien-Übersicht (K1): Ring nach Herkunft der kcal (Eiweiß/KH/Fett, Rest z. B. Alkohol grau) + Makro-Balken.
+   Umschalter Übrig/Gegessen und g/% werden gespeichert. */
+function heroHtml(goal, t, s) {
+  const left = state.heroMode !== 'eaten', pct = state.heroUnit === 'pct';
+  const de = (n) => r0(n).toLocaleString('de-DE');
+  const over = goal && t.k > goal;
+  const R = 58, L = 2 * Math.PI * R;
+  const parts = [['p', t.p * 4], ['c', t.c * 4], ['f', t.f * 9]];
+  const mk = parts.reduce((x, y) => x + y[1], 0);
+  if (t.k - mk > Math.max(20, t.k * 0.03)) parts.push(['o', t.k - mk]); // nicht zugeordnete kcal (z. B. Alkohol); kleine Rundungsreste ignorieren
+  const tot = parts.reduce((x, y) => x + y[1], 0) || 1;
+  const full = goal ? Math.min(1, t.k / goal) : (t.k > 0 ? 1 : 0); // Anteil des Rings, der gefüllt ist
+  let off = 0, segs = '';
+  const gap = parts.filter((x) => x[1] / tot * full * L > 0.5).length > 1 ? 2 : 0; // kleine Lücke zwischen den Farben
+  parts.forEach(([cls, kc]) => {
+    const len = kc / tot * full * L;
+    if (len > 0.5) segs += `<circle class="seg ${cls}" cx="70" cy="70" r="${R}" stroke-dasharray="${Math.max(0.5, len - gap).toFixed(1)} ${L.toFixed(1)}" stroke-dashoffset="${(-off).toFixed(1)}"></circle>`;
+    off += len;
+  });
+  const big = goal ? (left ? Math.abs(goal - t.k) : t.k) : t.k;
+  const cap = !goal ? 'kcal gegessen' : left ? (over ? 'kcal über Ziel' : 'kcal übrig') : 'kcal gegessen';
+  const foot = !goal ? 'Kein Tagesziel festgelegt' : left ? `${de(t.k)} von ${de(goal)} kcal gegessen` : (over ? `${de(t.k - goal)} kcal über dem Ziel von ${de(goal)}` : `${de(goal - t.k)} kcal übrig · Ziel ${de(goal)}`);
+  const row = (cls, label, val, target) => {
+    let v;
+    if (!target) v = `${r0(val)}<small> g</small>`;
+    else if (pct) v = left ? `${r0(Math.max(0, (target - val) / target * 100))}<small> %</small>` : `${r0(val / target * 100)}<small> %</small>`;
+    else if (left) v = val > target ? `<span class="ov">+${r0(val - target)}</span><small> g</small>` : `${r0(target - val)}<small> g</small>`;
+    else v = `${r0(val)}<small> / ${r0(target)} g</small>`;
+    return `<div class="hm ${cls}"><div class="hm-h"><span>${label}</span><b>${v}</b></div><div class="mbar"><span style="width:${target ? Math.min(100, (val / target) * 100) : 0}%"></span></div></div>`;
+  };
+  return `<div class="hero-top">
+      <div class="seg-pill" id="heroMode" role="group" aria-label="Anzeige"><button type="button" data-m="left" class="${left ? 'on' : ''}">Übrig</button><button type="button" data-m="eaten" class="${left ? '' : 'on'}">Gegessen</button></div>
+      <div class="seg-pill" id="heroUnit" role="group" aria-label="Einheit"><button type="button" data-u="g" class="${pct ? '' : 'on'}">g</button><button type="button" data-u="pct" class="${pct ? 'on' : ''}">%</button></div>
+    </div>
+    <div class="hero-body">
+      <div class="kring" role="img" aria-label="${goal ? `${r0(t.k / goal * 100)} Prozent des Tagesziels gegessen` : `${de(t.k)} kcal gegessen`}">
+        <svg viewBox="0 0 140 140"><circle class="track" cx="70" cy="70" r="${R}"></circle><g transform="rotate(-90 70 70)">${segs}</g></svg>
+        <div class="kc"><div class="big ${goal && left && over ? 'over' : ''}">${de(big)}</div><div class="cap">${cap}</div></div>
+      </div>
+      <div class="hmacros">${row('p', 'Eiweiß', t.p, s.protein)}${row('c', 'Kohlenhydrate', t.c, s.carbs)}${row('f', 'Fett', t.f, s.fat)}</div>
+    </div>
+    <div class="hero-foot">${foot}</div>`;
+}
 function renderDiary() {
   const v = $('#view');
   const s = goalsFor(currentDate);
@@ -427,21 +470,7 @@ function renderDiary() {
   html += `
     <div class="card hero">
       <button class="gear" id="gear" aria-label="Einstellungen"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h0a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v0a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.56 1.03z"/></svg></button>
-      <div class="gauge">
-        <svg viewBox="0 0 260 140" role="img" aria-label="${goal ? `${r0(frac * 100)} Prozent des Tagesziels gegessen` : 'Kein Tagesziel festgelegt'}">
-          <path class="track" d="M 20 130 A 110 110 0 0 1 240 130" fill="none" stroke-width="14" stroke-linecap="round"></path>
-          ${goal && t.k > 0 ? `<path class="fill ${over ? 'over' : ''}" d="M 20 130 A 110 110 0 0 1 240 130" fill="none" stroke-width="14" stroke-linecap="round" stroke-dasharray="${(frac * ARC).toFixed(1)} ${ARC}"></path>` : ''}
-        </svg>
-        <div class="center">
-          <div class="big ${over ? 'over' : ''}">${goal ? de(Math.abs(rest)) : de(t.k)}</div>
-          <div class="cap">${goal ? `${over ? 'kcal über Ziel' : 'kcal übrig'} · ${de(t.k)} von ${de(goal)}` : 'kcal gegessen'}</div>
-        </div>
-      </div>
-      <div class="tiles">
-        ${tile('p', 'Eiweiß', t.p, s.protein)}
-        ${tile('c', 'Kohlenhydr.', t.c, s.carbs)}
-        ${tile('f', 'Fett', t.f, s.fat)}
-      </div>
+      ${heroHtml(goal, t, s)}
       ${(() => { const T = sfTargets(s); return state.showSF && (T.sugar || T.fiber) ? `<div class="sf-row">${T.sugar ? sfHalf('su', 'Freier Zucker', t.fs, T.sugar, 'max.', t.su - t.fs) : ''}${T.fiber ? sfHalf('fi', 'Ballaststoffe', t.fi, T.fiber, 'mind.') : ''}</div>` : ''; })()}
     </div>`;
   html += suppReminderHtml(currentDate);
@@ -488,6 +517,8 @@ function renderDiary() {
   $('#nextDay').onclick = () => { currentDate = addDays(currentDate, 1); openMeals.clear(); renderDiary(); };
   const ts = $('#toSettings'); if (ts) ts.onclick = () => goTab('settings');
   const gr = $('#gear'); if (gr) gr.onclick = () => goTab('settings');
+  document.querySelectorAll('#heroMode [data-m]').forEach((b) => b.onclick = () => { state.heroMode = b.dataset.m; save(); renderDiary(); });
+  document.querySelectorAll('#heroUnit [data-u]').forEach((b) => b.onclick = () => { state.heroUnit = b.dataset.u; save(); renderDiary(); });
   const qb = $('#quickBackup'); if (qb) qb.onclick = async () => { await exportBackup(); renderDiary(); };
   v.querySelectorAll('[data-toggle]').forEach((b) => b.onclick = () => {
     const id = b.dataset.toggle; if (openMeals.has(id)) openMeals.delete(id); else openMeals.add(id);
