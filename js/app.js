@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.16.2';
+const APP_VERSION = '1.16.3';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -108,6 +108,22 @@ function normalizeState(data) {
   s.goalHistory.sort((a, b) => a.from.localeCompare(b.from));
   if (s.profile.weight == null) { const wh = s.goalHistory.slice().reverse().find((h) => h.weight); if (wh) s.profile.weight = wh.weight; }
   return s;
+}
+// Neues Körpergewicht: Profil speichern und die heute gültigen Makroziele ab heute neu berechnen (frühere Tage bleiben unverändert)
+function applyProfileWeight(w) {
+  state.profile.weight = w;
+  if (w == null || !state.goalHistory.length) return null;
+  const today = isoDate(new Date());
+  const cur = goalsFor(today);
+  if (cur.weight === w) return null;
+  const entry = Object.assign({}, cur, { from: today, weight: w });
+  const m = calcMacros(cur.goal, w, cur.pf, cur.ff);
+  let msg = 'Gewicht gespeichert';
+  if (m && !m.carbsNegative) { entry.protein = m.protein; entry.carbs = m.carbs; entry.fat = m.fat; msg = `Gewicht gespeichert – Makroziele ab heute angepasst (E ${m.protein} g · F ${m.fat} g)`; }
+  else if (m && m.carbsNegative) msg = 'Gewicht gespeichert – Eiweiß und Fett übersteigen das Kalorienziel, Makroziele unverändert';
+  state.goalHistory = state.goalHistory.filter((h) => h.from !== today).concat([entry]).sort((a, b) => a.from.localeCompare(b.from));
+  const nc = goalsFor(today); GOAL_KEYS.forEach((k) => { state.settings[k] = nc[k] ?? null; });
+  return msg;
 }
 // Ziele, die an einem Tag galten. Tage vor dem ersten Eintrag nutzen das erste Ziel.
 function goalsFor(iso) {
@@ -1495,7 +1511,7 @@ function renderSettingsInner() {
     <div class="card">
       <h2>Tagesziel</h2>
       <label for="sGoal">Kalorien pro Tag (kcal)</label><input id="sGoal" inputmode="decimal" value="${s.goal ?? ''}" placeholder="z. B. Tagesbedarf aus Garmin">
-      <label for="sW">Körpergewicht (kg)</label><input id="sW" inputmode="decimal" value="${s.weight != null ? r1(s.weight) : (state.profile.weight != null ? r1(state.profile.weight) : '')}" placeholder="z. B. 80">
+      <p class="small muted" style="margin:6px 0 0">Körpergewicht: <strong style="color:var(--ink)">${state.profile.weight != null ? r1(state.profile.weight) + ' kg' : 'noch nicht eingetragen'}</strong> – änderbar unter „Schlaf &amp; Körper“.</p>
       <label>Ernährungsziel</label>
       <div class="seg" id="presetSeg">${Object.entries(PRESETS).map(([k, p]) => `<button type="button" data-preset="${k}">${p.label}</button>`).join('')}</div>
       <div class="row">
@@ -1595,10 +1611,10 @@ function renderSettingsInner() {
       <p class="small muted">Hinweis: Die Faktoren beziehen sich auf das Körpergewicht. Bei höherem Körperfettanteil überschätzt das den Eiweißbedarf; dann eher das Zielgewicht eintragen.</p>`;
   };
   const preview = () => {
-    const kcal = num($('#sGoal').value), w = num($('#sW').value), pf = num(pfIn.value), ff = num(ffIn.value);
+    const kcal = num($('#sGoal').value), w = state.profile.weight, pf = num(pfIn.value), ff = num(ffIn.value);
     const m = calcMacros(kcal, w, pf, ff);
     const box = $('#macroPreview');
-    if (!m) { box.innerHTML = '<p class="small muted" style="margin:0">Körpergewicht eintragen, dann werden Eiweiß, Fett und Kohlenhydrate berechnet.</p>'; return; }
+    if (!m) { box.innerHTML = '<p class="small muted" style="margin:0">Körpergewicht unter „Schlaf &amp; Körper“ eintragen, dann werden Eiweiß, Fett und Kohlenhydrate berechnet.</p>'; return; }
     const [lo, hi] = PRESETS[preset].fatRange;
     const fatOk = m.pctF == null || (m.pctF >= lo - 0.5 && m.pctF <= hi + 0.5);
     box.innerHTML = `<div class="tiles">
@@ -1622,13 +1638,13 @@ function renderSettingsInner() {
     preview();
   };
   pfIn.oninput = toCustom; ffIn.oninput = toCustom;
-  $('#sGoal').oninput = preview; $('#sW').oninput = preview;
+  $('#sGoal').oninput = preview;
   showPreset(); preview();
 
   $('#sSave').onclick = () => {
     const goal = num($('#sGoal').value);
     if (goal != null && (goal < 500 || goal > 10000)) { toast('Bitte einen Wert zwischen 500 und 10.000 kcal eingeben.'); return; }
-    const weight = num($('#sW').value);
+    const weight = state.profile.weight;
     if (weight != null && (weight < 30 || weight > 300)) { toast('Bitte ein Gewicht zwischen 30 und 300 kg eingeben.'); return; }
     const pf = num(pfIn.value), ff = num(ffIn.value);
     if ((pf != null && (pf < 0 || pf > 4)) || (ff != null && (ff < 0 || ff > 3))) { toast('Faktoren bitte prüfen (Eiweiß 0–4, Fett 0–3 g/kg).'); return; }
@@ -1641,7 +1657,6 @@ function renderSettingsInner() {
     state.goalHistory = state.goalHistory.filter((h) => h.from !== from).concat([entry]).sort((a, b) => a.from.localeCompare(b.from));
     // „settings“ spiegelt das heute gültige Ziel (für ältere Backups/Versionen)
     const cur = goalsFor(today); GOAL_KEYS.forEach((k) => { state.settings[k] = cur[k] ?? null; });
-    if (weight != null && from <= today) state.profile.weight = weight;
     save(); toast(from === today ? 'Gespeichert – gilt ab heute' : `Gespeichert – gilt ab ${fmtD(from)}`); renderSettings();
   };
   document.querySelectorAll('[data-delgoal]').forEach((b) => b.onclick = () => {

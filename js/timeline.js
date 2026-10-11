@@ -79,7 +79,7 @@ function tlStomach(evs, t) { return evs.reduce((s, ev) => s + tlRemain(ev, t), 0
 function tlPhases(ev) { const s = ev.h + 1.82 * tlHalf(ev); return { stomachEnd: s, absorbEnd: s + (ev.liq ? 1 : 3) }; } // 90 % entleert; Darmphase grob +3 h
 
 /* ---------- Plan-Vorschlag ---------- */
-function tlWeight(iso) { return state.profile.weight || goalsFor(iso).weight || null; }
+function tlWeight(iso) { return state.profile.weight || null; }
 function tlPlan(iso) {
   const T = state.timeline, bed = tlBed(), wake = tlWake();
   const start = wake + T.first;
@@ -292,7 +292,7 @@ function bodySettingsHtml() {
       <div><label for="bdWake">Aufstehen</label><input id="bdWake" type="time" value="${esc(c.wake)}"></div>
     </div>
     <label for="bdW">Körpergewicht (kg)</label><input id="bdW" inputmode="decimal" value="${w != null ? r1(w) : ''}" placeholder="z. B. 80">
-    <p class="small muted" style="margin-top:6px">Bett- und Aufstehzeit gelten für Koffein und Timeline. Das Gewicht nutzt die Timeline für Eiweiß pro Mahlzeit; im Tagesziel wird es vorgeschlagen (die Makroziele ändern sich erst, wenn du das Tagesziel speicherst).</p>
+    <p class="small muted" style="margin-top:6px">Bett- und Aufstehzeit gelten für Koffein und Timeline. Das Gewicht gilt für die Makroziele im Tagesziel (bei Änderung ab heute neu berechnet; frühere Tage behalten ihre Werte) und für Eiweiß pro Mahlzeit in der Timeline.</p>
   </div>`;
 }
 function bodySettingsBind() {
@@ -303,7 +303,7 @@ function bodySettingsBind() {
     const v = num(ev.target.value);
     if (ev.target.value.trim() === '') { state.profile.weight = null; save(); return; }
     if (v == null || v < 30 || v > 300) { toast('Bitte ein Gewicht zwischen 30 und 300 kg eingeben.'); ev.target.value = state.profile.weight != null ? r1(state.profile.weight) : ''; return; }
-    state.profile.weight = Math.round(v * 10) / 10; save(); toast('Gewicht gespeichert');
+    const msg = applyProfileWeight(Math.round(v * 10) / 10); save(); toast(msg || 'Gewicht gespeichert'); if (typeof renderSettings === 'function' && msg) { const y = window.scrollY; renderSettings(); window.scrollTo(0, y); }
   };
 }
 function tlTabbar() {
