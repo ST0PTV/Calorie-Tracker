@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.27.1';
+const APP_VERSION = '1.28.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -32,7 +32,7 @@ function emptyState() {
     supp: SUPP_DEFAULTS(),
     timeline: TL_DEFAULTS(),
     profile: { weight: null, sex: null, height: null },
-    sugarPct: 10, showSF: false, heroMode: 'left',
+    sugarPct: 10, showSF: false, heroMode: 'left', cardOpen: {},
     alcohol: ALC_DEFAULTS(),
     caffeine: CAFF_DEFAULTS(), // log: { 'JJJJ-MM-TT': [{ id, min (Minuten seit 0 Uhr), mg, n, dur (Minuten) }] }
   };

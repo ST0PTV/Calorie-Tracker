@@ -151,7 +151,7 @@ function caffCardHtml(iso) {
   const bedLvl = caffLevel(doses, bed, ke);
   let big, cap, pill = '';
   if (isToday) {
-    big = r0(caffLevel(doses, nowH, ke)); cap = 'jetzt im Körper';
+    big = r0(caffLevel(doses, nowH, ke)); cap = 'mg jetzt';
     const clr = caffClear(doses, nowH, thr, ke);
     if (clr <= nowH + 1 / 12) pill = `<span class="caf-pill ok">unter ${r0(thr)} mg</span>`;
     else pill = `<span class="caf-pill ${clr <= bed ? 'ok' : 'late'}">unter ${r0(thr)} mg ab <strong>${caffFmt(clr, iso)}</strong></span>`;
@@ -171,7 +171,7 @@ function caffCardHtml(iso) {
       ${pill}
     </div>
     ${caffChartSvg({ id: 'cg-card', iso, doses, nowH, ke, thr, bed, wake })}
-    <div class="caf-stats">
+    ${trackerFoot('caf', 'data-caf-add', `${isToday ? 'Heute' : 'Aufgenommen'} <b class="${over ? 'bad' : 'tk-v'}">${r0(total)}</b><span class="muted"> / ${r0(c.limit)} mg</span> · ${day.length ? `${day.length} ${day.length === 1 ? 'Getränk' : 'Getränke'}` : 'noch nichts'}`, `    <div class="caf-stats">
       <div class="caf-stat">
         <span class="cs-l">${isToday ? 'Heute aufgenommen' : 'Aufgenommen'}</span>
         <span class="cs-v ${over ? 'bad' : ''}">${r0(total)}<small> / ${r0(c.limit)} mg</small></span>
@@ -185,10 +185,27 @@ function caffCardHtml(iso) {
       </div>
     </div>
     ${rows ? `<div class="caf-list-day">${rows}</div>` : '<div class="small muted caf-empty">Noch nichts getrunken.</div>'}
-    <button class="btn block caf-add" data-caf-add>+ Getränk hinzufügen</button>
+`)}
   </div>`;
 }
+/* Kartenfuß (Design C4): „+“ mittig auf der Trennlinie, Zusammenfassung, Details auf-/zuklappbar (Zustand gespeichert) */
+function trackerFoot(key, addAttr, summary, details) {
+  const open = !!(state.cardOpen || {})[key];
+  return `<div class="tk-div"><button type="button" class="tk-plus" ${addAttr} aria-label="Getränk hinzufügen">+</button></div>
+    ${summary || details ? `<button type="button" class="tk-sum" data-tk="${key}" aria-expanded="${open}"><span>${summary}</span>${details ? `<span class="tk-chev">${open ? 'Weniger' : 'Details'} <i>${open ? '▴' : '▾'}</i></span>` : ''}</button>` : ''}
+    ${details ? `<div class="tk-det" ${open ? '' : 'hidden'}>${details}</div>` : ''}`;
+}
+function trackerBind() {
+  document.querySelectorAll('[data-tk]').forEach((b) => b.onclick = () => {
+    const k = b.dataset.tk, det = b.nextElementSibling; if (!det || !det.classList.contains('tk-det')) return;
+    const open = det.hidden; det.hidden = !open;
+    state.cardOpen = Object.assign({}, state.cardOpen, { [k]: open }); save();
+    b.setAttribute('aria-expanded', open);
+    const ch = b.querySelector('.tk-chev'); if (ch) ch.innerHTML = `${open ? 'Weniger' : 'Details'} <i>${open ? '▴' : '▾'}</i>`;
+  });
+}
 function caffBindCard(iso) {
+  trackerBind();
   const a = document.querySelector('[data-caf-add]'); if (a) a.onclick = () => openCaffeine(iso);
   document.querySelectorAll('[data-caf-entry]').forEach((b) => b.onclick = () => {
     const e = (state.caffeine.log[iso] || []).find((x) => x.id === b.dataset.cafEntry); if (e) openCaffeine(iso, e);
