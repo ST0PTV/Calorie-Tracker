@@ -258,15 +258,14 @@ function tlSettingsHtml() {
   return `<div class="card">
     <h2>Timeline</h2>
     <label class="switch"><input type="checkbox" id="tlOn" ${T.enabled ? 'checked' : ''}> Timeline-Tab und Uhrzeiten im Journal anzeigen</label>
-    <label>Kalorien-Verteilung für den Plan-Vorschlag</label>
+    <label>Kalorien-Verteilung für den Plan-Vorschlag ${infoBtn('tlSplit')}</label>
     <div class="chips" id="tlPre">${Object.entries(TL_PRESETS).map(([k, p]) => `<button type="button" class="chip ${T.preset === k ? 'on' : ''}" data-p="${k}">${p.label}</button>`).join('')}</div>
     <div class="row four">${TL_ORDER.map((m) => `<div><label for="tlS_${m}">${TL_LABEL[m].replace('essen', '')} %</label><input id="tlS_${m}" inputmode="numeric" value="${T.split[m] || 0}" ${T.preset === 'custom' ? '' : 'disabled'}></div>`).join('')}</div>
     <p class="small muted" id="tlSum" style="margin-top:4px"></p>
     <div class="row">
-      <div><label for="tlFirst">Erste Mahlzeit nach dem Aufstehen (h)</label><input id="tlFirst" inputmode="decimal" value="${r1(T.first)}"></div>
+      <div><label for="tlFirst">Erste Mahlzeit nach dem Aufstehen (h) ${infoBtn('tlWin')}</label><input id="tlFirst" inputmode="decimal" value="${r1(T.first)}"></div>
       <div><label for="tlGap">Letzte Mahlzeit vor dem Schlafen (h)</label><input id="tlGap" inputmode="decimal" value="${r1(T.gap)}"></div>
     </div>
-    <p class="small muted" style="margin-top:8px">Snack auf 0 % setzen = drei Mahlzeiten. Bett- und Aufstehzeit kommen aus „Schlaf &amp; Körper“.</p>
   </div>`;
 }
 function tlSettingsBind(rerender) {
@@ -287,21 +286,27 @@ function tlSettingsBind(rerender) {
   const nums = (id, key, lo, hi) => { $(id).onchange = (ev) => { const v = num(ev.target.value); if (v == null || v < lo || v > hi) { toast(`Bitte ${lo} bis ${hi} h eingeben.`); ev.target.value = r1(T[key]); return; } T[key] = Math.round(v * 4) / 4; save(); toast('Gespeichert'); }; };
   nums('#tlFirst', 'first', 0, 4); nums('#tlGap', 'gap', 0, 6);
 }
+var INFO = globalThis.INFO || {}; globalThis.INFO = INFO; // Info-Texte (Blatt von unten), Anzeige in app.js
+INFO.sleep = { body: '<p>Bett- und Aufstehzeit gelten für Koffein (Pegel zur Bettzeit, Schlafzone) und die Timeline (Essfenster, Magen zur Bettzeit, Plan-Vorschlag).</p>' };
+INFO.sex = { body: '<p>Das Geschlecht verfeinert die Promille-Schätzung und das Magen-Modell der Timeline (Frauen entleeren den Magen im Mittel langsamer) und passt den Eisen-Hinweis bei den Supplements an.</p><p>Kalorien-, Eiweiß-, Ballaststoff- und Zuckerziele sind laut den genutzten Quellen pro kg bzw. pro kcal für beide gleich. „Keine Angabe“ nutzt jeweils Mittelwerte.</p>', pts: [['Promille', 'Verteilungsfaktor 0,7 / 0,6 bzw. aus dem BMI'], ['Magen-Modell', 'Faktor 0,9 / 1,1'], ['Eisen-Hinweis', '11 mg / 14–16 mg pro Tag']], src: 'Datz 1987 · Caballero-Plasencia 1999 · Maudens 2014 · DGE 2024' };
+INFO.weight = { body: '<p>Das Gewicht ist die Grundlage der Makroziele im Tagesziel. Bei einer Änderung werden sie ab heute neu berechnet; frühere Tage behalten ihre Werte.</p><p>Außerdem nutzt es die Timeline für Eiweiß pro Mahlzeit und der Alkohol-Tracker für die Promille-Schätzung.</p>' };
+INFO.height = { body: '<p>Mit Gewicht und Größe ergibt sich der BMI. Daraus berechnet die App den Verteilungsfaktor für die Promille-Schätzung genauer als mit festen Werten.</p><p>Die Formel stammt aus einer Studie mit 50 Personen (BMI 16–36) und erklärt nur einen Teil der Unterschiede zwischen Menschen.</p>', src: 'Maudens 2014' };
+INFO.tlSplit = { body: '<p>So verteilt der Plan-Vorschlag dein Kalorienziel auf Frühstück, Mittag, Snack und Abend. Snack auf 0 % = drei Mahlzeiten.</p><p>Eine belegte „beste“ Verteilung gibt es nicht: In einer Studie änderte viel Energie morgens statt abends nichts am Gewichtsverlust, aber das Hungergefühl.</p>', src: 'Ruddick-Collins 2022' };
+INFO.tlWin = { body: '<p>Das Essfenster beginnt diese Zeit nach dem Aufstehen und endet mit dem Abstand vor dem Schlafen; dazwischen werden die Mahlzeiten gleichmäßig verteilt.</p><p>Die 3 h vor dem Schlafen stammen aus einer Leitlinie zur Refluxkrankheit (2–3 h); für Gesunde ist das eine Übertragung. Die Stunde nach dem Aufstehen ist eine Konvention.</p>', src: 'Katz 2022 (ACG)' };
 function bodySettingsHtml() {
   const c = state.caffeine, w = state.profile.weight;
   return `<div class="card">
     <h2>Schlaf &amp; Körper</h2>
     <div class="row">
-      <div><label for="bdBed">Bettzeit</label><input id="bdBed" type="time" value="${esc(c.bed)}"></div>
+      <div><label for="bdBed">Bettzeit ${infoBtn('sleep')}</label><input id="bdBed" type="time" value="${esc(c.bed)}"></div>
       <div><label for="bdWake">Aufstehen</label><input id="bdWake" type="time" value="${esc(c.wake)}"></div>
     </div>
-    <label>Geschlecht</label>
+    <label>Geschlecht ${infoBtn('sex')}</label>
     <div class="seg three" id="bdSex">${[['m', 'Mann'], ['f', 'Frau'], ['', 'Keine Angabe']].map(([k, l]) => `<button type="button" data-sx="${k}" class="${(state.profile.sex || '') === k ? 'active' : ''}">${l}</button>`).join('')}</div>
     <div class="row">
-      <div><label for="bdW">Körpergewicht (kg)</label><input id="bdW" inputmode="decimal" value="${w != null ? r1(w) : ''}" placeholder="z. B. 80"></div>
-      <div><label for="bdH">Körpergröße (cm)</label><input id="bdH" inputmode="numeric" value="${state.profile.height != null ? r0(state.profile.height) : ''}" placeholder="z. B. 180"></div>
+      <div><label for="bdW">Körpergewicht (kg) ${infoBtn('weight')}</label><input id="bdW" inputmode="decimal" value="${w != null ? r1(w) : ''}" placeholder="z. B. 80"></div>
+      <div><label for="bdH">Körpergröße (cm) ${infoBtn('height')}</label><input id="bdH" inputmode="numeric" value="${state.profile.height != null ? r0(state.profile.height) : ''}" placeholder="z. B. 180"></div>
     </div>
-    <p class="small muted" style="margin-top:6px">Bett- und Aufstehzeit gelten für Koffein und Timeline. Größe und Geschlecht verfeinern die Promille-Schätzung (Verteilungsfaktor aus dem BMI). Das Geschlecht passt außerdem das Magen-Modell der Timeline an (Frauen im Mittel langsamere Magenentleerung) und den Eisen-Hinweis bei den Supplements; Kalorien-, Eiweiß-, Ballaststoff- und Zuckerziele sind laut den genutzten Quellen pro kg bzw. pro kcal für beide gleich. Das Gewicht gilt für die Makroziele im Tagesziel (bei Änderung ab heute neu berechnet; frühere Tage behalten ihre Werte) und für Eiweiß pro Mahlzeit in der Timeline.</p>
   </div>`;
 }
 function bodySettingsBind() {
@@ -311,7 +316,6 @@ function bodySettingsBind() {
   document.querySelectorAll('#bdSex [data-sx]').forEach((b) => b.onclick = () => {
     state.profile.sex = b.dataset.sx || null; save();
     document.querySelectorAll('#bdSex [data-sx]').forEach((x) => x.classList.toggle('active', x === b));
-    const cn = document.getElementById('cfSexNote'); if (cn) cn.innerHTML = caffSexNote();
     toast('Gespeichert');
   });
   $('#bdH').onchange = (ev) => {

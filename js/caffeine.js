@@ -400,16 +400,18 @@ function caffSettingsHtml() {
   return `<div class="card">
     <h2>Koffein</h2>
     <label class="switch"><input type="checkbox" id="cfOn" ${c.enabled ? 'checked' : ''}> Koffein-Tracker anzeigen</label>
-    <p class="small muted" id="cfSexNote" style="margin:0 0 6px">${caffSexNote()}</p>
     <p class="small muted" style="margin:0 0 4px">Bettzeit ${esc(c.bed)} · Aufstehen ${esc(c.wake)} – änderbar unter „Schlaf &amp; Körper“.</p>
     <div class="row">
-      <div><label for="cfHl">Halbwertszeit (h)</label><input id="cfHl" inputmode="decimal" value="${r1(c.halfLife)}"></div>
-      <div><label for="cfThr">Ziel zur Bettzeit (mg)</label><input id="cfThr" inputmode="numeric" value="${r0(c.threshold)}"></div>
+      <div><label for="cfHl">Halbwertszeit (h) ${infoBtn('cafHl')}</label><input id="cfHl" inputmode="decimal" value="${r1(c.halfLife)}"></div>
+      <div><label for="cfThr">Bettzeit-Ziel (mg) ${infoBtn('cafThr')}</label><input id="cfThr" inputmode="numeric" value="${r0(c.threshold)}"></div>
     </div>
-    <label for="cfLim">Richtwert pro Tag (mg)</label><input id="cfLim" inputmode="numeric" value="${r0(c.limit)}">
-    <p class="small muted" style="margin-top:8px">Halbwertszeit: im Mittel etwa 5 Stunden, individuell aber sehr verschieden (in Studien 2,7 bis 9,9 h); bei Rauchern kürzer (ca. 3 statt 4,3 h). Passe den Wert an, wenn du Koffein erfahrungsgemäß schneller oder langsamer abbaust. Das Ziel zur Bettzeit ist eine <strong>Faustregel, kein belegter Grenzwert</strong>: Die EFSA nennt, dass schon 100 mg kurz vor dem Schlafen den Schlaf stören können; in einer Studie störten 400 mg sogar 6 Stunden vor dem Zubettgehen noch. Richtwert pro Tag: EFSA 400 mg für gesunde Erwachsene, 200 mg in der Schwangerschaft und Stillzeit.</p>
+    <label for="cfLim">Richtwert pro Tag (mg) ${infoBtn('cafLim')}</label><input id="cfLim" inputmode="numeric" value="${r0(c.limit)}">
   </div>`;
 }
+var INFO = globalThis.INFO || {}; globalThis.INFO = INFO; // Info-Texte (Blatt von unten), Anzeige in app.js
+INFO.cafHl = () => ({ body: `<p>Im Mittel etwa 5 Stunden, individuell aber sehr verschieden (in Studien 2,7 bis 9,9 h); bei Rauchern kürzer (ca. 3 statt 4,3 h). Passe den Wert an, wenn du Koffein erfahrungsgemäß schneller oder langsamer abbaust.</p><p>${caffSexNote()}</p>`, src: 'Blanchard 1983 · Seng 2009 · Abernethy & Todd 1985 · Grzegorzewski 2022' });
+INFO.cafThr = { body: '<p>Das Ziel zur Bettzeit ist eine <strong>Faustregel, kein belegter Grenzwert</strong>. Die EFSA nennt, dass schon 100 mg kurz vor dem Schlafen den Schlaf stören können; in einer Studie störten 400 mg sogar 6 Stunden vor dem Zubettgehen noch.</p>', src: 'EFSA 2015 · Drake 2013' };
+INFO.cafLim = { body: '<p>EFSA: bis 400 mg pro Tag gelten für gesunde Erwachsene als unbedenklich, Einzeldosen bis 200 mg; in Schwangerschaft und Stillzeit 200 mg pro Tag.</p><p>Tage über dem Richtwert markiert die Heatmap mit einem orangen Punkt.</p>', src: 'EFSA 2015' };
 function caffSettingsBind() {
   const c = state.caffeine;
   $('#cfOn').onchange = (ev) => { c.enabled = ev.target.checked; save(); };
