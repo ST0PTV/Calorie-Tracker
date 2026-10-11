@@ -1,6 +1,7 @@
 /* Supplement-Tracker: Leiste im Tagebuch (abhaken), Erinnerung beim Öffnen der App, Einstellungen mit Wochenplan.
    Daten: state.supp = { enabled, remind, items: [{ id, kind, name, amount, unit, form, mode, days, slot, time, on, from, anchor, color }],
    log: { 'JJJJ-MM-TT': [itemId, …] } }. Globale Hilfen (state, save, $, esc, uid, isoDate, toast, renderSettings) kommen aus app.js. */
+var INFO = globalThis.INFO || {}; globalThis.INFO = INFO;
 const SUPP_SLOTS = [['breakfast', 'Frühstück'], ['lunch', 'Mittag'], ['dinner', 'Abend'], ['snack', 'Snack'], ['time', 'Uhrzeit']];
 const SUPP_DAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 const SUPP_UNITS = ['g', 'mg', 'µg', 'Tabl.', 'Kaps.', 'Messl.', 'ml'];
@@ -139,14 +140,15 @@ function suppItemHtml(x) {
       <span class="sp-t"><strong>${esc(x.name)}</strong><span class="small muted">${x.on ? esc(suppSummary(x)) : 'ausgeschaltet'}</span></span></button>
       <label class="sw"><input type="checkbox" data-on ${x.on ? 'checked' : ''} aria-label="${esc(x.name)} aktiv"></label></div>${ed}</div>`;
 }
+INFO.suppRem = { body: '<p>Die Erinnerung erscheint nur, wenn du die App öffnest – eine Benachrichtigung bei geschlossener App ist ohne Server nicht möglich. „Später“ blendet sie für eine Stunde aus.</p><p>Die Hinweise zu den Supplements zeigen Richtwerte aus der Literatur und ersetzen keine ärztliche Beratung.</p>' };
 function suppSettingsHtml() {
   const s = state.supp;
   return `<div class="card"><h2>Supplements</h2>
     <label class="switch"><input type="checkbox" id="spOn" ${s.enabled ? 'checked' : ''}> Supplement-Leiste im Journal anzeigen</label>
-    <label class="switch"><input type="checkbox" id="spRem" ${s.remind ? 'checked' : ''}> Beim Öffnen der App an offene Supplements erinnern</label>
+    <label class="switch"><input type="checkbox" id="spRem" ${s.remind ? 'checked' : ''}> Beim Öffnen der App an offene Supplements erinnern ${infoBtn('suppRem')}</label>
     <div class="sp-list">${s.items.map(suppItemHtml).join('')}</div>
     <button type="button" class="btn secondary block" id="spAdd" style="margin-top:10px">+ Supplement hinzufügen</button>
-    <p class="small muted" style="margin-top:8px">Die Erinnerung erscheint nur, wenn du die App öffnest (eine Benachrichtigung bei geschlossener App ist ohne Server nicht möglich). „Später“ blendet sie für eine Stunde aus. Die Hinweise zeigen Richtwerte aus der Literatur und ersetzen keine ärztliche Beratung.</p></div>`;
+  </div>`;
 }
 function suppSettingsBind() {
   const s = state.supp;

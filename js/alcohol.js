@@ -272,13 +272,12 @@ function alcSettingsHtml() {
     <h2>Alkohol</h2>
     <label class="switch"><input type="checkbox" id="alOn" ${A.enabled ? 'checked' : ''}> Alkohol-Tracker im Journal anzeigen</label>
     <label for="alBeta">Abbau (‰ pro Stunde) ${infoBtn('alc')}</label><input id="alBeta" inputmode="decimal" value="${String(A.beta).replace('.', ',')}">
-    <p class="small muted" style="margin-top:6px"><strong>Grobe Schätzung, keine Messung – nicht geeignet, um die Fahrtüchtigkeit zu beurteilen.</strong></p>
   </div>`;
 }
 var INFO = globalThis.INFO || {}; globalThis.INFO = INFO; // Info-Texte (Blatt von unten), Anzeige in app.js
 INFO.alc = () => {
   const sx = state.profile.sex;
-  return { body: `<p>Abbau: im Mittel etwa 0,15 ‰ pro Stunde, Spanne etwa 0,10–0,20 (nüchtern eher niedriger, nach Essen höher).</p><p>Die kcal kommen ins Journal (Snacks); Alkohol zählt nicht zum Wasserzähler. Die DGE empfiehlt (2024), auf Alkohol zu verzichten; keine Menge ist risikofrei.</p>`,
+  return { body: `<p><strong>Grobe Schätzung, keine Messung – nicht geeignet, um die Fahrtüchtigkeit zu beurteilen.</strong></p><p>Abbau: im Mittel etwa 0,15 ‰ pro Stunde, Spanne etwa 0,10–0,20 (nüchtern eher niedriger, nach Essen höher).</p><p>Die kcal kommen ins Journal (Snacks); Alkohol zählt nicht zum Wasserzähler. Die DGE empfiehlt (2024), auf Alkohol zu verzichten; keine Menge ist risikofrei.</p>`,
     pts: [['Verteilungsfaktor r', `${(Math.round(alcR() * 100) / 100).toLocaleString('de-DE')} (${sx === 'm' ? 'Mann' : sx === 'f' ? 'Frau' : 'ohne Geschlecht'}${alcBmi() ? ', aus BMI ' + r1(alcBmi()) : ', fester Wert'})`], ['Körpergewicht', alcW() ? r1(alcW()) + ' kg' : 'fehlt'], ['Aufnahme', 'nüchtern schneller, mit Essen langsamer (Annahme)']],
     src: 'Widmark 1932 · Jones 2010 · Maudens 2014 · Fraser 1995 · DGE 2024' };
 };

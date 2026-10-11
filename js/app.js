@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.30.3';
+const APP_VERSION = '1.30.4';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -360,9 +360,10 @@ const INFO_STATIC = {
   water: { body: '<p>Richtwert der DGE: 1,5 l Getränke pro Tag; bei Hitze, Sport oder körperlicher Arbeit mehr. Die EFSA nennt 2,5 l (Männer) bzw. 2,0 l (Frauen) Gesamtwasser – inklusive Wasser aus Lebensmitteln.</p><p>Koffein-Getränke zählen mit ihren ml, Alkohol zählt nicht. Andere Getränke aus dem Journal (z. B. Schorle, Milch) zählen, wenn du im Eintrag „Zur Flüssigkeit zählen“ anhakst – die App merkt sich das je Lebensmittel.</p><p>Das Plus trägt die in den Einstellungen gewählte Menge ein. Der Balken zeigt, woher das Wasser kommt: <span style="color:var(--water)">blau</span> = eigene Einträge, <span style="color:var(--caf)">gold</span> = Koffein-Getränke, <span style="color:var(--accent)">cyan</span> = Getränke aus dem Journal.</p>', src: 'DGE · EFSA 2010' },
   sug: { body: '<p>Die Vorschläge erscheinen im Journal, wenn du die App nach dieser Uhrzeit öffnest und noch mindestens so viele kcal offen sind. Vorgeschlagen wird zuerst aus deinen bisherigen Einträgen, sonst aus gängigen Kochzutaten.</p><p>Mit 👍/👎 bewertest du einzelne Lebensmittel; zweimal 👎 schließt sie aus. Eine Benachrichtigung zur Uhrzeit ist ohne Server nicht möglich – mit einer Kurzbefehle-Automation kann iOS die App aber zur gewünschten Zeit öffnen.</p>' },
   share: { body: '<p>Exportiert werden alle Lebensmittel, die du gescannt, im Journal getrackt, selbst angelegt oder vorgemerkt hast – jeweils nur Name, Marke und Nährwerte pro 100 g, dazu Barcode-Daten und Scheibengewichte. Favoriten-Markierungen, Datum, Mengen und Mahlzeiten aus dem Journal, Gewicht, Ziele und Einstellungen sind nicht enthalten.</p><p>Beim Import werden nur fehlende Lebensmittel ergänzt: eigene Lebensmittel unter „Eigene“, alle anderen unter „Vorgemerkt“. Was schon vorhanden ist, bleibt unverändert. Wird ein vollständiges Backup gewählt, werden daraus ebenfalls nur die Lebensmittel übernommen.</p><p>Die Datei läuft über das Teilen-Menü (z. B. AirDrop, Nachrichten) und nicht über einen Server der App.</p>' },
-  diet: { body: '<p>Gilt für die Vorschläge. Erkannt wird anhand der BLS-Lebensmittelgruppe und des Namens, bei Barcode-Produkten über Open Food Facts, bei eigenen Lebensmitteln über deine Angaben.</p><p>Ist etwas unklar (z. B. Fertiggerichte), wird es nicht vorgeschlagen. Sulfite sind nicht erkennbar.</p>' },
+  diet: { body: '<p><strong>Keine Gewähr – bei Allergien immer die Zutatenliste prüfen.</strong></p><p>Gilt für die Vorschläge. Erkannt wird anhand der BLS-Lebensmittelgruppe und des Namens, bei Barcode-Produkten über Open Food Facts, bei eigenen Lebensmitteln über deine Angaben.</p><p>Ist etwas unklar (z. B. Fertiggerichte), wird es nicht vorgeschlagen. Sulfite sind nicht erkennbar.</p>' },
   sf: { body: '<p>Bei den Ernährungszielen Ausgewogen, Muskelaufbau und Fettabbau rechnet die App automatisch: Ballaststoffe mindestens 30 g (DGE), freier Zucker höchstens 10 % (oder 5 %) deiner Kalorien (WHO). Bei „Eigene“ trägst du beide Werte selbst ein.</p><p>Freier Zucker = zugesetzter Zucker sowie Zucker in Honig, Sirup und Fruchtsaft. Zucker in ganzem Obst, Gemüse und Milch zählt als natürlich und wird nur angezeigt. Der freie Anteil wird aus Lebensmittelgruppe und Namen geschätzt.</p>', pts: [['< 10 % der kcal', 'WHO, starke Empfehlung'], ['< 5 % der kcal', 'WHO, bedingte Empfehlung'], ['≥ 30 g Ballaststoffe', 'DGE, für Erwachsene']], src: 'WHO 2015 · DGE/DAG/DDG 2019 · DGE 2022' },
 };
+INFO_STATIC.goalFrom = { body: '<p>Ein neues Ziel gilt ab dem gewählten Tag. Frühere Tage behalten ihr damaliges Ziel – Analytics bewertet jeden Tag mit dem Ziel, das an diesem Tag galt. Im „Verlauf der Ziele“ kannst du einzelne Änderungen wieder löschen.</p>' };
 // Einträge: { body: HTML, pts: [[fett, grau], …], src: 'Quellen' } oder Funktion, die so ein Objekt liefert
 var INFO = globalThis.INFO || {}; globalThis.INFO = INFO; Object.assign(INFO, INFO_STATIC);
 const infoBtn = (key) => `<button type="button" class="ibtn" data-info="${key}" aria-label="Info">i</button>`;
@@ -864,12 +865,11 @@ function suggestionCardHtml(iso) {
   }).join('');
   const missKcal = Math.abs(after.k) > Math.max(80, 0.15 * R.k);
   return `<div class="card sug">
-    <div class="spread"><h2 class="ct">Vorschlag für heute Abend</h2><span class="small muted">${i + 1}/${list.length}</span></div>
+    <div class="spread"><h2 class="ct">Vorschlag für heute Abend ${infoBtn('sugCard')}</h2><span class="small muted">${i + 1}/${list.length}</span></div>
     <p class="small muted">Noch offen: ${open}</p>
     ${prio}
     ${rows}
-    <p class="small muted sug-after">Danach: ${after.k >= 0 ? `noch ${de(after.k)} kcal offen` : `${de(-after.k)} kcal über Ziel`}${after.p != null ? ` · Eiweiß ${after.p > 0.5 ? `noch ${de(after.p)} g offen` : 'gedeckt'}` : ''}${missKcal ? `<br>Mit realistischen Portionen ist das Ziel so nicht ganz erreichbar.${state.sug.count < 3 && after.k > 0 ? ' Tipp: In den Einstellungen 3 Lebensmittel wählen.' : ''}` : ''}</p>
-    <p class="small muted">Mengen als Rohgewicht bzw. wie im Lebensmittel angegeben.</p>
+    <p class="small muted sug-after">Danach: ${after.k >= 0 ? `noch ${de(after.k)} kcal offen` : `${de(-after.k)} kcal über Ziel`}${after.p != null ? ` · Eiweiß ${after.p > 0.5 ? `noch ${de(after.p)} g offen` : 'gedeckt'}` : ''}${missKcal ? '<br>Ziel nicht ganz erreichbar' : ''}</p>
     <div class="row"><button class="btn" id="sugTake">Übernehmen</button><button class="btn secondary" id="sugNext" ${list.length < 2 ? 'disabled' : ''}>Anderer Vorschlag</button></div>
   </div>`;
 }
@@ -1781,6 +1781,8 @@ function renderSettings() {
   });
   const bk = $('#setBack'); if (bk) bk.onclick = () => goTab('diary');
 }
+INFO.goalSrc = () => ({ body: `<p>Dein tägliches Kalorienziel, z. B. der Tagesbedarf aus deiner Garmin-Uhr.${state.wgoal.on ? ' <strong>Aktuell wird es aus dem Gewichtsziel berechnet</strong> (Bereich „Gewichtsziel“) und bei neuem Gewicht angepasst.' : ''}</p><p>Eiweiß und Fett rechnet die App aus deinem Körpergewicht: <strong>${state.profile.weight != null ? r1(state.profile.weight) + ' kg' : 'noch nicht eingetragen'}</strong> – änderbar unter „Schlaf &amp; Körper“.</p>` });
+INFO.sugCard = () => ({ body: '<p>Die Vorschläge suchen Lebensmittel und Mengen, die deine noch offenen kcal und Makros möglichst gut treffen – zuerst aus deinen bisherigen Einträgen, sonst aus gängigen Kochzutaten.</p><p>Mengen sind Rohgewicht bzw. so, wie im Lebensmittel angegeben.</p><p>„Ziel nicht ganz erreichbar“ heißt: Mit realistischen Portionen bleibt eine Lücke. Mit 3 Lebensmitteln (Einstellungen → Abend-Vorschläge) klappt es oft besser.</p>' });
 function renderSettingsInner() {
   const today = isoDate(new Date());
   const s = goalsFor(today);
@@ -1790,8 +1792,7 @@ function renderSettingsInner() {
     <div class="set-top"><button class="set-back" id="setBack" aria-label="Zurück">‹</button><h1>Einstellungen</h1></div>
     <div class="card">
       <h2>Tagesziel</h2>
-      <label for="sGoal">Kalorien pro Tag (kcal)</label><input id="sGoal" inputmode="decimal" value="${s.goal ?? ''}" placeholder="z. B. Tagesbedarf aus Garmin">${state.wgoal.on ? '<p class="small muted" style="margin:4px 0 0">Wird aus dem Gewichtsziel berechnet (Karte „Gewichtsziel“).</p>' : ''}
-      <p class="small muted" style="margin:6px 0 0">Körpergewicht: <strong style="color:var(--ink)">${state.profile.weight != null ? r1(state.profile.weight) + ' kg' : 'noch nicht eingetragen'}</strong> – änderbar unter „Schlaf &amp; Körper“.</p>
+      <label for="sGoal">Kalorien pro Tag (kcal) ${infoBtn('goalSrc')}</label><input id="sGoal" inputmode="decimal" value="${s.goal ?? ''}" placeholder="z. B. Tagesbedarf aus Garmin">
       <label>Ernährungsziel ${infoBtn('preset')}</label>
       <div class="seg" id="presetSeg">${Object.entries(PRESETS).map(([k, p]) => `<button type="button" data-preset="${k}">${p.label}</button>`).join('')}</div>
       <div class="row">
@@ -1807,8 +1808,7 @@ function renderSettingsInner() {
       </div>
       <div class="seg two" id="sugPct" style="margin:8px 0 4px"><button type="button" data-p="10">Zucker &lt; 10 % der kcal</button><button type="button" data-p="5">&lt; 5 % der kcal</button></div>
       <label class="switch"><input type="checkbox" id="sfShow" ${state.showSF ? 'checked' : ''}> Ballaststoffe &amp; Zucker im Journal anzeigen</label>
-      <label for="sFrom">Gültig ab</label><input id="sFrom" type="date" value="${today}" max="${addDays(today, 365)}">
-      <p class="small muted" style="margin-top:6px">Frühere Tage behalten ihr damaliges Ziel.</p>
+      <label for="sFrom">Gültig ab ${infoBtn('goalFrom')}</label><input id="sFrom" type="date" value="${today}" max="${addDays(today, 365)}">
       <div style="height:6px"></div>
       <button class="btn block" id="sSave">Speichern</button>
       ${hist.length ? `<h2 class="sec">Verlauf der Ziele</h2><ul class="list goals">${hist.map((h) => `<li><div>ab ${fmtD(h.from)}${h.from <= today && goalsFor(today) === h ? '<span class="tag">aktuell</span>' : ''}<div class="meta">${h.goal ? `${r0(h.goal).toLocaleString('de-DE')} kcal` : 'kein kcal-Ziel'}${h.preset && PRESETS[h.preset] ? ` · ${PRESETS[h.preset].label}` : ''}${h.weight ? ` · ${r1(h.weight)} kg` : ''}${[['protein', 'Eiweiß'], ['carbs', 'KH'], ['fat', 'Fett'], ['fiber', 'Ballastst.'], ['sugar', 'Zucker max.']].filter(([k]) => h[k]).map(([k, l]) => ` · ${l} ${r0(h[k])} g`).join('')}</div></div>
@@ -1847,7 +1847,6 @@ function renderSettingsInner() {
       <div class="seg three" id="dietType">${[['all', 'Alles'], ['veg', 'Vegetarisch'], ['vegan', 'Vegan']].map(([k, l]) => `<button type="button" data-d="${k}" class="${state.diet.type === k ? 'active' : ''}">${l}</button>`).join('')}</div>
       <label>Allergien / Unverträglichkeiten ausschließen ${infoBtn('diet')}</label>
       <div class="chips" id="dietAll">${ALLERGENS.map(([k, l]) => `<label class="chip"><input type="checkbox" value="${k}" ${state.diet.allergens.includes(k) ? 'checked' : ''}> ${l}</label>`).join('')}</div>
-      <p class="small muted" style="margin-top:8px"><strong>Keine Gewähr – bei Allergien immer die Zutatenliste prüfen.</strong></p>
     </div>
     <div class="card">
       <h2>Lebensmittel teilen</h2>
