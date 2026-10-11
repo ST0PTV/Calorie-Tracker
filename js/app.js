@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.33.2';
+const APP_VERSION = '1.33.3';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -241,6 +241,14 @@ function foodSnap(food) {
   return Object.assign({ src: food.src, id: food.ref || food.id, n: food.n, brand: food.brand || '', serving: food.serving || null, liq: isLiq(food) }, nutrientsOf(food));
 }
 const isFav = (id) => state.favs.some((x) => x.id === id);
+// Aktuelle Werte zu einer gespeicherten Kopie (Favoriten, Zuletzt, Vorgemerkt): Original aus BLS, Barcode-Speicher,
+// eigenen Lebensmitteln oder hinterlegten Rezepten; fehlt es, bleibt die Kopie. Journal-Einträge bleiben bewusst unverändert.
+function liveFood(snap) {
+  const id = snap && (snap.ref || snap.id); if (!id) return snap;
+  const s = String(id);
+  const live = s.startsWith('bls:') ? blsMap.get(s) : s.startsWith('off:') ? state.offCache[s.slice(4)] : s.startsWith('rcp:') ? rcpMap.get(s) : state.custom.find((x) => x.id === s);
+  return live ? Object.assign({}, snap, live, { id: s }) : snap;
+}
 
 /* ---------- BLS-Daten ---------- */
 let bls = [];
@@ -1029,10 +1037,10 @@ function renderMine() {
 function drawMine() {
   const terms = norm(mineQuery).split(/\s+/).filter(Boolean);
   const hit = (f) => !terms.length || terms.every((t) => norm(f.n + ' ' + (f.brand || '')).includes(t));
-  const favs = state.favs.filter(hit);
-  const recent = state.recent.filter((r) => !isFav(r.id)).slice(0, 30).filter(hit);
+  const favs = state.favs.map(liveFood).filter(hit);
+  const recent = state.recent.filter((r) => !isFav(r.id)).slice(0, 30).map(liveFood).filter(hit);
   const own = state.custom.filter(hit);
-  const pantry = (state.pantry || []).filter(hit);
+  const pantry = (state.pantry || []).map(liveFood).filter(hit);
   const li = (f, i, key) => `<li data-i="${i}"><div>${isFav(f.id) && key !== 'fav' ? '<span class="star">★</span>' : ''}${esc(f.n)}${{ off: '<span class="tag">Barcode</span>', custom: '<span class="tag">Eigenes</span>', recipe: '<span class="tag">Rezept</span>', rcp: '<span class="tag">Rezept</span>' }[f.src] || ''}<div class="meta">${f.brand ? esc(f.brand) + ' · ' : ''}${fmt(f.k)} kcal / 100 ${unitOf(f)}</div></div><div class="meta">›</div></li>`;
   const sec = (title, items, key) => items.length ? `<h2 class="sec">${title}</h2><ul class="list" data-sec="${key}">${items.map((f, i) => li(f, i, key)).join('')}</ul>` : '';
   const any = state.favs.length || state.recent.length || state.custom.length || (state.pantry || []).length;
@@ -2114,7 +2122,7 @@ function collectFoods(st) {
   const custom = (st.custom || []).filter((f) => f && f.id && f.n);
   const cIds = new Set(custom.map((f) => f.id));
   const map = new Map();
-  const put = (f) => { if (!f || !f.id || !f.n || cIds.has(f.id) || map.has(f.id) || !SHARE_SRC.includes(f.src)) return; map.set(f.id, foodSnap(f)); };
+  const put = (f) => { if (!f || !f.id || !f.n || cIds.has(f.id) || map.has(f.id) || !SHARE_SRC.includes(f.src)) return; map.set(f.id, foodSnap(st === state ? liveFood(f) : f)); };
   (st.pantry || []).forEach(put);
   Object.values(st.offCache || {}).forEach(put);
   (st.recent || []).forEach(put);

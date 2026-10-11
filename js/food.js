@@ -37,7 +37,7 @@ function openPantry(tab) {
 
 function foodItems() {
   const map = new Map();
-  const put = (f, flag) => { const id = f.ref || f.id; const cur = map.get(id) || Object.assign({}, f, { id, flags: {} }); cur.flags[flag] = true; map.set(id, cur); };
+  const put = (f, flag) => { const id = f.ref || f.id; const cur = map.get(id) || Object.assign({}, liveFood(f), { id, flags: {} }); cur.flags[flag] = true; map.set(id, cur); };
   (state.pantry || []).forEach((f) => put(f, 'pantry'));
   state.favs.forEach((f) => put(f, 'fav'));
   state.custom.forEach((f) => put(f, f.src === 'recipe' ? 'recipe' : 'own'));
