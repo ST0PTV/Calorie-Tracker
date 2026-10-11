@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.33.0';
+const APP_VERSION = '1.33.1';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -126,6 +126,7 @@ function normalizeState(data) {
 }
 // Neues Körpergewicht: Profil speichern und die heute gültigen Makroziele ab heute neu berechnen (frühere Tage bleiben unverändert)
 function applyProfileWeight(w) {
+  if (w != null) (state.weightLog = state.weightLog || {})[isoDate(new Date())] = w; // vollständiger Gewichtsverlauf (auch ohne Gewichtsziel)
   const m1 = applyProfileWeightMacros(w);
   const m2 = w != null ? wgOnWeight(w) : null;
   return m2 ? `Gewicht gespeichert – ${m2}` : m1;
