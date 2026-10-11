@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.32.1';
+const APP_VERSION = '1.32.2';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -509,7 +509,7 @@ function renderDiary() {
       </div>
       ${open && list.length ? `<div class="entries">${list.map((e) => `<div class="entry" data-entry="${e.id}">
         <div class="name">${esc(e.n)}<div class="small muted">${e.quick ? 'Schnelleintrag' : `${r1(e.grams)} ${unitOf(e)}`}</div></div>
-        <div class="kcal">${de(entryTotals(e).k)} kcal${e.t ? `<div class="small etime">${esc(e.t)}</div>` : ''}</div></div>`).join('')}</div>` : ''}
+        <div class="kcal">${de(entryTotals(e).k)} kcal${e.t ? `<div class="small etime" title="abweichende Uhrzeit"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> ${esc(e.t)}</div>` : ''}</div></div>`).join('')}</div>` : ''}
       ${!list.length && prevMeal.length ? `<button class="btn ghost copy" data-copy="${m.id}">↺ Wie am Vortag (${de(prevMeal.reduce((a, e) => a + entryTotals(e).k, 0))} kcal)</button>` : ''}
     </div>`;
   }
@@ -1191,6 +1191,12 @@ function larnPortionDirect(food) {
 const r1n = (n) => Math.round((n || 0) * 10) / 10;
 
 /* ---------- Mengen-Dialog ---------- */
+// Hinweis unter „Abweichende Uhrzeit“: welche Uhrzeit sonst gilt (die der Mahlzeit, siehe Timeline)
+const MEAL_GEN = { breakfast: 'des Frühstücks', lunch: 'des Mittagessens', dinner: 'des Abendessens', snack: 'der Snacks' };
+function mealTimeHint(meal) {
+  if (typeof tlMealTime !== 'function') return '';
+  return `Sonst gilt die Uhrzeit ${MEAL_GEN[meal] || 'der Mahlzeit'}: ${tlHM(tlMealTime(currentDate, meal).h)}`;
+}
 function openAmount(food, opts = {}) {
   if (pantryMode && !opts.edit) { pantryAdd(food); return; } // Vormerken: nur speichern
   stopScanner();
@@ -1223,7 +1229,7 @@ function openAmount(food, opts = {}) {
     <label for="meal">Mahlzeit</label>
     <select id="meal">${MEALS.map((m) => `<option value="${m.id}" ${m.id === mealSel ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
     ${U === 'ml' && state.water.enabled ? `<label class="switch" style="margin-top:12px"><input type="checkbox" id="eWater" ${(edit ? food.water : state.waterFoods[foodId]) ? 'checked' : ''}> Zur Flüssigkeit (Wasserzähler) zählen</label>` : ''}
-    ${state.timeline.enabled ? `<label for="eTime">Eigene Uhrzeit (optional)</label><input id="eTime" type="time" value="${edit && food.t ? esc(food.t) : ''}"><p class="small muted" style="margin-top:4px">Leer lassen = Uhrzeit der Mahlzeit.</p>` : ''}
+    ${state.timeline.enabled ? `<label for="eTime">Abweichende Uhrzeit (optional)</label><input id="eTime" type="time" value="${edit && food.t ? esc(food.t) : ''}"><p class="small muted" id="eTimeHint" style="margin-top:4px">${mealTimeHint(mealSel)}</p>` : ''}
     <div style="height:14px"></div>
     <button class="btn block" id="save">${edit ? 'Speichern' : 'Hinzufügen'}</button>
     ${edit ? '<div style="height:10px"></div><button class="btn danger block" id="del">Eintrag löschen</button>' : ''}
@@ -1259,6 +1265,7 @@ function openAmount(food, opts = {}) {
   g.addEventListener('input', () => { lastChip = null; document.querySelectorAll('#portions .chip').forEach((c) => c.classList.remove('on')); });
   const back = () => { if (edit || opts.direct) closeSheet(); else openAdd(addMeal); };
   $('#back').onclick = back;
+  const ms = $('#meal'), th = $('#eTimeHint'); if (ms && th) ms.addEventListener('change', () => { th.textContent = mealTimeHint(ms.value); });
   $('#favBtn').onclick = () => {
     if (isFav(foodId)) { state.favs = state.favs.filter((x) => x.id !== foodId); $('#favBtn').textContent = '☆'; toast('Aus Favoriten entfernt'); }
     else { state.favs.unshift(foodSnap(food)); $('#favBtn').textContent = '★'; toast('Zu Favoriten hinzugefügt'); }
@@ -1308,12 +1315,13 @@ function openQuick(meal, entry) {
     </div>
     <label for="qMeal">Mahlzeit</label>
     <select id="qMeal">${MEALS.map((m) => `<option value="${m.id}" ${m.id === (e.meal || meal) ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
-    ${state.timeline.enabled ? `<label for="qT">Eigene Uhrzeit (optional)</label><input id="qT" type="time" value="${e.t ? esc(e.t) : ''}">` : ''}
+    ${state.timeline.enabled ? `<label for="qT">Abweichende Uhrzeit (optional)</label><input id="qT" type="time" value="${e.t ? esc(e.t) : ''}"><p class="small muted" id="qTHint" style="margin-top:4px">${mealTimeHint(e.meal || meal)}</p>` : ''}
     <div style="height:14px"></div>
     <button class="btn block" id="qSave">${entry ? 'Speichern' : 'Hinzufügen'}</button>
     ${entry ? '<div style="height:10px"></div><button class="btn danger block" id="qDel">Eintrag löschen</button>' : ''}`);
   const back = () => { if (entry) closeSheet(); else openAdd(addMeal); };
   $('#back').onclick = back;
+  const qm = $('#qMeal'), qh = $('#qTHint'); if (qm && qh) qm.addEventListener('change', () => { qh.textContent = mealTimeHint(qm.value); });
   $('#qSave').onclick = () => {
     const k = num($('#qK').value);
     if (k == null || k < 0) { toast('Bitte Kalorien eingeben.'); return; }
