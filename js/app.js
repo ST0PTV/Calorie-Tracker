@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.22.0';
+const APP_VERSION = '1.22.1';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -25,6 +25,7 @@ function emptyState() {
     diet: { type: 'all', allergens: [] },
     sugRatings: {}, // Bewertung je Lebensmittel-ID: -3 … +3; ab -2 nicht mehr vorgeschlagen
     wgoal: WG_DEFAULTS(), weightLog: {},
+    waterFoods: {}, // Lebensmittel, die standardmäßig zur Flüssigkeit zählen
     slices: {}, // gelerntes Scheibengewicht je Lebensmittel-ID (g)
     water: { enabled: true, goal: 1500, log: {} }, // log: { 'JJJJ-MM-TT': [ml, ml, …] }
     supp: SUPP_DEFAULTS(),
@@ -97,6 +98,7 @@ function normalizeState(data) {
   if (!Array.isArray(s.diet.allergens)) s.diet.allergens = [];
   if (!s.sugRatings || typeof s.sugRatings !== 'object') s.sugRatings = {};
   if (!s.slices || typeof s.slices !== 'object') s.slices = {};
+  if (!s.waterFoods || typeof s.waterFoods !== 'object') s.waterFoods = {};
   s.wgoal = Object.assign(WG_DEFAULTS(), data.wgoal || {});
   if (!s.weightLog || typeof s.weightLog !== 'object') s.weightLog = {};
   s.water = Object.assign(emptyState().water, data.water || {});
@@ -349,7 +351,7 @@ function sfHalf(cls, label, val, target, kind, natural) {
 }
 /* ---------- Info-Knöpfe (Blatt von unten) ---------- */
 const INFO_STATIC = {
-  water: { body: '<p>Richtwert der DGE: 1,5 l Getränke pro Tag; bei Hitze, Sport oder körperlicher Arbeit mehr. Die EFSA nennt 2,5 l (Männer) bzw. 2,0 l (Frauen) Gesamtwasser – inklusive Wasser aus Lebensmitteln.</p><p>Koffein-Getränke zählen mit ihren ml, Alkohol zählt nicht.</p>', src: 'DGE · EFSA 2010' },
+  water: { body: '<p>Richtwert der DGE: 1,5 l Getränke pro Tag; bei Hitze, Sport oder körperlicher Arbeit mehr. Die EFSA nennt 2,5 l (Männer) bzw. 2,0 l (Frauen) Gesamtwasser – inklusive Wasser aus Lebensmitteln.</p><p>Koffein-Getränke zählen mit ihren ml, Alkohol zählt nicht. Andere Getränke aus dem Journal (z. B. Schorle, Milch) zählen, wenn du im Eintrag „Zur Flüssigkeit zählen“ anhakst – die App merkt sich das je Lebensmittel.</p>', src: 'DGE · EFSA 2010' },
   sug: { body: '<p>Die Vorschläge erscheinen im Journal, wenn du die App nach dieser Uhrzeit öffnest und noch mindestens so viele kcal offen sind. Vorgeschlagen wird zuerst aus deinen bisherigen Einträgen, sonst aus gängigen Kochzutaten.</p><p>Mit 👍/👎 bewertest du einzelne Lebensmittel; zweimal 👎 schließt sie aus. Eine Benachrichtigung zur Uhrzeit ist ohne Server nicht möglich – mit einer Kurzbefehle-Automation kann iOS die App aber zur gewünschten Zeit öffnen.</p>' },
   diet: { body: '<p>Gilt für die Vorschläge. Erkannt wird anhand der BLS-Lebensmittelgruppe und des Namens, bei Barcode-Produkten über Open Food Facts, bei eigenen Lebensmitteln über deine Angaben.</p><p>Ist etwas unklar (z. B. Fertiggerichte), wird es nicht vorgeschlagen. Sulfite sind nicht erkennbar.</p>' },
   sf: { body: '<p>Bei den Ernährungszielen Ausgewogen, Muskelaufbau und Fettabbau rechnet die App automatisch: Ballaststoffe mindestens 30 g (DGE), freier Zucker höchstens 10 % (oder 5 %) deiner Kalorien (WHO). Bei „Eigene“ trägst du beide Werte selbst ein.</p><p>Freier Zucker = zugesetzter Zucker sowie Zucker in Honig, Sirup und Fruchtsaft. Zucker in ganzem Obst, Gemüse und Milch zählt als natürlich und wird nur angezeigt. Der freie Anteil wird aus Lebensmittelgruppe und Namen geschätzt.</p>', pts: [['< 10 % der kcal', 'WHO, starke Empfehlung'], ['< 5 % der kcal', 'WHO, bedingte Empfehlung'], ['≥ 30 g Ballaststoffe', 'DGE, für Erwachsene']], src: 'WHO 2015 · DGE/DAG/DDG 2019 · DGE 2022' },
@@ -505,7 +507,9 @@ function renderDiary() {
    Standardziel 1,5 l Getränke pro Tag (Richtwert der DGE); EFSA (2010): angemessene Gesamtwasserzufuhr
    2,5 l (Männer) bzw. 2,0 l (Frauen) inklusive Wasser aus Lebensmitteln. */
 const waterManual = (iso) => (state.water.log[iso] || []).reduce((a, b) => a + b, 0);
-const waterOf = (iso) => waterManual(iso) + caffWater(iso);
+// ml aus Journal-Einträgen, bei denen „zur Flüssigkeit zählen“ gesetzt ist (z. B. Schorle, Milch)
+const foodWater = (iso) => (state.days[iso] || []).filter((e) => e.water && isLiq(e) && !e.cafId && !e.alcId).reduce((a, e) => a + (e.grams || 0), 0);
+const waterOf = (iso) => waterManual(iso) + caffWater(iso) + foodWater(iso);
 const litres = (ml) => (ml / 1000).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 function waterCardHtml(iso) {
   if (!state.water.enabled) return '';
@@ -1074,6 +1078,7 @@ function openAmount(food, opts = {}) {
     <div class="nutri" id="nutri"></div>
     <label for="meal">Mahlzeit</label>
     <select id="meal">${MEALS.map((m) => `<option value="${m.id}" ${m.id === mealSel ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
+    ${U === 'ml' && state.water.enabled ? `<label class="switch" style="margin-top:12px"><input type="checkbox" id="eWater" ${(edit ? food.water : state.waterFoods[foodId]) ? 'checked' : ''}> Zur Flüssigkeit (Wasserzähler) zählen</label>` : ''}
     ${state.timeline.enabled ? `<label for="eTime">Eigene Uhrzeit (optional)</label><input id="eTime" type="time" value="${edit && food.t ? esc(food.t) : ''}"><p class="small muted" style="margin-top:4px">Leer lassen = Uhrzeit der Mahlzeit.</p>` : ''}
     <div style="height:14px"></div>
     <button class="btn block" id="save">${edit ? 'Speichern' : 'Hinzufügen'}</button>
@@ -1124,10 +1129,11 @@ function openAmount(food, opts = {}) {
     const meal = $('#meal').value;
     if (edit) {
       const e = (state.days[currentDate] || []).find((x) => x.id === food.id);
-      if (e) { e.grams = grams; e.meal = meal; const tv = $('#eTime') && $('#eTime').value; if (tv) e.t = tv; else delete e.t; }
+      if (e) { e.grams = grams; e.meal = meal; const wv = $('#eWater'); if (wv) { if (wv.checked) e.water = true; else delete e.water; state.waterFoods[foodId] = wv.checked || undefined; } const tv = $('#eTime') && $('#eTime').value; if (tv) e.t = tv; else delete e.t; }
     } else {
       const entry = Object.assign({ id: uid(), meal, grams, ref: foodId, src: food.src, n: food.n, brand: food.brand || '', liq: isLiq(food) }, nutrientsOf(food));
       const tv = $('#eTime') && $('#eTime').value; if (tv) entry.t = tv;
+      const wv = $('#eWater'); if (wv) { if (wv.checked) entry.water = true; state.waterFoods[foodId] = wv.checked || undefined; }
       (state.days[currentDate] = state.days[currentDate] || []).push(entry);
       state.recent = [Object.assign(foodSnap(food), { lastGrams: grams })].concat(state.recent.filter((x) => x.id !== foodId)).slice(0, 60);
     }
