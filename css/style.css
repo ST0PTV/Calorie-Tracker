@@ -81,15 +81,6 @@ label { display: block; font-size: 0.8rem; color: var(--muted); margin: 12px 0 6
 
 /* Übersicht */
 .hero { border-radius: 24px; padding: 18px 16px 16px; }
-.gauge { position: relative; height: 136px; display: flex; justify-content: center; }
-.gauge svg { width: 260px; height: 140px; overflow: visible; }
-.gauge .track { stroke: rgba(255, 255, 255, 0.08); }
-.gauge .fill { stroke: var(--accent); transition: stroke-dasharray .4s; }
-.gauge .fill.over { stroke: var(--warn); }
-.gauge .center { position: absolute; left: 0; right: 0; bottom: 0; text-align: center; }
-.gauge .big { font-size: 2.8rem; font-weight: 300; letter-spacing: -0.03em; line-height: 1; }
-.gauge .big.over { color: var(--warn); }
-.gauge .cap { font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
 .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
 .tile { border-radius: 14px; background: var(--panel); padding: 10px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .tile .lbl { font-size: 0.72rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -356,13 +347,6 @@ label.chip { display: inline-flex; align-items: center; gap: 8px; }
 .supp-n { font-size: 0.72rem; font-weight: 600; text-align: center; line-height: 1.2; }
 .supp-s { font-size: 0.65rem; color: var(--muted); margin-top: -3px; }
 .supp-ico.sm { width: 40px; height: 40px; border-width: 1px; border-style: solid; flex: none; }
-.supp-remind { border-color: rgba(255, 154, 107, 0.45); background: linear-gradient(160deg, rgba(255, 154, 107, 0.14), rgba(255, 154, 107, 0.04)); display: flex; flex-direction: column; gap: 10px; }
-.supp-r-top { display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; }
-.supp-x { background: none; border: 0; color: var(--muted); font-size: 1rem; padding: 4px 8px; cursor: pointer; }
-.supp-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.supp-chip { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 12px 0 9px; border-radius: 12px; background: rgba(255, 255, 255, 0.06); border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); font-size: 0.78rem; font-weight: 600; }
-.supp-r-btns { display: grid; grid-template-columns: 1fr 96px; gap: 8px; }
-.supp-r-btns .btn { min-height: 44px; }
 .sp-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 .sp-item { border: 1px solid var(--line); border-radius: 16px; background: rgba(255, 255, 255, 0.03); padding: 6px 10px; }
 .sp-item.open { padding-bottom: 12px; background: rgba(255, 255, 255, 0.05); }
@@ -394,8 +378,6 @@ label.sw input:checked::after { transform: translateX(18px); }
 .hc-n { position: relative; font-size: 0.72rem; font-weight: 600; }
 .hc-n.dim { color: #4A586C; }
 .hc-leg { display: flex; justify-content: flex-end; margin-top: 4px; }
-.hc-leg i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
-.hc-leg i.e { background: none; border: 1px dashed var(--line-strong); }
 .hch-row { display: flex; gap: 6px; margin: 10px 0 6px; flex-wrap: wrap; }
 .hch { border: 1px solid var(--line); background: var(--panel); color: var(--muted); border-radius: 999px; padding: 7px 12px; font-size: 0.78rem; cursor: pointer; font-family: inherit; }
 .hch.active { background: var(--accent-soft); color: var(--accent); border-color: rgba(91, 231, 245, 0.4); font-weight: 600; }
@@ -519,10 +501,6 @@ p, .info-body, .info-src, .sp-hint, .caf-note, .refs li { text-align: justify; -
 .wg-plan .spread { font-size: 0.82rem; }
 .wg-res { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 0.95rem !important; }
 .wg-res strong { color: var(--accent); font-size: 1.05rem; }
-.mine-li { display: flex; align-items: center; gap: 8px; }
-.mine-li > div { flex: 1; min-width: 0; }
-.mine-del { flex: 0 0 auto; width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); font-size: 0.85rem; cursor: pointer; }
-.mine-del:active { color: var(--warn); border-color: var(--warn); }
 #mq { margin-bottom: 4px; }
 
 /* Reiter Essen */

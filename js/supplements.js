@@ -76,7 +76,6 @@ function suppIronRef() {
 /* ---------- Journal: eine Karte (Leiste); offene Supplements werden hervorgehoben ---------- */
 let suppSnoozeUntil = 0; // nur im Speicher: „Später“ blendet die Hervorhebung für eine Stunde aus
 function suppOpenItems(iso) { return suppItemsFor(iso).filter((x) => !suppTaken(iso, x.id)); }
-function suppReminderHtml() { return ''; } // ersetzt durch die Hervorhebung der Leiste
 function suppCardHtml(iso) {
   const s = state.supp; if (!s.enabled) return '';
   const items = suppItemsFor(iso); if (!items.length) return '';

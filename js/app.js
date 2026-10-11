@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.33.3';
+const APP_VERSION = '1.33.4';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -456,19 +456,9 @@ function renderDiary() {
   const t = sumEntries(entries);
   const prev = addDays(currentDate, -1);
   const prevEntries = state.days[prev] || [];
-  const frac = goal ? Math.min(1, t.k / goal) : 0;
-  const over = goal && t.k > goal;
-  const rest = goal ? goal - t.k : null;
-  const ARC = 345.6; // Länge des Halbkreises (r = 110)
   const de = fmt;
   const weekday = new Date(currentDate + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
 
-  const tile = (cls, label, val, target) => `
-    <div class="tile ${cls}">
-      <div class="lbl">${label}</div>
-      <div class="val">${r0(val)} <span>${target ? `/ ${r0(target)} g` : 'g'}</span></div>
-      <div class="mbar"><span style="width:${target ? Math.min(100, (val / target) * 100) : 0}%"></span></div>
-    </div>`;
 
   let html = `
     <div class="topbar">
@@ -491,7 +481,6 @@ function renderDiary() {
       ${heroHtml(goal, t, s)}
       ${(() => { const T = sfTargets(s); return state.showSF && (T.sugar || T.fiber) ? `<div class="sf-row">${T.sugar ? sfHalf('su', 'Freier Zucker', t.fs, T.sugar, 'max.', t.su - t.fs) : ''}${T.fiber ? sfHalf('fi', 'Ballaststoffe', t.fi, T.fiber, 'mind.') : ''}</div>` : ''; })()}
     </div>`;
-  html += suppReminderHtml(currentDate);
   html += suppCardHtml(currentDate);
   html += waterCardHtml(currentDate);
   html += caffCardHtml(currentDate);
@@ -2076,26 +2065,13 @@ function renderSettingsInner() {
   $('#exp').onclick = async () => { await exportBackup(); renderSettings(); };
   $('#fExp').onclick = () => exportFoods();
   $('#fImpBtn').onclick = () => $('#fImp').click();
-  $('#fImp').onchange = (ev) => {
-    const file = ev.target.files[0]; if (!file) return;
-    const rd = new FileReader();
-    rd.onload = () => { try { importFoods(JSON.parse(rd.result)); } catch (e) { toast('Datei konnte nicht gelesen werden.'); } ev.target.value = ''; keepScroll(); };
-    rd.readAsText(file);
-  };
+  $('#fImp').onchange = (ev) => readJsonFile(ev, (data) => { importFoods(data); keepScroll(); }, 'Datei konnte nicht gelesen werden.');
   $('#impBtn').onclick = () => $('#imp').click();
-  $('#imp').onchange = (ev) => {
-    const file = ev.target.files[0]; if (!file) return;
-    const rd = new FileReader();
-    rd.onload = () => {
-      try {
-        const data = JSON.parse(rd.result);
-        if (!data || typeof data !== 'object' || !data.days) throw new Error('format');
-        if (!confirm('Backup importieren? Die aktuellen Daten auf diesem Gerät werden ersetzt.')) return;
-        state = normalizeState(data); save(); toast('Backup importiert'); render();
-      } catch (e) { toast('Datei ist kein gültiges Backup.'); }
-    };
-    rd.readAsText(file);
-  };
+  $('#imp').onchange = (ev) => readJsonFile(ev, (data) => {
+    if (!data || typeof data !== 'object' || !data.days) { toast('Datei ist kein gültiges Backup.'); return; }
+    if (!confirm('Backup importieren? Die aktuellen Daten auf diesem Gerät werden ersetzt.')) return;
+    state = normalizeState(data); save(); toast('Backup importiert'); render();
+  }, 'Datei ist kein gültiges Backup.');
   $('#wipe').onclick = () => {
     if (confirm('Wirklich alle Einträge, eigenen Lebensmittel, Rezepte und Einstellungen löschen?')) {
       state = emptyState(); save(); toast('Alle Daten gelöscht'); render();
@@ -2104,6 +2080,13 @@ function renderSettingsInner() {
 }
 
 /* ---------- Lebensmittel teilen (ohne persönliche Daten) ---------- */
+// Datei aus einem <input type="file"> als JSON lesen; Eingabe danach zurücksetzen (gleiche Datei erneut wählbar)
+function readJsonFile(ev, onData, errMsg) {
+  const file = ev.target.files[0]; if (!file) return;
+  const rd = new FileReader();
+  rd.onload = () => { let data; try { data = JSON.parse(rd.result); } catch (e) { toast(errMsg); ev.target.value = ''; return; } ev.target.value = ''; onData(data); };
+  rd.readAsText(file);
+}
 async function shareJson(obj, name, done) {
   const blob = new Blob([JSON.stringify(obj)], { type: 'application/json' });
   try {
@@ -2166,20 +2149,7 @@ function importFoods(data) {
   save(); toast(`${total} Lebensmittel übernommen`);
 }
 async function exportBackup() {
-  const name = `kalorien-backup-${isoDate(new Date())}.json`;
-  const blob = new Blob([JSON.stringify(state)], { type: 'application/json' });
-  const markDone = () => { state.lastBackup = Date.now(); save(); toast('Backup erstellt'); };
-  try {
-    const file = new File([blob], name, { type: 'application/json' });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ files: [file], title: name });
-      markDone(); return;
-    }
-  } catch (e) { if (e && e.name === 'AbortError') return; }
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
-  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-  markDone();
+  await shareJson(state, `kalorien-backup-${isoDate(new Date())}.json`, () => { state.lastBackup = Date.now(); save(); toast('Backup erstellt'); });
 }
 
 /* ---------- Start ---------- */
