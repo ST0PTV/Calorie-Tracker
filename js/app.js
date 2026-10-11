@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.17.0';
+const APP_VERSION = '1.18.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -27,7 +27,7 @@ function emptyState() {
     water: { enabled: true, goal: 1500, log: {} }, // log: { 'JJJJ-MM-TT': [ml, ml, …] }
     supp: SUPP_DEFAULTS(),
     timeline: TL_DEFAULTS(),
-    profile: { weight: null },
+    profile: { weight: null, sex: null },
     sugarPct: 10, showSF: false,
     caffeine: CAFF_DEFAULTS(), // log: { 'JJJJ-MM-TT': [{ id, min (Minuten seit 0 Uhr), mg, n, dur (Minuten) }] }
   };
@@ -97,7 +97,7 @@ function normalizeState(data) {
   if (!s.water.log || typeof s.water.log !== 'object') s.water.log = {};
   s.supp = suppNormalize(data.supp);
   s.timeline = tlNormalize(data.timeline);
-  s.profile = Object.assign({ weight: null }, data.profile || {});
+  s.profile = Object.assign({ weight: null, sex: null }, data.profile || {});
   if (data.showSF == null) s.showSF = !!(s.goalHistory || []).some((h) => h.fiber || h.sugar);
   if (![5, 10].includes(s.sugarPct)) s.sugarPct = 10;
   s.caffeine = Object.assign(CAFF_DEFAULTS(), data.caffeine || {});
@@ -1615,6 +1615,7 @@ function renderSettingsInner() {
       <p style="margin-top:10px"><strong style="color:var(--ink)">Ballaststoffe &amp; Zucker</strong></p>
       <p class="small muted">Ballaststoffe: DGE-Richtwert mindestens 30 g pro Tag (2022 bestätigt). Freier Zucker: WHO (2015) empfiehlt weniger als 10 % der Energie (starke Empfehlung) und schlägt weniger als 5 % vor (bedingte Empfehlung, schwächere Evidenz); DGE, DAG und DDG schließen sich den 10 % an. Freier Zucker = zugesetzter Zucker sowie Zucker in Honig, Sirup, Fruchtsaft und -konzentrat; Zucker in ganzem Obst, Gemüse und Milch zählt als natürlich. Der BLS kennt keinen „zugesetzten“ Zucker – die App leitet ihn aus Lebensmittelgruppe und Namen ab (z. B. „gezuckert“, Süßwaren, Säfte); bei gesüßten Milchprodukten wird der Milchzucker abgezogen. Das ist eine Schätzung. Bei Barcode-Produkten wird „added sugars“ aus Open Food Facts genutzt, sonst zählt der gesamte Zucker als frei; bei eigenen Lebensmitteln ebenso, wenn kein Wert eingetragen ist.</p>
       <p style="margin-top:10px"><strong style="color:var(--ink)">Timeline</strong></p>
+      <p class="small muted">Geschlecht: Frauen entleeren den Magen im Mittel langsamer (Datz FL et al. 1987, J Nucl Med 28(7):1204–1207: Feststoffe T½ 92 vs. 60 min, n = 15 je Gruppe; Caballero-Plasencia AM et al. 1999, Scand J Gastroenterol 34(8):772–776, doi:10.1080/003655299750025697: n = 200, kein Unterschied zwischen Zyklusphasen). Die App nutzt gedämpft den Faktor 0,9 (Männer) bzw. 1,1 (Frauen), damit beide Kurven innerhalb der Normalwerte bleiben. Koffein: Geschlecht ohne wesentlichen Einfluss auf CYP1A2 (Grzegorzewski J et al. 2022, Front Pharmacol 12:752826); östrogenhaltige Pille verlängert die Halbwertszeit (Abernethy DR, Todd EL 1985, Eur J Clin Pharmacol 28(4):425–428, doi:10.1007/BF00544361).</p>
       <p class="small muted">Die Magen-Füllung ist ein grobes Modell: Restanteil 2^(−(t/T½)²) mit T½ ≈ 1,75 h für eine kleine fettarme Mahlzeit (ergibt nach 1/2/4 h etwa 80/40/3 % – innerhalb der Normalwerte der Szintigrafie). Längere Zeiten für große und fettreiche Mahlzeiten sowie die Darmphase (+3 h) sind Annahmen, keine Messwerte. Der Plan-Vorschlag ist eine Faustregel, keine belegte „beste“ Verteilung.</p>
       <ul class="refs"><li>Abell TL et al. (2008). Consensus recommendations for gastric emptying scintigraphy. J Nucl Med Technol 36(1):44–54. doi:10.2967/jnmt.107.048116</li>
         <li>Katz PO et al. (2022). ACG Clinical Guideline for the Diagnosis and Management of GERD. Am J Gastroenterol 117(1):27–56 (Mahlzeiten 2–3 h vor dem Schlafen meiden; Empfehlung für Refluxkranke). doi:10.14309/ajg.0000000000001538</li>
