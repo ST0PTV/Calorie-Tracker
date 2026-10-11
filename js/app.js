@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.29.4';
+const APP_VERSION = '1.29.5';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -353,7 +353,7 @@ function sfHalf(cls, label, val, target, kind, natural) {
   }
   return `<div class="sf ${cls}"><div class="sf-h"><span>${label}</span><span class="sf-st ${tone}">${st}</span></div>
     <div class="sf-v"><strong>${r0(val)}</strong><span>${kind} ${r0(target)} g</span></div>
-    <div class="sf-bar"><span style="width:${Math.min(100, r * 100)}%"></span></div>${natural != null ? `<div class="sf-nat">+ ${r0(Math.max(0, natural))} g natürlicher Zucker</div>` : ''}</div>`;
+    <div class="sf-bar"><span style="width:${Math.min(100, r * 100)}%"></span></div>${natural != null && natural >= 0.5 ? `<div class="sf-nat">+ ${r0(Math.max(0, natural))} g natürlicher Zucker</div>` : ''}</div>`;
 }
 /* ---------- Info-Knöpfe (Blatt von unten) ---------- */
 const INFO_STATIC = {
