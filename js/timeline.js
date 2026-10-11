@@ -24,7 +24,7 @@ function tlNormalize(d) {
 /* ---------- Zeiten ---------- */
 const tlH = (hm) => { const [a, b] = String(hm).split(':').map(Number); return a + (b || 0) / 60; };
 const tlHM = (h) => { const m = Math.round(((h % 24) + 24) % 24 * 60); return `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
-const tlDe = (n) => Math.round(n).toLocaleString('de-DE');
+const tlDe = (n) => fmt(n);
 const tlDur = (h) => { const m = Math.round(h * 60); return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')} h`; };
 function tlBed() { const b = tlH(state.caffeine.bed); return b < 12 ? b + 24 : b; } // Bettzeit nach Mitternacht → +24
 function tlWake() { return tlH(state.caffeine.wake); }
@@ -167,15 +167,15 @@ function tlDayHtml(iso, isToday, nowH) {
   // Balken
   const bars = all.map((ev) => {
     const ph = tlPhases(ev), x0 = tlX(ev.h), xm = tlX(ph.stomachEnd), xe = tlX(ph.absorbEnd);
-    const lab = `${tlHM(ev.h)} ${ev.ghost ? 'Vorschlag ' + TL_LABEL[ev.meal] : TL_LABEL[ev.meal]} · ${r0(ev.kcal)}`;
+    const lab = `${tlHM(ev.h)} ${ev.ghost ? 'Vorschlag ' + TL_LABEL[ev.meal] : TL_LABEL[ev.meal]} · ${fmt(ev.kcal)}`;
     return `<button class="tl-bar ${ev.ghost ? 'ghost' : ''}" ${ev.ghost ? 'disabled' : `data-tlmeal="${ev.meal}"`} aria-label="${esc(lab)} kcal – Uhrzeit ändern">
       <span class="st" style="left:${x0}%;width:${Math.max(1, xm - x0)}%"></span><span class="ab" style="left:${xm}%;width:${Math.max(0, xe - xm)}%"></span>
       <span class="lb" style="left:${Math.min(x0, 62)}%">${esc(lab)}</span></button>`;
   }).join('');
   const sleepL = tlX(bed);
   const card = `<div class="card tl-card">
-    <div class="tl-top"><div><div class="small muted">Magen zur Bettzeit (Modell)</div><div class="tl-big">~${r0(atBed)} <span>kcal</span></div>
-      ${ghosts.length ? `<div class="small muted">mit Vorschlag: ~${r0(atBedPlan)} kcal</div>` : ''}</div>
+    <div class="tl-top"><div><div class="small muted">Magen zur Bettzeit (Modell)</div><div class="tl-big">~${fmt(atBed)} <span>kcal</span></div>
+      ${ghosts.length ? `<div class="small muted">mit Vorschlag: ~${fmt(atBedPlan)} kcal</div>` : ''}</div>
       <div class="tl-pill ${okGap ? 'ok' : 'warn'}">${gapH > 0 ? tlDur(gapH) : '0:00 h'} zwischen<br>Essen und Bett</div></div>
     ${svg}
     <div class="tl-bars"><span class="tl-bsleep" style="left:${sleepL}%"></span>${isToday ? `<span class="tl-bnow" style="left:${tlX(nowH)}%"></span>` : ''}${bars}</div>
@@ -187,7 +187,7 @@ function tlDayHtml(iso, isToday, nowH) {
   let pause = 0, pFrom = null;
   for (let i = 1; i < evs.length; i++) { const d = evs[i].h - evs[i - 1].h; if (d > pause) { pause = d; pFrom = [evs[i - 1].h, evs[i].h]; } }
   const tiles = `<div class="tl-tiles">
-    <div class="tile"><div class="small muted">${isToday ? 'Jetzt im Magen' : 'Zur Bettzeit'}</div><strong>~${r0(isToday ? tlStomach(evs, nowH) : atBed)} kcal</strong><div class="small muted">Modell</div></div>
+    <div class="tile"><div class="small muted">${isToday ? 'Jetzt im Magen' : 'Zur Bettzeit'}</div><strong>~${fmt(isToday ? tlStomach(evs, nowH) : atBed)} kcal</strong><div class="small muted">Modell</div></div>
     <div class="tile"><div class="small muted">Essfenster</div><strong>${tlHM(first)}–${tlHM(last)}</strong><div class="small muted">${tlDur(last - first)}</div></div>
     <div class="tile"><div class="small muted">Längste Pause</div><strong>${pFrom ? tlDur(pause) : '–'}</strong><div class="small muted">${pFrom ? `${tlHM(pFrom[0])}–${tlHM(pFrom[1])}` : 'eine Mahlzeit'}</div></div></div>`;
   return card + tiles;

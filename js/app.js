@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.29.2';
+const APP_VERSION = '1.29.3';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -150,7 +150,10 @@ function sfTargets(s) {
   if (s.preset && s.preset !== 'custom') return { fiber: 30, sugar: s.goal ? Math.round(s.goal * state.sugarPct / 100 / 4) : null };
   return { fiber: s.fiber || null, sugar: s.sugar || null };
 }
-const de0 = (n) => Math.round(n).toLocaleString('de-DE');
+// Anzeige ganzer Zahlen: Tausenderpunkt, echtes Minuszeichen; fmtS mit Vorzeichen (+/−). Nicht für Eingabefelder.
+const fmt = (n) => r0(n).toLocaleString('de-DE').replace('-', '−');
+const fmtS = (n) => (r0(n) > 0 ? '+' : '') + fmt(n);
+const de0 = fmt;
 // Ziele, die an einem Tag galten. Tage vor dem ersten Eintrag nutzen das erste Ziel.
 function goalsFor(iso) {
   const h = state.goalHistory;
@@ -391,7 +394,7 @@ const openMeals = new Set();   // aufgeklappte Mahlzeiten (nur für diese Sitzun
    Umschalter Übrig/Gegessen und g/% werden gespeichert. */
 function heroHtml(goal, t, s) {
   const left = state.heroMode !== 'eaten';
-  const de = (n) => r0(n).toLocaleString('de-DE');
+  const de = fmt;
   const over = goal && t.k > goal;
   const R = 58, L = 2 * Math.PI * R;
   const parts = [['p', t.p * 4], ['c', t.c * 4], ['f', t.f * 9]];
@@ -440,7 +443,7 @@ function renderDiary() {
   const over = goal && t.k > goal;
   const rest = goal ? goal - t.k : null;
   const ARC = 345.6; // Länge des Halbkreises (r = 110)
-  const de = (n) => r0(n).toLocaleString('de-DE');
+  const de = fmt;
   const weekday = new Date(currentDate + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
 
   const tile = (cls, label, val, target) => `
@@ -797,7 +800,7 @@ function suggestionCardHtml(iso) {
   if (!blsReady) return '<div class="card sug"><h2>Vorschlag für heute Abend</h2><p class="small muted">Lade Lebensmitteldaten…</p></div>';
   const list = computeSuggestions(iso);
   const R = remainingFor(iso);
-  const de = (x) => r0(x).toLocaleString('de-DE');
+  const de = fmt;
   const open = `${de(R.k)} kcal${R.p != null ? ` · Eiweiß ${de(R.p)} g` : ''}${R.c != null ? ` · KH ${de(R.c)} g` : ''}${R.f != null ? ` · Fett ${de(R.f)} g` : ''}`;
   const prio = `<div class="seg three sug-prio">${[['kcal', 'Kalorien'], ['protein', 'Eiweiß zuerst'], ['balanced', 'Ausgewogen']].map(([k, l]) => `<button type="button" data-sugprio="${k}" class="${state.sug.priority === k ? 'active' : ''}">${l}</button>`).join('')}</div>`;
   if (!list.length) {
@@ -911,7 +914,7 @@ function renderAddTab() {
 function foodLi(f, i) {
   const tag = { off: 'Barcode', custom: 'Eigenes', recipe: 'Rezept' }[f.src];
   const star = isFav(f.id) ? '<span class="star">★</span>' : '';
-  return `<li data-i="${i}"><div>${star}${esc(f.n)}${tag ? `<span class="tag">${tag}</span>` : ''}<div class="meta">${f.brand ? esc(f.brand) + ' · ' : ''}${r0(f.k)} kcal / 100 ${unitOf(f)}</div></div><div class="meta">›</div></li>`;
+  return `<li data-i="${i}"><div>${star}${esc(f.n)}${tag ? `<span class="tag">${tag}</span>` : ''}<div class="meta">${f.brand ? esc(f.brand) + ' · ' : ''}${fmt(f.k)} kcal / 100 ${unitOf(f)}</div></div><div class="meta">›</div></li>`;
 }
 function bindList(root, items, onPick) {
   root.querySelectorAll('li[data-i]').forEach((li) => li.onclick = () => onPick(items[+li.dataset.i]));
@@ -945,7 +948,7 @@ function drawMine() {
   const own = state.custom.filter(hit);
   const pantry = (state.pantry || []).filter(hit);
   const delLabel = { fav: 'Aus Favoriten entfernen', recent: 'Aus „Zuletzt verwendet“ entfernen', own: 'Lebensmittel löschen', pantry: 'Aus „Vorgemerkt“ entfernen' };
-  const li = (f, i, key) => `<li data-i="${i}" class="mine-li"><div>${isFav(f.id) && key !== 'fav' ? '<span class="star">★</span>' : ''}${esc(f.n)}${{ off: '<span class="tag">Barcode</span>', custom: '<span class="tag">Eigenes</span>', recipe: '<span class="tag">Rezept</span>' }[f.src] || ''}<div class="meta">${f.brand ? esc(f.brand) + ' · ' : ''}${r0(f.k)} kcal / 100 ${unitOf(f)}</div></div>
+  const li = (f, i, key) => `<li data-i="${i}" class="mine-li"><div>${isFav(f.id) && key !== 'fav' ? '<span class="star">★</span>' : ''}${esc(f.n)}${{ off: '<span class="tag">Barcode</span>', custom: '<span class="tag">Eigenes</span>', recipe: '<span class="tag">Rezept</span>' }[f.src] || ''}<div class="meta">${f.brand ? esc(f.brand) + ' · ' : ''}${fmt(f.k)} kcal / 100 ${unitOf(f)}</div></div>
     <button type="button" class="mine-del" data-del="${key}:${i}" aria-label="${delLabel[key]}" title="${delLabel[key]}">✕</button></li>`;
   const sec = (title, items, key) => items.length ? `<h2 class="sec">${title}</h2><ul class="list" data-sec="${key}">${items.map((f, i) => li(f, i, key)).join('')}</ul>` : '';
   const any = state.favs.length || state.recent.length || state.custom.length || (state.pantry || []).length;
@@ -1121,7 +1124,7 @@ function openAmount(food, opts = {}) {
       <button class="btn ghost star-btn" id="favBtn" aria-label="Favorit">${fav ? '★' : '☆'}</button></div>
     <h1>${esc(food.n)}</h1>
     ${food.brand ? `<p class="muted">${esc(food.brand)}</p>` : ''}
-    <p class="small muted">Pro 100 ${U}: ${r0(food.k)} kcal · E ${r1(food.p)} g · KH ${r1(food.c)} g · F ${r1(food.f)} g · Ballastst. ${r1(food.fi)} g · Zucker ${r1(food.su)} g</p>
+    <p class="small muted">Pro 100 ${U}: ${fmt(food.k)} kcal · E ${r1(food.p)} g · KH ${r1(food.c)} g · F ${r1(food.f)} g · Ballastst. ${r1(food.fi)} g · Zucker ${r1(food.su)} g</p>
     <label for="grams">Menge in ${U === 'ml' ? 'Millilitern' : 'Gramm'}</label>
     <input id="grams" type="text" inputmode="decimal" value="${r1(defGrams)}">
     <div class="chips portions" id="portions">${portionOptions(food).map((o, i) => `<button type="button" class="chip" data-pi="${i}" title="${esc(o.hint)}">${esc(o.label)} · ${r1(o.grams)} ${U}</button>`).join('')}${recentHit && recentHit.lastGrams && !edit ? `<button type="button" class="chip" data-last="${recentHit.lastGrams}">Zuletzt · ${r1(recentHit.lastGrams)} ${U}</button>` : ''}</div>
@@ -1147,7 +1150,7 @@ function openAmount(food, opts = {}) {
   const g = $('#grams');
   const upd = () => {
     const x = per(food, num(g.value) || 0);
-    $('#nutri').innerHTML = `<div><strong>${r0(x.k)}</strong><span>kcal</span></div><div><strong>${r1(x.p)}</strong><span>Eiweiß</span></div>
+    $('#nutri').innerHTML = `<div><strong>${fmt(x.k)}</strong><span>kcal</span></div><div><strong>${r1(x.p)}</strong><span>Eiweiß</span></div>
       <div><strong>${r1(x.c)}</strong><span>KH</span></div><div><strong>${r1(x.f)}</strong><span>Fett</span></div>
       <div><strong>${r1(x.fi)}</strong><span>Ballastst.</span></div><div><strong>${r1(x.su)}</strong><span>Zucker</span></div>`;
   };
@@ -1474,7 +1477,7 @@ function renderRecipe(query) {
     <h1>${d.id ? 'Rezept bearbeiten' : 'Neues Rezept'}</h1>
     <label for="rName">Name</label><input id="rName" type="text" value="${esc(d.n)}" placeholder="z. B. Overnight Oats">
     <h2 class="sec">Zutaten (roh)</h2>
-    ${d.items.length ? `<ul class="list ingr">${d.items.map((x, i) => `<li><div class="grow">${esc(x.food.n)}<div class="meta">${r0(per(x.food, x.grams || 0).k)} kcal</div></div>
+    ${d.items.length ? `<ul class="list ingr">${d.items.map((x, i) => `<li><div class="grow">${esc(x.food.n)}<div class="meta">${fmt(per(x.food, x.grams || 0).k)} kcal</div></div>
       <input class="g" data-g="${i}" inputmode="decimal" value="${r1(x.grams)}" aria-label="Gramm"><span class="meta">g</span>
       <button class="btn ghost rm" data-rm="${i}" aria-label="Entfernen">✕</button></li>`).join('')}</ul>` : '<div class="empty">Noch keine Zutaten.</div>'}
     <input id="rQ" type="search" placeholder="Zutat suchen und antippen" autocomplete="off" value="${esc(query)}">
@@ -1491,9 +1494,9 @@ function renderRecipe(query) {
   const sum = () => {
     const c = recipeCalc(draft);
     const portion = draft.portions ? c.weight / draft.portions : null;
-    $('#rSum').innerHTML = `<div class="spread"><span class="muted">Gesamt</span><strong>${r0(c.tot.k)} kcal · ${r0(c.weight)} g</strong></div>
-      <div class="spread"><span class="muted">Pro 100 g</span><strong>${r0(c.per100.k)} kcal</strong></div>
-      ${portion ? `<div class="spread"><span class="muted">Pro Portion (${r0(portion)} g)</span><strong>${r0(c.tot.k / draft.portions)} kcal</strong></div>` : ''}`;
+    $('#rSum').innerHTML = `<div class="spread"><span class="muted">Gesamt</span><strong>${fmt(c.tot.k)} kcal · ${r0(c.weight)} g</strong></div>
+      <div class="spread"><span class="muted">Pro 100 g</span><strong>${fmt(c.per100.k)} kcal</strong></div>
+      ${portion ? `<div class="spread"><span class="muted">Pro Portion (${r0(portion)} g)</span><strong>${fmt(c.tot.k / draft.portions)} kcal</strong></div>` : ''}`;
   };
   sum();
   $('#rName').oninput = (ev) => { draft.n = ev.target.value; };
@@ -1621,7 +1624,7 @@ function renderHistory() {
     path += (i > 0 && mdays[i - 1].goal ? `L ${x0.toFixed(1)} ${yy} ` : `M ${x0.toFixed(1)} ${yy} `) + `L ${x1.toFixed(1)} ${yy} `;
   });
   const fg = mdays.find((x) => x.goal);
-  const goalLine = path ? `<path class="goal" d="${path}" fill="none"></path>${fg ? `<text x="0" y="${y(fg.goal) + 3}">${r0(fg.goal)}</text>` : ''}` : '';
+  const goalLine = path ? `<path class="goal" d="${path}" fill="none"></path>${fg ? `<text x="0" y="${y(fg.goal) + 3}">${fmt(fg.goal)}</text>` : ''}` : '';
   const pct = (v) => (v / W * 100).toFixed(2);
   const brush = `<div class="hb" id="hBrush" style="left:${pct(pad + ia * bw)}%;width:${pct((ib - ia + 1) * bw)}%"><span class="hb-h l" data-h="l"></span><span class="hb-h r" data-h="r"></span></div>`;
   const chips = [['Monat', null]];
@@ -1647,9 +1650,9 @@ function renderHistory() {
   const goalChanges = new Set(sel.map((x) => x.goal)).size > 1;
   const otherCard = `<div class="card">
     <div class="spread"><h2 style="margin:0">Weitere Werte</h2><span class="small muted">${selLabel}</span></div>
-    <div class="spread" style="margin-top:8px"><span class="muted">Ø kcal</span><strong>${r0(avg('k'))} kcal</strong></div>
+    <div class="spread" style="margin-top:8px"><span class="muted">Ø kcal</span><strong>${fmt(avg('k'))} kcal</strong></div>
     <div class="spread"><span class="muted">Getrackte Tage</span><strong>${tracked.length} / ${done.length}${skipToday ? ' <span class="muted small">(ohne heute)</span>' : ''}</strong></div>
-    ${withGoal.length ? `<div class="spread"><span class="muted">Ø Differenz zum Ziel</span><strong>${avgDiff > 0 ? '+' : ''}${r0(avgDiff)} kcal</strong></div>` : ''}
+    ${withGoal.length ? `<div class="spread"><span class="muted">Ø Differenz zum Ziel</span><strong>${fmtS(avgDiff)} kcal</strong></div>` : ''}
     <div class="spread"><span class="muted">Ø Ballaststoffe</span><strong>${r0(avg('fi'))} g</strong></div>
     ${state.alcohol.enabled ? (() => { const ad = done.map((x) => (state.alcohol.log[x.d] || []).reduce((s2, e) => s2 + alcGrams(e.ml, e.vol), 0)); const tot = ad.reduce((p, q) => p + q, 0); const n = ad.filter((v) => v > 0).length; return `<div class="spread"><span class="muted">Alkohol gesamt (Tage mit Alkohol)</span><strong>${r0(tot)} g (${n})</strong></div>`; })() : ''}
     <div class="spread"><span class="muted">Ø Zucker frei / natürlich</span><strong>${r0(avg('fs'))} / ${r0(avg('su') - avg('fs'))} g</strong></div>
