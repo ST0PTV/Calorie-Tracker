@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.32.0';
+const APP_VERSION = '1.32.1';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -1033,26 +1033,24 @@ function drawMine() {
   const recent = state.recent.filter((r) => !isFav(r.id)).slice(0, 30).filter(hit);
   const own = state.custom.filter(hit);
   const pantry = (state.pantry || []).filter(hit);
-  const delLabel = { fav: 'Aus Favoriten entfernen', recent: 'Aus „Zuletzt verwendet“ entfernen', own: 'Lebensmittel löschen', pantry: 'Aus „Vorgemerkt“ entfernen' };
-  const li = (f, i, key) => `<li data-i="${i}" class="mine-li"><div>${isFav(f.id) && key !== 'fav' ? '<span class="star">★</span>' : ''}${esc(f.n)}${{ off: '<span class="tag">Barcode</span>', custom: '<span class="tag">Eigenes</span>', recipe: '<span class="tag">Rezept</span>' }[f.src] || ''}<div class="meta">${f.brand ? esc(f.brand) + ' · ' : ''}${fmt(f.k)} kcal / 100 ${unitOf(f)}</div></div>
-    <button type="button" class="mine-del" data-del="${key}:${i}" aria-label="${delLabel[key]}" title="${delLabel[key]}">✕</button></li>`;
+  const li = (f, i, key) => `<li data-i="${i}"><div>${isFav(f.id) && key !== 'fav' ? '<span class="star">★</span>' : ''}${esc(f.n)}${{ off: '<span class="tag">Barcode</span>', custom: '<span class="tag">Eigenes</span>', recipe: '<span class="tag">Rezept</span>', rcp: '<span class="tag">Rezept</span>' }[f.src] || ''}<div class="meta">${f.brand ? esc(f.brand) + ' · ' : ''}${fmt(f.k)} kcal / 100 ${unitOf(f)}</div></div><div class="meta">›</div></li>`;
   const sec = (title, items, key) => items.length ? `<h2 class="sec">${title}</h2><ul class="list" data-sec="${key}">${items.map((f, i) => li(f, i, key)).join('')}</ul>` : '';
   const any = state.favs.length || state.recent.length || state.custom.length || (state.pantry || []).length;
-  $('#mineList').innerHTML = !any ? '<div class="empty">Noch nichts vorhanden. Favoriten markierst du mit dem Stern beim Eintragen.</div>'
+  $('#mineList').innerHTML = (!any ? '<div class="empty">Noch nichts vorhanden. Favoriten markierst du mit dem Stern beim Eintragen.</div>'
     : (favs.length || recent.length || own.length || pantry.length) ? sec('★ Favoriten', favs, 'fav') + sec('Vorgemerkt', pantry, 'pantry') + sec('Zuletzt verwendet', recent, 'recent') + sec('Eigene Lebensmittel & Rezepte', own, 'own')
-    : '<div class="empty">Nichts gefunden.</div>';
+    : '<div class="empty">Nichts gefunden.</div>')
+    + (any ? '<button type="button" class="linkbtn mine-manage" id="mineManage">Verwalten (Favoriten, Vorgemerkt, Löschen) im Reiter „Essen“ ›</button>' : '');
   const map = { fav: favs, recent, own, pantry };
   document.querySelectorAll('#mineList [data-sec]').forEach((ul) => bindList(ul, map[ul.dataset.sec], (f) => openAmount(f)));
-  document.querySelectorAll('#mineList [data-del]').forEach((b) => b.onclick = (ev) => {
-    ev.stopPropagation();
-    const [key, i] = b.dataset.del.split(':'); const f = map[key][+i]; if (!f) return;
-    if (key === 'own') { deleteOwnFood(f); return; }
-    if (key !== 'own' && !confirm(key === 'fav' ? `„${f.n}“ aus den Favoriten entfernen?` : key === 'pantry' ? `„${f.n}“ aus „Vorgemerkt“ entfernen?` : `„${f.n}“ aus „Zuletzt verwendet“ entfernen?`)) return;
-    if (key === 'pantry') { state.pantry = state.pantry.filter((x) => x.id !== f.id); toast('Aus „Vorgemerkt“ entfernt'); save(); drawMine(); return; }
-    if (key === 'fav') { state.favs = state.favs.filter((x) => x.id !== f.id); toast('Aus Favoriten entfernt'); }
-    else { state.recent = state.recent.filter((x) => x.id !== f.id); toast('Aus „Zuletzt verwendet“ entfernt'); }
-    save(); drawMine();
-  });
+  const mm = $('#mineManage'); if (mm) mm.onclick = () => { closeSheet(); goTab('food'); };
+}
+// Eigenes Lebensmittel überall entfernen (Journal-Einträge bleiben)
+function removeOwnFood(id) {
+  state.custom = state.custom.filter((x) => x.id !== id);
+  state.favs = state.favs.filter((x) => x.id !== id);
+  state.recent = state.recent.filter((x) => x.id !== id);
+  state.pantry = (state.pantry || []).filter((x) => x.id !== id);
+  save();
 }
 
 /* ---------- Standardportionen ----------
@@ -1527,11 +1525,7 @@ function saveOwnFood(food) {
 }
 function deleteOwnFood(food) {
   if (!confirm(`„${food.n}“ löschen? Bereits eingetragene Mahlzeiten bleiben erhalten.`)) return;
-  state.custom = state.custom.filter((x) => x.id !== food.id);
-  state.favs = state.favs.filter((x) => x.id !== food.id);
-  state.recent = state.recent.filter((x) => x.id !== food.id);
-  state.pantry = (state.pantry || []).filter((x) => x.id !== food.id);
-  save(); toast('Gelöscht'); addTab = 'mine';
+  removeOwnFood(food.id); toast('Gelöscht'); addTab = 'mine';
   if (sheetMode === 'add' && $('#mineList')) drawMine(); else openAdd(addMeal);
 }
 
