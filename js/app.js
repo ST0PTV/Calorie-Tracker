@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.22.3';
+const APP_VERSION = '1.22.4';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -1219,8 +1219,9 @@ function renderScan() {
   $('#lookup').onclick = () => { const c = ($('#code').value || '').replace(/\D/g, ''); if (c) lookupBarcode(c); };
   startScanner();
 }
-/* Kamera: wird nach jedem Scan bzw. beim Schließen sofort freigegeben (Wunsch: kein dauerhaft aktives Kamera-Symbol;
-   iOS fragt dafür in Home-Bildschirm-Apps ggf. erneut nach der Erlaubnis). Außerdem: hohe Auflösung, Hauptkamera statt Ultraweitwinkel (schlechter Nahfokus),
+/* Kamera: läuft nur, solange der Barcode-Reiter offen ist. Aus beim Scan-Treffer (weiter zum Mengendialog), beim Wechsel
+   des Reiters, beim Schließen und beim Verlassen der App (iOS fragt in Home-Bildschirm-Apps ggf. erneut nach der
+   Erlaubnis). Außerdem: hohe Auflösung, Hauptkamera statt Ultraweitwinkel (schlechter Nahfokus),
    kontinuierlicher Autofokus, falls vom Gerät angeboten. */
 let camStream = null, camTimer = null;
 const camLive = () => camStream && camStream.getVideoTracks().some((t) => t.readyState === 'live');
@@ -1274,7 +1275,11 @@ function stopScanner() {
   }
   camRelease(); // Kamera nach dem Scannen bzw. Schließen sofort ganz ausschalten
 }
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && !scanner) camRelease(); });
+// App verlassen → Kamera aus; zurück in die App mit offenem Barcode-Reiter → Scanner wieder starten
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') { stopScanner(); return; }
+  if (sheetMode === 'add' && addTab === 'scan' && !scanner && document.getElementById('video')) startScanner();
+});
 
 async function lookupBarcode(code) {
   const out = $('#scanResult');
