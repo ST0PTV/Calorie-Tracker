@@ -32,7 +32,9 @@ Ein schlanker Kalorien-Tracker als Web-App (PWA) fürs iPhone. Er läuft komplet
 - Portions-Schnellwahl im Mengen-Dialog (Standardportionen nach SINU LARN 2024, Stückgewichte, Packungsportion, zuletzt verwendete Menge; mehrfach tippen = mehrere Portionen)
 - Barcode-Scan über die Kamera (Open Food Facts)
 - Favoriten, zuletzt verwendete und eigene Lebensmittel
-- Rezepte: Erstellung vorerst ausgeblendet (später Import aus einer anderen App); vorhandene Rezepte bleiben nutzbar
+- Rezepte: Erstellung vorerst ausgeblendet (später Import aus einer anderen App); vorhandene eigene Rezepte bleiben nutzbar
+- Hinterlegte Rezepte für die Abend-Vorschläge (data/recipes.json, 42 Gerichte + 15 Snacks, vegan/vegetarisch/mit Fleisch oder Fisch, Allergene markiert): eigene Zusammenstellung, Nährwerte aus dem BLS berechnet (tools/recipes_src.py → tools/build_recipes.py); kein eigener Reiter, nicht änderbar
+- Abend-Vorschläge kompakt: eine Zeile je Lebensmittel/Gericht, Bewertung über „⋯“ (öfter / seltener / nie mehr), Details mit Zutaten und Kurzanleitung
 - Schnelleintrag (nur kcal)
 - Mahlzeit oder ganzen Tag vom Vortag übernehmen
 - Timeline: wann was gegessen wurde, Magen-Füllung als grobes Modell mit Schlafzone und Phasen-Balken, Plan-Vorschlag für Uhrzeiten und Portionsgrößen (Verteilung einstellbar); Uhrzeit pro Mahlzeit und optional pro Eintrag
