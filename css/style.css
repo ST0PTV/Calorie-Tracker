@@ -589,7 +589,7 @@ p, .info-body, .info-src, .sp-hint, .caf-note, .refs li { text-align: justify; -
 .kring .big.over { color: var(--warn); }
 .kring .cap { font-size: 0.66rem; color: var(--muted); margin-top: 2px; }
 .hmacros { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 13px; }
-.hm-h { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; margin-bottom: 5px; font-size: 0.78rem; }
+.hm-h { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; margin-bottom: 5px; font-size: 0.78rem; white-space: nowrap; }
 .hm-h b { font-size: 0.92rem; font-weight: 600; white-space: nowrap; }
 .hm-h small { font-size: 0.66rem; font-weight: 400; color: var(--muted); }
 .hm-h .ov { color: var(--warn); }
@@ -600,3 +600,8 @@ p, .info-body, .info-src, .sp-hint, .caf-note, .refs li { text-align: justify; -
 .hero .gear { top: 14px; width: 36px; height: 36px; }
 .hero .sf-row { margin-top: 12px; }
 .info-i.warn { background: rgba(255, 154, 107, 0.16); color: var(--warn); font: 700 16px/1 'Sora', sans-serif; }
+/* Makro-Zeilen: Name oben, Wert darunter (passt auch bei „Kohlenhydrate 145 / 280 g übrig“) */
+.hmacros { gap: 10px; }
+.hm-h { flex-direction: column; align-items: stretch; gap: 1px; margin-bottom: 5px; }
+.hm-h > span { font-size: 0.72rem; color: var(--muted); }
+.hm-h b { font-size: 0.95rem; }
