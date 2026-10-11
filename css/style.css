@@ -539,3 +539,8 @@ p, .info-body, .info-src, .sp-hint, .caf-note, .refs li { text-align: justify; -
 .wg-plan .spread { font-size: 0.82rem; }
 .wg-res { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 0.95rem !important; }
 .wg-res strong { color: var(--accent); font-size: 1.05rem; }
+.mine-li { display: flex; align-items: center; gap: 8px; }
+.mine-li > div { flex: 1; min-width: 0; }
+.mine-del { flex: 0 0 auto; width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); font-size: 0.85rem; cursor: pointer; }
+.mine-del:active { color: var(--warn); border-color: var(--warn); }
+#mq { margin-bottom: 4px; }
