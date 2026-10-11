@@ -1,8 +1,8 @@
 # Übergabe: Level-System „Gemüsemonster“
 
-Stand: 12.10.2026 · App-Version 1.35.0 · Repo `ST0PTV/Calorie-Tracker` (öffentlich) · App: https://st0ptv.github.io/Calorie-Tracker/
+Stand: 12.10.2026 · App-Version 1.36.0 · Repo `ST0PTV/Calorie-Tracker` (öffentlich) · App: https://st0ptv.github.io/Calorie-Tracker/
 
-Diese Datei reicht aus, um in einem neuen Chat am Level-System weiterzuarbeiten. Sie beschreibt das beschlossene Konzept, die Entwürfe, die technischen Leitplanken der App und einen Umsetzungsplan. **Noch ist nichts davon im App-Code umgesetzt** – es gibt nur Entwürfe.
+Diese Datei reicht aus, um in einem neuen Chat am Level-System weiterzuarbeiten. Sie beschreibt das beschlossene Konzept, die Entwürfe, die technischen Leitplanken der App und einen Umsetzungsplan. **Umgesetzt: Schritt 1 (Berechnung, `js/level.js`, ohne Oberfläche, Tests in `tools/test_level.js`).** Alles Sichtbare ist noch Entwurf.
 
 ---
 
@@ -119,15 +119,25 @@ Sammlung mit Zählern (Monster x/17, Formen x/45, Orden x/8), Typ-Filter, drei P
 
 Garten, Schmetterling, Kristall, Gipfelweg, Wasser, Nachthimmel, Süße Tiere (Baumhaus), Labor (Zellen → Geräte → Paper), Sport (Startnummern, Pokale), Küche (Saisonkorb), Smileys (Sticker-Album). Thema soll wählbar sein, Level bleibt beim Wechsel gleich. **Fokus der ersten Umsetzung: Gemüsemonster.**
 
-## 4. Offene Entscheidungen (beim Nutzer erfragen)
+## 4. Entscheidungen
 
-1. Schwellen „vollständiger Monat“ (20 Tage?) und „Quartal“ (60 Tage?).
-2. Übergang Monat 1 → Monatslevel, wenn L10 nicht erreicht.
-3. XP-Werte und Wochenziele ja/nein; Pausetag ja/nein.
-4. Kämpfe ja/nein, und wenn ja: zuerst nur Arena-Duell?
-5. Erntor-Zeichnung ggf. nachschärfen.
-6. Weitere Themen parallel oder später?
-7. Wo der Einstieg sitzt: Level-Chip im Journal-Kopf (Entwurf LV1) → Seite „Fortschritt“ (Variante A mit Bild).
+Beschlossen (12.10.2026):
+1. Vollständiger Monat ≥ 20, Quartal ≥ 60 gezählte Tage.
+2. Wer L10 nach Monat 1 nicht hat, sammelt weiter XP; Monatslevel zählen trotzdem ab dem 2. Kalendermonat und kommen obendrauf.
+3. Alle XP-Bausteine an: Wochenziele (nur Tracking), Pausetag, Gewicht (+5, 1×/Woche), Wasserziel (+5).
+4. Kämpfe: nur Arena-Duell (kein Partnerduell), kommt nach Arenen.
+
+In `js/level.js` so umgesetzt, aber noch vom Nutzer zu bestätigen:
+- Pausetag automatisch: je Kalenderwoche zählt der erste ausgelassene vergangene Tag mit (für Monat, Quartal, Monsterform, Wochenziel).
+- Wochenziel = 7 von 7 Tagen gezählt (also ≥ 6 echte), 35 XP, nur ganze Wochen ab Start.
+- „Tag vollständig“ = Frühstück, Mittag und Abend je ≥ 1 Eintrag (Snacks kein Muss).
+- „Eigenes Lebensmittel mit allen Werten“ = E/KH/F/Ballaststoffe/Zucker ausgefüllt (freier Zucker optional); leere Felder merkt sich `food.miss`, „Werte ergänzt“ zählt, wenn ein Bearbeiten Felder füllt.
+- Monatslevel/Quartal zählt, sobald die Schwelle erreicht ist (nicht erst am Monatsende). Monat 1 = Kalendermonat des Starts.
+- Volles Jahr = 12 Monate vorbei und ≥ 240 gezählte Tage.
+- Arena i öffnet, wenn 3·(i+1) Kalendermonate seit dem Start vergangen sind.
+- Scan/Eigenes/Ergänzt/Geteilt haben kein Datum im State → Zähler in `state.level.ev[iso]` (nur Anzahl), erst ab Version 1.36.0; ältere Aktionen geben keine XP.
+
+Noch offen: Startdatum (ab Aktivierung oder rückwirkend ab erstem Eintrag), Erntor nachschärfen, weitere Themen, Einstieg (LV1-Chip → Fortschritt-Seite).
 
 ## 5. Technik der App (was man wissen muss)
 
