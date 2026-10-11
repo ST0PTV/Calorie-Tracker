@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.19.0';
+const APP_VERSION = '1.19.1';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -27,7 +27,7 @@ function emptyState() {
     water: { enabled: true, goal: 1500, log: {} }, // log: { 'JJJJ-MM-TT': [ml, ml, …] }
     supp: SUPP_DEFAULTS(),
     timeline: TL_DEFAULTS(),
-    profile: { weight: null, sex: null },
+    profile: { weight: null, sex: null, height: null },
     sugarPct: 10, showSF: false,
     alcohol: ALC_DEFAULTS(),
     caffeine: CAFF_DEFAULTS(), // log: { 'JJJJ-MM-TT': [{ id, min (Minuten seit 0 Uhr), mg, n, dur (Minuten) }] }
@@ -98,7 +98,7 @@ function normalizeState(data) {
   if (!s.water.log || typeof s.water.log !== 'object') s.water.log = {};
   s.supp = suppNormalize(data.supp);
   s.timeline = tlNormalize(data.timeline);
-  s.profile = Object.assign({ weight: null, sex: null }, data.profile || {});
+  s.profile = Object.assign({ weight: null, sex: null, height: null }, data.profile || {});
   if (data.showSF == null) s.showSF = !!(s.goalHistory || []).some((h) => h.fiber || h.sugar);
   if (![5, 10].includes(s.sugarPct)) s.sugarPct = 10;
   s.alcohol = Object.assign(ALC_DEFAULTS(), data.alcohol || {});

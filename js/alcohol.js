@@ -37,7 +37,17 @@ const alcGrams = (ml, vol) => (ml || 0) * (vol || 0) / 100 * ALC_DENS;
 const alcFmt = (v) => (Math.round(v * 100) / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const alcMl = (ml) => (ml >= 1000 ? `${(ml / 1000).toLocaleString('de-DE')} l` : ml >= 100 ? `${(ml / 1000).toLocaleString('de-DE')} l` : `${ml / 10} cl`);
 
-function alcR() { const sx = state.profile && state.profile.sex; return sx === 'm' ? 0.7 : sx === 'f' ? 0.6 : 0.65; }
+// Verteilungsfaktor: mit Körpergröße aus dem BMI (Maudens et al. 2014: Männer 0,8202 − 0,0090·BMI, Frauen 0,7772 − 0,0099·BMI;
+// gemessen an 23 Männern und 27 Frauen, BMI 16–36), sonst feste Werte 0,7 / 0,6 (ohne Geschlecht: Mittel)
+function alcBmi() { const p = state.profile || {}; return p.weight && p.height ? p.weight / Math.pow(p.height / 100, 2) : null; }
+function alcR() {
+  const sx = state.profile && state.profile.sex, bmi = alcBmi();
+  if (bmi) {
+    const m = 0.8202 - 0.0090 * bmi, f = 0.7772 - 0.0099 * bmi;
+    return Math.min(0.8, Math.max(0.4, sx === 'm' ? m : sx === 'f' ? f : (m + f) / 2));
+  }
+  return sx === 'm' ? 0.7 : sx === 'f' ? 0.6 : 0.65;
+}
 function alcW() { return (state.profile && state.profile.weight) || null; }
 
 // Getränke von Vortag bis Folgetag als absolute Zeitpunkte
@@ -257,7 +267,7 @@ function alcSettingsHtml() {
     <h2>Alkohol</h2>
     <label class="switch"><input type="checkbox" id="alOn" ${A.enabled ? 'checked' : ''}> Alkohol-Tracker im Journal anzeigen</label>
     <label for="alBeta">Abbau (‰ pro Stunde)</label><input id="alBeta" inputmode="decimal" value="${String(A.beta).replace('.', ',')}">
-    <p class="small muted" style="margin-top:6px">Verteilungsfaktor r = ${String(alcR()).replace('.', ',')} (${sx === 'm' ? 'Mann' : sx === 'f' ? 'Frau' : 'ohne Angabe – Mittelwert'}), Körpergewicht ${alcW() ? r1(alcW()) + ' kg' : 'fehlt'} – beides aus „Schlaf &amp; Körper“. Abbau: im Mittel etwa 0,15 ‰/h, Spanne etwa 0,10–0,20 (nüchtern eher niedriger, nach Essen höher). kcal kommen ins Journal (Snacks); Alkohol zählt nicht zum Wasserzähler. <strong>Grobe Schätzung, keine Messung – nicht geeignet, um die Fahrtüchtigkeit zu beurteilen.</strong> Die DGE empfiehlt (2024), auf Alkohol zu verzichten; keine Menge ist risikofrei.</p>
+    <p class="small muted" style="margin-top:6px">Verteilungsfaktor r = ${(Math.round(alcR() * 100) / 100).toLocaleString('de-DE')} (${sx === 'm' ? 'Mann' : sx === 'f' ? 'Frau' : 'ohne Geschlecht – Mittelwert'}${alcBmi() ? `, aus BMI ${r1(alcBmi()).toLocaleString('de-DE')}` : ', fester Wert – mit Körpergröße genauer'}), Körpergewicht ${alcW() ? r1(alcW()) + ' kg' : 'fehlt'} – aus „Schlaf &amp; Körper“. Abbau: im Mittel etwa 0,15 ‰/h, Spanne etwa 0,10–0,20 (nüchtern eher niedriger, nach Essen höher). kcal kommen ins Journal (Snacks); Alkohol zählt nicht zum Wasserzähler. <strong>Grobe Schätzung, keine Messung – nicht geeignet, um die Fahrtüchtigkeit zu beurteilen.</strong> Die DGE empfiehlt (2024), auf Alkohol zu verzichten; keine Menge ist risikofrei.</p>
   </div>`;
 }
 function alcSettingsBind() {
@@ -273,7 +283,7 @@ function alcSourcesHtml() {
   return `<p style="margin-top:10px"><strong style="color:var(--ink)">Alkohol</strong></p>
     <ul class="refs"><li>Widmark EMP (1932). Die theoretischen Grundlagen und die praktische Verwendbarkeit der gerichtlich-medizinischen Alkoholbestimmung.</li>
     <li>Jones AW (2010). Evidence-based survey of the elimination rates of ethanol from blood with applications in forensic casework. Forensic Sci Int 200(1–3):1–20. doi:10.1016/j.forsciint.2010.02.021</li>
-    <li>Maudens KE et al. (2014). The influence of the body mass index on the volume of distribution of ethanol. Forensic Sci Int 243:74–78. doi:10.1016/j.forsciint.2014.04.036</li>
+    <li>Maudens KE et al. (2014). The influence of the body mass index on the volume of distribution of ethanol. Forensic Sci Int 243:74–78. doi:10.1016/j.forsciint.2014.04.036 (BMI-Formeln für r, n = 50; Korrelation r = 0,66 bzw. 0,78 – erklärt nur einen Teil der Streuung)</li>
     <li>Fraser AG et al. (1995). Inter-individual and intra-individual variability of ethanol concentration-time profiles: comparison of ethanol ingestion before or after an evening meal. Br J Clin Pharmacol 40(4):387–392. doi:10.1111/j.1365-2125.1995.tb04561.x</li>
     <li>DGE (2024). Positionspapier Alkohol (Pressemitteilung vom 15.08.2024).</li></ul>
     <p class="small muted">Annahmen ohne eigene Quelle: Aufnahmegeschwindigkeit (nüchtern ka 4/h, mit Essen 1,5/h) und Resorptionsdefizit (10 bzw. 20 %); Vol-% der Vorlagen aus dem BLS-Alkoholgehalt umgerechnet (1 ml ≈ 1 g).</p>`;
