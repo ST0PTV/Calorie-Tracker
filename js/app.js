@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.29.0';
+const APP_VERSION = '1.29.1';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -1433,8 +1433,9 @@ function openFoodForm(existing) {
 function saveOwnFood(food) {
   const i = state.custom.findIndex((x) => x.id === food.id);
   if (i >= 0) state.custom[i] = food; else state.custom.push(food);
-  // Favoriten/Zuletzt-Kopien aktualisieren (bereits eingetragene Tage bleiben unverändert)
+  // Favoriten/Zuletzt/Vorgemerkt-Kopien aktualisieren (bereits eingetragene Tage bleiben unverändert)
   state.favs = state.favs.map((x) => (x.id === food.id ? foodSnap(food) : x));
+  state.pantry = (state.pantry || []).map((x) => (x.id === food.id ? Object.assign(foodSnap(food), { added: x.added }) : x));
   state.recent = state.recent.map((x) => (x.id === food.id ? Object.assign(foodSnap(food), { lastGrams: x.lastGrams }) : x));
   save();
 }
@@ -1443,6 +1444,7 @@ function deleteOwnFood(food) {
   state.custom = state.custom.filter((x) => x.id !== food.id);
   state.favs = state.favs.filter((x) => x.id !== food.id);
   state.recent = state.recent.filter((x) => x.id !== food.id);
+  state.pantry = (state.pantry || []).filter((x) => x.id !== food.id);
   save(); toast('Gelöscht'); addTab = 'mine';
   if (sheetMode === 'add' && $('#mineList')) drawMine(); else openAdd(addMeal);
 }
