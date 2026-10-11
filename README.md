@@ -23,7 +23,7 @@ Ein schlanker Kalorien-Tracker als Web-App (PWA) fürs iPhone. Er läuft komplet
 - Alkohol-Tracker: geschätzter Blutalkohol (Widmark, Geschlecht und Gewicht aus „Schlaf & Körper“), Kurve mit 0,5-‰-Linie, „0,0 ‰ ab“, kcal ins Journal; ein-/ausblendbar; nicht zur Beurteilung der Fahrtüchtigkeit
 - Scheibengewicht für Wurst und Käse: Richtwert (LARN-Haushaltsmaße), Open-Food-Facts-Portion „Scheibe“ oder eigener Wert aus Packungsgewicht ÷ Scheibenzahl
 - Gewichtsziel: Zielgewicht und Zieldatum → Kalorienziel (Erhaltungsbedarf ± 7.700 kcal/kg), passt sich bei neuem Gewicht automatisch an; Tempo-Hinweise nach Iraki 2019 und Helms 2014
-- Reiter „Essen“: alle eigenen Lebensmittel (Vorgemerkt, Favoriten, Eigene, Rezepte, Zuletzt) mit Makro-Balken und „+“ ins Journal; „Einkauf erfassen“ merkt Lebensmittel per Barcode oder Suche vor, ohne sie einzutragen
+- Reiter „Essen“: alle eigenen Lebensmittel (Vorgemerkt, Favoriten, Eigene, Zuletzt) mit Makro-Balken und „+“ ins Journal; „Einkauf erfassen“ merkt Lebensmittel per Barcode oder Suche vor, ohne sie einzutragen
 - Supplement-Tracker: Pillen-Leiste im Journal (Tippen = genommen, erneut Tippen = zurücknehmen), Erinnerungskarte beim Öffnen der App für alle noch offenen Supplements („Alles genommen“, „Später“ = 1 Stunde), Einstellungen mit Menge/Einheit, täglich / jeden 2. Tag / Wochentage und Mahlzeit oder Uhrzeit; Voreinstellung Kreatin 7 g, Vitamin B12, Omega-3, Eisen (aus). Hinweise je Supplement mit Quellen (AIS, NIH ODS, Stoffel 2017); keine Benachrichtigung bei geschlossener App (ohne Server nicht möglich)
 - Abend-Vorschläge ab einstellbarer Uhrzeit: 1–3 Lebensmittel mit Mengen, die die offenen Ziele treffen (Priorität Kalorien / Eiweiß / ausgewogen), bevorzugt aus eigenen Einträgen, bewertbar mit 👍/👎
 - Ernährungsform (vegetarisch, vegan) und Allergie-Filter für die Vorschläge
@@ -31,7 +31,7 @@ Ein schlanker Kalorien-Tracker als Web-App (PWA) fürs iPhone. Er läuft komplet
 - Portions-Schnellwahl im Mengen-Dialog (Standardportionen nach SINU LARN 2024, Stückgewichte, Packungsportion, zuletzt verwendete Menge; mehrfach tippen = mehrere Portionen)
 - Barcode-Scan über die Kamera (Open Food Facts)
 - Favoriten, zuletzt verwendete und eigene Lebensmittel
-- Eigene Rezepte aus mehreren Zutaten (mit Endgewicht und Portionen)
+- Rezepte: Erstellung vorerst ausgeblendet (später Import aus einer anderen App); vorhandene Rezepte bleiben nutzbar
 - Schnelleintrag (nur kcal)
 - Mahlzeit oder ganzen Tag vom Vortag übernehmen
 - Timeline: wann was gegessen wurde, Magen-Füllung als grobes Modell mit Schlafzone und Phasen-Balken, Plan-Vorschlag für Uhrzeiten und Portionsgrößen (Verteilung einstellbar); Uhrzeit pro Mahlzeit und optional pro Eintrag

@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.24.2';
+const APP_VERSION = '1.24.3';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -356,7 +356,7 @@ function sfHalf(cls, label, val, target, kind, natural) {
 const INFO_STATIC = {
   water: { body: '<p>Richtwert der DGE: 1,5 l Getränke pro Tag; bei Hitze, Sport oder körperlicher Arbeit mehr. Die EFSA nennt 2,5 l (Männer) bzw. 2,0 l (Frauen) Gesamtwasser – inklusive Wasser aus Lebensmitteln.</p><p>Koffein-Getränke zählen mit ihren ml, Alkohol zählt nicht. Andere Getränke aus dem Journal (z. B. Schorle, Milch) zählen, wenn du im Eintrag „Zur Flüssigkeit zählen“ anhakst – die App merkt sich das je Lebensmittel.</p>', src: 'DGE · EFSA 2010' },
   sug: { body: '<p>Die Vorschläge erscheinen im Journal, wenn du die App nach dieser Uhrzeit öffnest und noch mindestens so viele kcal offen sind. Vorgeschlagen wird zuerst aus deinen bisherigen Einträgen, sonst aus gängigen Kochzutaten.</p><p>Mit 👍/👎 bewertest du einzelne Lebensmittel; zweimal 👎 schließt sie aus. Eine Benachrichtigung zur Uhrzeit ist ohne Server nicht möglich – mit einer Kurzbefehle-Automation kann iOS die App aber zur gewünschten Zeit öffnen.</p>' },
-  share: { body: '<p>Exportiert werden deine eigenen Lebensmittel und Rezepte, vorgemerkte Lebensmittel, Favoriten, gespeicherte Barcode-Produkte und Scheibengewichte – nichts aus Journal, Gewicht, Zielen oder Einstellungen.</p><p>Beim Import werden nur fehlende Lebensmittel ergänzt. Favoriten der anderen Person werden nicht zu deinen Favoriten, sondern erscheinen als „vorgemerkt“; deine eigenen Favoriten bleiben unberührt. was schon vorhanden ist (gleiche ID oder gleicher Name mit gleichen kcal), bleibt unverändert. Ein vollständiges Backup kann ebenfalls gewählt werden – dann werden daraus nur die Lebensmittel übernommen.</p><p>Die Datei läuft über das Teilen-Menü (z. B. AirDrop, Nachrichten) und nicht über einen Server der App.</p>' },
+  share: { body: '<p>Exportiert werden deine eigenen Lebensmittel und Rezepte, vorgemerkte Lebensmittel, Favoriten, gespeicherte Barcode-Produkte und Scheibengewichte – nichts aus Journal, Gewicht, Zielen oder Einstellungen.</p><p>Beim Import werden nur fehlende Lebensmittel ergänzt. Favoriten der anderen Person werden nicht zu deinen Favoriten, sondern erscheinen als „vorgemerkt“; deine eigenen Favoriten bleiben unberührt. Was schon vorhanden ist (gleiche ID oder gleicher Name mit gleichen kcal), bleibt unverändert. Ein vollständiges Backup kann ebenfalls gewählt werden – dann werden daraus nur die Lebensmittel übernommen.</p><p>Die Datei läuft über das Teilen-Menü (z. B. AirDrop, Nachrichten) und nicht über einen Server der App.</p>' },
   diet: { body: '<p>Gilt für die Vorschläge. Erkannt wird anhand der BLS-Lebensmittelgruppe und des Namens, bei Barcode-Produkten über Open Food Facts, bei eigenen Lebensmitteln über deine Angaben.</p><p>Ist etwas unklar (z. B. Fertiggerichte), wird es nicht vorgeschlagen. Sulfite sind nicht erkennbar.</p>' },
   sf: { body: '<p>Bei den Ernährungszielen Ausgewogen, Muskelaufbau und Fettabbau rechnet die App automatisch: Ballaststoffe mindestens 30 g (DGE), freier Zucker höchstens 10 % (oder 5 %) deiner Kalorien (WHO). Bei „Eigene“ trägst du beide Werte selbst ein.</p><p>Freier Zucker = zugesetzter Zucker sowie Zucker in Honig, Sirup und Fruchtsaft. Zucker in ganzem Obst, Gemüse und Milch zählt als natürlich und wird nur angezeigt. Der freie Anteil wird aus Lebensmittelgruppe und Namen geschätzt.</p>', pts: [['< 10 % der kcal', 'WHO, starke Empfehlung'], ['< 5 % der kcal', 'WHO, bedingte Empfehlung'], ['≥ 30 g Ballaststoffe', 'DGE, für Erwachsene']], src: 'WHO 2015 · DGE/DAG/DDG 2019 · DGE 2022' },
 };
@@ -1327,16 +1327,17 @@ async function lookupBarcode(code) {
 }
 
 /* ---------- Neu: Schnelleintrag, Lebensmittel, Rezept ---------- */
+const RECIPES_ON = false; // Rezepte vorerst ausgeblendet (später Import aus anderer App); vorhandene Rezepte bleiben nutzbar
 function renderNew() {
   $('#addBody').innerHTML = `
     <ul class="list choice">
       ${pantryMode ? '' : '<li id="newQuick"><div><strong>Schnelleintrag</strong>'}${pantryMode ? '' : `<div class="meta">Nur kcal eintragen, z. B. im Restaurant</div></div><div class="meta">›</div></li>`}
       <li id="newFood"><div><strong>Eigenes Lebensmittel</strong><div class="meta">Nährwerte pro 100 g, z. B. von der Verpackung</div></div><div class="meta">›</div></li>
-      <li id="newRecipe"><div><strong>Rezept</strong><div class="meta">Aus mehreren Zutaten zusammenstellen</div></div><div class="meta">›</div></li>
+      ${RECIPES_ON ? `<li id="newRecipe"><div><strong>Rezept</strong><div class="meta">Aus mehreren Zutaten zusammenstellen</div></div><div class="meta">›</div></li>` : ''}
     </ul>`;
   if ($('#newQuick')) $('#newQuick').onclick = () => openQuick(addMeal);
   $('#newFood').onclick = () => openFoodForm();
-  $('#newRecipe').onclick = () => openRecipe();
+  if ($('#newRecipe')) $('#newRecipe').onclick = () => openRecipe();
 }
 
 function openFoodForm(existing) {

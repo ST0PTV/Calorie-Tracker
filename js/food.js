@@ -41,7 +41,7 @@ function foodItems() {
   state.recent.slice(0, 40).forEach((f) => put(f, 'recent'));
   return [...map.values()];
 }
-const FOOD_FILTERS = [['all', 'Alle'], ['fav', '★ Favoriten'], ['pantry', 'Vorgemerkt'], ['own', 'Eigene'], ['recipe', 'Rezepte'], ['recent', 'Zuletzt']];
+const FOOD_FILTERS = [['all', 'Alle'], ['fav', '★ Favoriten'], ['pantry', 'Vorgemerkt'], ['own', 'Eigene'], ['recent', 'Zuletzt']];
 function mealByTime() { const h = new Date().getHours(); return h < 10 ? 'breakfast' : h < 15 ? 'lunch' : h < 18 ? 'snack' : 'dinner'; }
 
 function renderFood() {
