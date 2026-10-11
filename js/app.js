@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.35.0';
+const APP_VERSION = '1.36.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -34,6 +34,7 @@ function emptyState() {
     profile: { weight: null, sex: null, height: null, birthYear: null },
     sugarPct: 10, showSF: false, heroMode: 'left', cardOpen: {},
     alcohol: ALC_DEFAULTS(),
+    level: LEVEL_DEFAULTS(), // Level-System: nur Auswahl + Aktionszähler (js/level.js)
     caffeine: CAFF_DEFAULTS(), // log: { 'JJJJ-MM-TT': [{ id, min (Minuten seit 0 Uhr), mg, n, dur (Minuten) }] }
   };
 }
@@ -116,6 +117,9 @@ function normalizeState(data) {
   if (!s.alcohol.log || typeof s.alcohol.log !== 'object') s.alcohol.log = {};
   s.caffeine = Object.assign(CAFF_DEFAULTS(), data.caffeine || {});
   if (!s.caffeine.log || typeof s.caffeine.log !== 'object') s.caffeine.log = {};
+  s.level = Object.assign(LEVEL_DEFAULTS(), data.level || {});
+  if (!s.level.ev || typeof s.level.ev !== 'object') s.level.ev = {};
+  if (!s.level.arenas || typeof s.level.arenas !== 'object') s.level.arenas = {};
   // Übernahme aus Versionen ohne Ziel-Historie: bisheriges Ziel gilt ab dem ersten Tagebuch-Tag
   if (!s.goalHistory.length && s.settings.goal != null) {
     const first = Object.keys(s.days).filter((d) => (s.days[d] || []).length).sort()[0] || isoDate(new Date());
@@ -1445,7 +1449,7 @@ async function lookupBarcode(code) {
       sliceG: offSliceG(p.serving_size),
       liq: /\d\s*(ml|cl|l)\b/i.test(p.quantity || ''),
     };
-    state.offCache[code] = food; save();
+    state.offCache[code] = food; levelEvent(state, 'scan', isoDate(new Date())); save();
     openAmount(food);
   } catch (e) {
     out.innerHTML = '<p class="muted">Keine Verbindung zu Open Food Facts. Bitte später erneut versuchen.</p>';
@@ -1479,15 +1483,15 @@ function openFoodForm(existing) {
     <label for="cBrand">Marke (optional)</label><input id="cBrand" type="text" value="${esc(e.brand || '')}">
     <div class="row">
       <div><label for="cK">kcal</label><input id="cK" inputmode="decimal" value="${v(e.k)}"></div>
-      <div><label for="cP">Eiweiß g</label><input id="cP" inputmode="decimal" value="${v(e.p)}"></div>
+      <div><label for="cP">Eiweiß g</label><input id="cP" inputmode="decimal" value="${(e.miss || []).includes('cP') ? '' : v(e.p)}"></div>
     </div>
     <div class="row">
-      <div><label for="cC">KH g</label><input id="cC" inputmode="decimal" value="${v(e.c)}"></div>
-      <div><label for="cF">Fett g</label><input id="cF" inputmode="decimal" value="${v(e.f)}"></div>
+      <div><label for="cC">KH g</label><input id="cC" inputmode="decimal" value="${(e.miss || []).includes('cC') ? '' : v(e.c)}"></div>
+      <div><label for="cF">Fett g</label><input id="cF" inputmode="decimal" value="${(e.miss || []).includes('cF') ? '' : v(e.f)}"></div>
     </div>
     <div class="row">
-      <div><label for="cFi">Ballaststoffe g</label><input id="cFi" inputmode="decimal" value="${v(e.fi)}"></div>
-      <div><label for="cSu">davon Zucker g</label><input id="cSu" inputmode="decimal" value="${v(e.su)}"></div>
+      <div><label for="cFi">Ballaststoffe g</label><input id="cFi" inputmode="decimal" value="${(e.miss || []).includes('cFi') ? '' : v(e.fi)}"></div>
+      <div><label for="cSu">davon Zucker g</label><input id="cSu" inputmode="decimal" value="${(e.miss || []).includes('cSu') ? '' : v(e.su)}"></div>
     </div>
     <label for="cFs">davon freier/zugesetzter Zucker g (optional)</label><input id="cFs" inputmode="decimal" value="${e.fs != null ? v(e.fs) : ''}" placeholder="leer = gesamter Zucker zählt als frei">
     <label class="chip" style="margin-top:10px"><input type="checkbox" id="cLiq" ${e.liq ? 'checked' : ''}> Flüssigkeit (Mengen in ml, Annahme 1 ml ≈ 1 g)</label>
@@ -1512,6 +1516,7 @@ function openFoodForm(existing) {
   $('#cSave').onclick = () => {
     const n = $('#cName').value.trim(); const k = num($('#cK').value);
     if (!n || k == null) { toast('Name und kcal sind Pflicht.'); return; }
+    const miss = ['cP', 'cC', 'cF', 'cFi', 'cSu'].filter((id) => $('#' + id).value.trim() === ''); // für Level-XP: leere Pflichtwerte
     const food = {
       src: 'custom', id: e.id || 'custom:' + uid(), n, brand: $('#cBrand').value.trim(), k,
       p: num($('#cP').value) || 0, c: num($('#cC').value) || 0, f: num($('#cF').value) || 0,
@@ -1521,6 +1526,10 @@ function openFoodForm(existing) {
       d: $('#cDiet').value === '' ? null : +$('#cDiet').value,
       a: [...document.querySelectorAll('#cAll input:checked')].map((x) => x.value),
     };
+    if (miss.length) food.miss = miss;
+    const today = isoDate(new Date());
+    if (!isEdit && !miss.length) levelEvent(state, 'own', today);
+    else if (isEdit && miss.length < (e.miss || []).length) levelEvent(state, 'fill', today);
     saveOwnFood(food);
     if (isEdit) { toast('Gespeichert'); openAmount(food); } else openAmount(food);
   };
@@ -2170,7 +2179,7 @@ async function exportFoods() {
   const p = foodsPayload();
   const n = p.custom.length + p.foods.length;
   if (!n) { toast('Noch keine Lebensmittel zum Teilen.'); return; }
-  await shareJson(p, `lebensmittel-${isoDate(new Date())}.json`, () => toast(`${n} Lebensmittel exportiert`));
+  await shareJson(p, `lebensmittel-${isoDate(new Date())}.json`, () => { levelEvent(state, 'share', isoDate(new Date())); save(); toast(`${n} Lebensmittel exportiert`); });
 }
 function importFoods(data) {
   if (!data || typeof data !== 'object' || !Array.isArray(data.custom)) { toast('Keine Lebensmittel-Datei.'); return; }
