@@ -425,7 +425,6 @@ function caffSettingsHtml() {
   return `<div class="card">
     <h2>Koffein</h2>
     <label class="switch"><input type="checkbox" id="cfOn" ${c.enabled ? 'checked' : ''}> Koffein-Tracker anzeigen</label>
-    <p class="small muted" style="margin:0 0 4px">Bettzeit ${esc(c.bed)} · Aufstehen ${esc(c.wake)} – änderbar unter „Schlaf &amp; Körper“.</p>
     <div class="row">
       <div><label for="cfHl">Halbwertszeit (h) ${infoBtn('cafHl')}</label><input id="cfHl" inputmode="decimal" value="${r1(c.halfLife)}"></div>
       <div><label for="cfThr">Bettzeit-Ziel (mg) ${infoBtn('cafThr')}</label><input id="cfThr" inputmode="numeric" value="${r0(c.threshold)}"></div>
