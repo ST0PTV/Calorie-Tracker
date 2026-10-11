@@ -7,10 +7,11 @@ let pantryFav = false;       // beim Vormerken zusätzlich als Favorit markieren
 let pantryCount = 0;         // in diesem Durchgang vorgemerkt
 let foodFilter = 'all';
 let foodQuery = '';
+const PANTRY_MAX = 2000;
 
 function pantryAdd(food) {
   const snap = foodSnap(food);
-  state.pantry = [Object.assign(snap, { added: Date.now() })].concat((state.pantry || []).filter((x) => x.id !== snap.id)).slice(0, 300);
+  state.pantry = [Object.assign(snap, { added: Date.now() })].concat((state.pantry || []).filter((x) => x.id !== snap.id)).slice(0, PANTRY_MAX);
   if (pantryFav && !isFav(snap.id)) state.favs.unshift(foodSnap(food));
   pantryCount++;
   save();

@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.24.4';
+const APP_VERSION = '1.25.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -356,7 +356,7 @@ function sfHalf(cls, label, val, target, kind, natural) {
 const INFO_STATIC = {
   water: { body: '<p>Richtwert der DGE: 1,5 l Getränke pro Tag; bei Hitze, Sport oder körperlicher Arbeit mehr. Die EFSA nennt 2,5 l (Männer) bzw. 2,0 l (Frauen) Gesamtwasser – inklusive Wasser aus Lebensmitteln.</p><p>Koffein-Getränke zählen mit ihren ml, Alkohol zählt nicht. Andere Getränke aus dem Journal (z. B. Schorle, Milch) zählen, wenn du im Eintrag „Zur Flüssigkeit zählen“ anhakst – die App merkt sich das je Lebensmittel.</p>', src: 'DGE · EFSA 2010' },
   sug: { body: '<p>Die Vorschläge erscheinen im Journal, wenn du die App nach dieser Uhrzeit öffnest und noch mindestens so viele kcal offen sind. Vorgeschlagen wird zuerst aus deinen bisherigen Einträgen, sonst aus gängigen Kochzutaten.</p><p>Mit 👍/👎 bewertest du einzelne Lebensmittel; zweimal 👎 schließt sie aus. Eine Benachrichtigung zur Uhrzeit ist ohne Server nicht möglich – mit einer Kurzbefehle-Automation kann iOS die App aber zur gewünschten Zeit öffnen.</p>' },
-  share: { body: '<p>Exportiert werden deine eigenen Lebensmittel und Rezepte, vorgemerkte Lebensmittel, Favoriten, gespeicherte Barcode-Produkte und Scheibengewichte – nichts aus Journal, Gewicht, Zielen oder Einstellungen.</p><p>Beim Import werden nur fehlende Lebensmittel ergänzt. Favoriten der anderen Person werden nicht zu deinen Favoriten, sondern erscheinen als „vorgemerkt“; deine eigenen Favoriten bleiben unberührt. Was schon vorhanden ist (gleiche ID oder gleicher Name mit gleichen kcal), bleibt unverändert. Ein vollständiges Backup kann ebenfalls gewählt werden – dann werden daraus nur die Lebensmittel übernommen.</p><p>Die Datei läuft über das Teilen-Menü (z. B. AirDrop, Nachrichten) und nicht über einen Server der App.</p>' },
+  share: { body: '<p>Exportiert werden alle Lebensmittel, die du gescannt, im Journal getrackt, selbst angelegt oder vorgemerkt hast – jeweils nur Name, Marke und Nährwerte pro 100 g, dazu Barcode-Daten und Scheibengewichte. Favoriten-Markierungen, Datum, Mengen und Mahlzeiten aus dem Journal, Gewicht, Ziele und Einstellungen sind nicht enthalten.</p><p>Beim Import werden nur fehlende Lebensmittel ergänzt: eigene Lebensmittel unter „Eigene“, alle anderen unter „Vorgemerkt“. Was schon vorhanden ist, bleibt unverändert. Wird ein vollständiges Backup gewählt, werden daraus ebenfalls nur die Lebensmittel übernommen.</p><p>Die Datei läuft über das Teilen-Menü (z. B. AirDrop, Nachrichten) und nicht über einen Server der App.</p>' },
   diet: { body: '<p>Gilt für die Vorschläge. Erkannt wird anhand der BLS-Lebensmittelgruppe und des Namens, bei Barcode-Produkten über Open Food Facts, bei eigenen Lebensmitteln über deine Angaben.</p><p>Ist etwas unklar (z. B. Fertiggerichte), wird es nicht vorgeschlagen. Sulfite sind nicht erkennbar.</p>' },
   sf: { body: '<p>Bei den Ernährungszielen Ausgewogen, Muskelaufbau und Fettabbau rechnet die App automatisch: Ballaststoffe mindestens 30 g (DGE), freier Zucker höchstens 10 % (oder 5 %) deiner Kalorien (WHO). Bei „Eigene“ trägst du beide Werte selbst ein.</p><p>Freier Zucker = zugesetzter Zucker sowie Zucker in Honig, Sirup und Fruchtsaft. Zucker in ganzem Obst, Gemüse und Milch zählt als natürlich und wird nur angezeigt. Der freie Anteil wird aus Lebensmittelgruppe und Namen geschätzt.</p>', pts: [['< 10 % der kcal', 'WHO, starke Empfehlung'], ['< 5 % der kcal', 'WHO, bedingte Empfehlung'], ['≥ 30 g Ballaststoffe', 'DGE, für Erwachsene']], src: 'WHO 2015 · DGE/DAG/DDG 2019 · DGE 2022' },
 };
@@ -1734,7 +1734,7 @@ function renderSettingsInner() {
     </div>
     <div class="card">
       <h2>Lebensmittel teilen</h2>
-      <p class="small muted" style="margin:0 0 8px">Eigene, vorgemerkte und favorisierte Lebensmittel als Datei weitergeben, z. B. per AirDrop an deine Partnerin. Journal, Gewicht und Ziele sind nicht enthalten. ${infoBtn('share')}</p>
+      <p class="small muted" style="margin:0 0 8px">Alle gescannten, getrackten, eigenen und vorgemerkten Lebensmittel als Datei weitergeben, z. B. per AirDrop an deine Partnerin. Favoriten, Journal-Einträge, Gewicht und Ziele sind nicht enthalten. ${infoBtn('share')}</p>
       <div class="row"><button class="btn secondary" id="fExp">Exportieren</button><button class="btn secondary" id="fImpBtn">Importieren</button></div>
       <input type="file" id="fImp" accept="application/json,.json" hidden>
     </div>
@@ -1921,36 +1921,54 @@ async function shareJson(obj, name, done) {
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
   if (done) done();
 }
+// Alle Lebensmittel-Definitionen aus einem Zustand: eigene, vorgemerkte, gescannte und im Journal getrackte.
+// Aus dem Journal wird nur das Lebensmittel selbst übernommen (Name, Nährwerte pro 100 g) – keine Daten, Mengen oder Mahlzeiten.
+const SHARE_SRC = ['bls', 'off', 'custom', 'recipe'];
+function collectFoods(st) {
+  const custom = (st.custom || []).filter((f) => f && f.id && f.n);
+  const cIds = new Set(custom.map((f) => f.id));
+  const map = new Map();
+  const put = (f) => { if (!f || !f.id || !f.n || cIds.has(f.id) || map.has(f.id) || !SHARE_SRC.includes(f.src)) return; map.set(f.id, foodSnap(f)); };
+  (st.pantry || []).forEach(put);
+  Object.values(st.offCache || {}).forEach(put);
+  (st.recent || []).forEach(put);
+  Object.keys(st.days || {}).sort().reverse().forEach((d) => (st.days[d] || []).forEach((e) => {
+    if (e && e.ref && !e.quick && !e.alcId && !e.cafId) put(Object.assign({}, e, { id: e.ref }));
+  }));
+  const ids = new Set([...cIds, ...map.keys()]);
+  const off = {}; ids.forEach((id) => { const c = String(id).slice(4); if (String(id).startsWith('off:') && st.offCache && st.offCache[c]) off[c] = st.offCache[c]; });
+  const slices = {}; ids.forEach((id) => { if (st.slices && st.slices[id]) slices[id] = st.slices[id]; });
+  return { custom, foods: [...map.values()], off, slices };
+}
 function foodsPayload() {
-  const ids = new Set([...state.custom, ...(state.pantry || []), ...state.favs].map((f) => f.id));
-  const off = {}; ids.forEach((id) => { if (String(id).startsWith('off:') && state.offCache[id.slice(4)]) off[id.slice(4)] = state.offCache[id.slice(4)]; });
-  const slices = {}; ids.forEach((id) => { if (state.slices[id]) slices[id] = state.slices[id]; });
-  return { format: 'kalorien-tracker-lebensmittel', v: 1, exported: isoDate(new Date()), custom: state.custom, pantry: state.pantry || [], favs: state.favs, off, slices };
+  return Object.assign({ format: 'kalorien-tracker-lebensmittel', v: 2, exported: isoDate(new Date()) }, collectFoods(state));
 }
 async function exportFoods() {
   const p = foodsPayload();
-  const n = new Set([...p.custom, ...p.pantry, ...p.favs].map((f) => f.id)).size;
-  if (!n) { toast('Noch keine eigenen, vorgemerkten oder favorisierten Lebensmittel.'); return; }
+  const n = p.custom.length + p.foods.length;
+  if (!n) { toast('Noch keine Lebensmittel zum Teilen.'); return; }
   await shareJson(p, `lebensmittel-${isoDate(new Date())}.json`, () => toast(`${n} Lebensmittel exportiert`));
 }
 function importFoods(data) {
   if (!data || typeof data !== 'object' || !Array.isArray(data.custom)) { toast('Keine Lebensmittel-Datei.'); return; }
   const isBackup = data.format !== 'kalorien-tracker-lebensmittel';
+  const src = isBackup ? collectFoods(data) : { custom: data.custom, foods: [...(data.foods || []), ...(data.pantry || [])], off: data.off || {}, slices: data.slices || {} };
   const key = (f) => norm(f.n || '') + '|' + Math.round(f.k || 0);
   const have = new Set(state.custom.map((f) => f.id)), haveKey = new Set(state.custom.map(key));
-  const newCustom = data.custom.filter((f) => f && f.id && f.n && !have.has(f.id) && !haveKey.has(key(f)));
-  // Favoriten der anderen Person werden nicht zu eigenen Favoriten, sondern landen als „vorgemerkt“
-  const seen = new Set((state.pantry || []).map((x) => x.id));
-  const newPantry = [...(data.pantry || []), ...(data.favs || [])].filter((f) => f && f.id && !seen.has(f.id) && seen.add(f.id))
-    .map((f) => Object.assign({}, f, { added: f.added || Date.now() }));
+  const newCustom = src.custom.filter((f) => f && f.id && f.n && !have.has(f.id) && !haveKey.has(key(f)));
+  // alles andere landet als „vorgemerkt“ – außer es ist hier schon bekannt (vorgemerkt, zuletzt verwendet, Favorit, eigen)
+  const seen = new Set([...(state.pantry || []), ...state.recent, ...state.favs, ...state.custom].map((x) => x.id));
+  const now = Date.now();
+  const newPantry = src.foods.filter((f) => f && f.id && f.n && SHARE_SRC.includes(f.src) && !seen.has(f.id) && seen.add(f.id))
+    .map((f, i) => Object.assign(foodSnap(f), { added: now - i }));
   const total = newCustom.length + newPantry.length;
   if (!total) { toast('Alles schon vorhanden – nichts Neues.'); return; }
-  const msg = `${isBackup ? 'Die Datei ist ein vollständiges Backup – übernommen werden nur Lebensmittel. ' : ''}Hinzufügen: ${newCustom.length} eigene Lebensmittel/Rezepte und ${newPantry.length} vorgemerkte Lebensmittel? Vorhandenes bleibt unverändert.`;
+  const msg = `${isBackup ? 'Die Datei ist ein vollständiges Backup – übernommen werden nur Lebensmittel. ' : ''}Hinzufügen: ${newCustom.length} eigene Lebensmittel und ${newPantry.length} weitere Lebensmittel (als „vorgemerkt“)? Vorhandenes bleibt unverändert.`;
   if (!confirm(msg)) return;
   state.custom = state.custom.concat(newCustom);
-  state.pantry = (state.pantry || []).concat(newPantry);
-  Object.entries(data.off || data.offCache || {}).forEach(([c, f]) => { if (!state.offCache[c]) state.offCache[c] = f; });
-  Object.entries(data.slices || {}).forEach(([id, g]) => { if (!state.slices[id]) state.slices[id] = g; });
+  state.pantry = (state.pantry || []).concat(newPantry).slice(0, PANTRY_MAX);
+  Object.entries(src.off).forEach(([c, f]) => { if (!state.offCache[c]) state.offCache[c] = f; });
+  Object.entries(src.slices).forEach(([id, g]) => { if (!state.slices[id]) state.slices[id] = g; });
   save(); toast(`${total} Lebensmittel übernommen`);
 }
 async function exportBackup() {
