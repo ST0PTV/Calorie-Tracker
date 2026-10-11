@@ -1,0 +1,176 @@
+"""Hinterlegte Rezepte für die Vorschläge (nicht sichtbar/änderbar in der App).
+
+Eigene Zusammenstellung gängiger Gerichte. Zutatenlisten und Mengen sind nicht urheberrechtlich geschützt;
+die Kurzanleitungen sind selbst formuliert. Nährwerte rechnet tools/build_recipes.py aus dem BLS 4.0.
+
+Mengen = Gramm für das ganze Rezept. Stärkebeilagen und Hülsenfrüchte als GEKOCHTES Gewicht (BLS „gekocht“),
+damit Gewicht und kcal pro Portion zum fertigen Essen passen. Gemüse roh (Garverlust vernachlässigt).
+WATER = Wasser, das beim Garen/Einweichen aufgenommen wird bzw. in Suppen bleibt (zählt nur zum Gewicht).
+d: 2 = vegan, 1 = vegetarisch, 0 = mit Fleisch/Fisch. a: Allergene (LMIV-Kürzel wie in der App).
+meal: f = Frühstück, m = Mittag, a = Abend, s = Snack. Nussfrei sind alle Rezepte ohne „nu“/„er“.
+"""
+
+OIL = 'Q180000'      # Rapsöl
+OLIVE = 'Q120000'    # Olivenöl
+ONION = 'G480100'; GARLIC = 'G490100'; TOMCAN = 'G568900'; PASS = 'R161200'; TMARK = 'R160000'
+RICE = 'C351032'     # Reis unpoliert (Naturreis), gekocht
+RICEW = 'C352032'    # Reis poliert, gekocht
+PASTA = 'E500032'    # Vollkornteigwaren eifrei, gekocht
+PASTAW = 'E401032'   # Teigwaren eifrei, gekocht
+BREAD = 'B121000'    # Roggenvollkornbrot
+TORT = 'B783012'     # Weizentortilla
+TOFU = 'H861000'; SOYJ = 'H844100'; SOYD = 'H841400'; OATS = 'C133000'
+BROTH = 'R821000'    # Gemüsebrühe (Pulver)
+
+R = [
+  # ---------- Frühstück ----------
+  dict(id='overnight-oats', n='Overnight Oats mit Beeren', meal='f', p=1, d=2, a=['gl', 'so'],
+       items=[(OATS, 60), (SOYJ, 150), (SOYD, 100), ('F304100', 80), ('H480100', 10)],
+       steps='Haferflocken, Sojajoghurt, Sojadrink und Chiasamen verrühren, über Nacht kühl stellen, morgens mit Heidelbeeren toppen.'),
+  dict(id='porridge-banane', n='Porridge mit Banane', meal='f', p=1, d=2, a=['gl', 'so'],
+       items=[(OATS, 60), (SOYD, 250), ('F503100', 100), ('H410400', 10)],
+       steps='Haferflocken im Sojadrink 3–5 Minuten köcheln, Banane in Scheiben und geschroteten Leinsamen darauf.'),
+  dict(id='tofu-ruehrei', n='Tofu-Rührei mit Spinat und Brot', meal='f', p=1, d=2, a=['so', 'gl'],
+       items=[(TOFU, 150), ('G211100', 60), ('G561100', 80), (OIL, 5), (BREAD, 80)],
+       steps='Tofu mit der Gabel zerdrücken, in Öl anbraten, Spinat und Tomatenwürfel kurz mitgaren, mit Salz, Pfeffer und Kurkuma würzen. Dazu Brot.'),
+  dict(id='hummus-brot', n='Vollkornbrot mit Hummus und Gurke', meal='f', p=1, d=2, a=['gl', 'sa'],
+       items=[(BREAD, 100), ('H960000', 50), ('G520100', 80), ('G561100', 60)],
+       steps='Brot mit Hummus bestreichen, mit Gurken- und Tomatenscheiben belegen.'),
+  dict(id='chia-pudding', n='Chia-Pudding mit Mango', meal='f', p=1, d=2, a=['so'],
+       items=[('H480100', 30), (SOYD, 200), ('F516100', 100), (SOYJ, 50)],
+       steps='Chiasamen in Sojadrink einrühren, mindestens 2 Stunden quellen lassen, mit Sojajoghurt und Mangowürfeln servieren.'),
+  dict(id='skyr-beeren', n='Skyr mit Beeren und Haferflocken', meal='f', p=1, d=1, a=['mi', 'gl'],
+       items=[('M710100', 250), ('F302100', 80), (OATS, 30)],
+       steps='Skyr in eine Schale geben, Himbeeren und Haferflocken darüber.'),
+  dict(id='ruehrei-brot', n='Rührei mit Vollkornbrot und Tomate', meal='f', p=1, d=1, a=['ei', 'gl'],
+       items=[('E111100', 120), (OIL, 5), (BREAD, 80), ('G561100', 100)],
+       steps='Eier verquirlen, in wenig Öl bei mittlerer Hitze stocken lassen. Mit Brot und Tomate servieren.'),
+  dict(id='quark-apfel', n='Quark mit Apfel und Haferflocken', meal='f', p=1, d=1, a=['mi', 'gl'],
+       items=[('M713100', 200), ('F110100', 130), (OATS, 30), ('H410400', 10)],
+       steps='Magerquark glatt rühren, Apfel klein schneiden, mit Haferflocken und Leinsamen mischen.'),
+
+  # ---------- Hauptgerichte vegan ----------
+  dict(id='chili-sin-carne', n='Chili sin Carne mit Reis', meal='ma', p=2, d=2, a=['so'],
+       items=[('H765000', 60), ('WATER', 120), ('H742902', 240), ('G570100', 140), ('G543100', 150), (ONION, 80), (TOMCAN, 400), (TMARK, 20), (OIL, 10), (RICE, 300)],
+       steps='Sojagranulat in heißer Brühe 10 Minuten einweichen, ausdrücken. Zwiebel und Paprika in Öl anbraten, Granulat mitbraten, Tomatenmark kurz rösten. Tomaten, Bohnen und Mais zugeben, 15 Minuten köcheln, mit Kreuzkümmel, Chili und Paprika würzen. Mit Reis servieren.'),
+  dict(id='linsen-dal', n='Rote-Linsen-Dal mit Reis', meal='ma', p=2, d=2, a=[],
+       items=[('H730000', 160), ('WATER', 450), (ONION, 80), (GARLIC, 10), (TOMCAN, 200), ('H154000', 100), ('G211100', 100), (OIL, 10), (RICE, 300)],
+       steps='Zwiebel und Knoblauch in Öl anschwitzen, Curry und Kurkuma kurz mitrösten. Linsen, Tomaten, Kokosmilch und 400 ml Wasser zugeben, 15–20 Minuten köcheln, Spinat unterheben. Mit Reis servieren.'),
+  dict(id='kichererbsen-curry', n='Kichererbsen-Curry mit Reis', meal='ma', p=2, d=2, a=[],
+       items=[('H720902', 240), ('G311100', 250), ('G543100', 120), (ONION, 80), ('H154000', 200), (TOMCAN, 200), (OIL, 10), (RICEW, 300)],
+       steps='Zwiebel in Öl anbraten, Currypulver kurz mitrösten. Blumenkohl, Paprika, Tomaten und Kokosmilch zugeben, 10 Minuten köcheln, Kichererbsen dazu und 5 Minuten weiter garen. Mit Reis servieren.'),
+  dict(id='tofu-gemuese-pfanne', n='Tofu-Gemüse-Pfanne mit Reis', meal='ma', p=2, d=2, a=['so', 'gl'],
+       items=[(TOFU, 300), ('G312100', 250), ('G620100', 150), ('G543100', 150), ('R143000', 30), (OIL, 15), (RICE, 300)],
+       steps='Tofu würfeln und in Öl knusprig braten, herausnehmen. Gemüse in Streifen bissfest braten, Tofu zurückgeben, mit Sojasauce ablöschen. Mit Reis servieren.'),
+  dict(id='linsen-bolognese', n='Vollkornspaghetti mit Linsen-Bolognese', meal='ma', p=2, d=2, a=['gl'],
+       items=[('H725100', 120), ('WATER', 400), (ONION, 80), ('G620100', 100), (PASS, 400), (TMARK, 20), (OLIVE, 10), (PASTA, 400)],
+       steps='Zwiebel und Möhre fein würfeln, in Olivenöl anbraten, Tomatenmark kurz rösten. Linsen, passierte Tomaten und 300 ml Wasser zugeben, 25 Minuten köcheln, mit Oregano würzen. Über die Spaghetti geben.'),
+  dict(id='pasta-bohnen', n='Pasta mit Tomatensauce und Kidneybohnen', meal='ma', p=2, d=2, a=['gl'],
+       items=[(PASTA, 400), (PASS, 400), ('H742902', 240), ('G582100', 200), (GARLIC, 10), (OLIVE, 10)],
+       steps='Knoblauch und Zucchiniwürfel in Olivenöl anbraten, passierte Tomaten und Bohnen zugeben, 10 Minuten köcheln, mit Basilikum würzen. Mit der Pasta mischen.'),
+  dict(id='ofengemuese-kichererbsen', n='Ofengemüse mit Kichererbsen und Hummus', meal='ma', p=2, d=2, a=['sa'],
+       items=[('K420100', 400), ('G582100', 200), ('G543100', 150), ('H720902', 240), (OLIVE, 15), ('H960000', 80)],
+       steps='Süßkartoffel, Zucchini und Paprika würfeln, mit Kichererbsen, Olivenöl und Paprikapulver mischen, bei 200 °C etwa 30 Minuten backen. Mit Hummus servieren.'),
+  dict(id='quinoa-bowl', n='Quinoa-Bowl mit Tofu und Edamame', meal='ma', p=2, d=2, a=['so', 'gl', 'sa'],
+       items=[('C118032', 300), (TOFU, 200), ('G750100', 150), ('G620100', 120), ('G520100', 150), ('R143000', 20), (OIL, 10), ('H420100', 10)],
+       steps='Tofu würfeln und in Öl anbraten. Quinoa, Edamame, geraspelte Möhre und Gurke in Schalen anrichten, Tofu darauf, mit Sojasauce und Sesam abschmecken.'),
+  dict(id='bohnen-wrap', n='Bohnen-Wraps mit Gemüse', meal='ma', p=2, d=2, a=['gl'],
+       items=[(TORT, 240), ('H742902', 240), ('G570100', 100), ('G543100', 120), ('G105100', 60), ('F502100', 100), (PASS, 100)],
+       steps='Bohnen mit passierten Tomaten und Gewürzen kurz erhitzen, leicht zerdrücken. Tortillas mit Bohnen, Mais, Paprika, Salat und Avocado füllen und einrollen.'),
+  dict(id='couscous-salat', n='Couscous-Salat mit Kichererbsen', meal='ma', p=2, d=2, a=['gl'],
+       items=[('C119232', 300), ('H720902', 240), ('G520100', 150), ('G561100', 150), ('G250100', 20), ('F601100', 30), (OLIVE, 15)],
+       steps='Couscous mit heißem Wasser quellen lassen, abkühlen. Kichererbsen, Gurke, Tomate und Petersilie untermischen, mit Zitronensaft, Olivenöl, Salz und Pfeffer anmachen.'),
+  dict(id='kartoffel-linsen-eintopf', n='Kartoffel-Linsen-Eintopf', meal='ma', p=2, d=2, a=['se'],
+       items=[('K110132', 400), ('WATER', 900), ('H725100', 100), ('G620100', 150), ('G470100', 120), (ONION, 60), (BROTH, 10), (OIL, 10)],
+       steps='Zwiebel, Lauch und Möhre in Öl anschwitzen, Linsen und 1 l Brühe zugeben, 20 Minuten köcheln. Gekochte Kartoffelwürfel zugeben, mit Essig, Majoran, Salz und Pfeffer abschmecken.'),
+  dict(id='erbsensuppe', n='Erbsensuppe mit Brot', meal='ma', p=2, d=2, a=['gl', 'se'],
+       items=[('G760400', 150), ('WATER', 1000), ('K110132', 200), ('G620100', 100), ('G470100', 100), (BROTH, 10), (OIL, 10), (BREAD, 100)],
+       steps='Gemüse in Öl anschwitzen, Erbsen und 1,2 l Brühe zugeben, 45 Minuten köcheln, Kartoffeln zugeben und grob pürieren. Mit Majoran würzen, mit Brot servieren.'),
+  dict(id='pasta-brokkoli-tofu', n='Pasta mit Brokkoli und Tofu', meal='ma', p=2, d=2, a=['gl', 'so'],
+       items=[(PASTA, 400), ('G312100', 300), (TOFU, 200), ('H845000', 100), (GARLIC, 10), (OLIVE, 10)],
+       steps='Brokkoli in den letzten 4 Minuten mit der Pasta garen. Tofu würfeln und in Olivenöl mit Knoblauch braten, Sojakochcreme zugeben, alles mischen und mit Zitrone und Pfeffer abschmecken.'),
+  dict(id='linsensalat-kartoffeln', n='Linsensalat mit Kartoffeln', meal='ma', p=2, d=2, a=['sf'],
+       items=[('H730132', 300), ('K120134', 300), ('G620100', 100), ('G482100', 40), ('G130100', 60), (OLIVE, 15)],
+       steps='Gekochte Linsen und Kartoffeln mit geraspelter Möhre, Frühlingszwiebel und Rucola mischen. Dressing aus Olivenöl, Essig und Senf darübergeben.'),
+  dict(id='soja-gyros', n='Soja-Gyros mit Reis und Salat', meal='ma', p=2, d=2, a=['so'],
+       items=[('H765000', 100), ('WATER', 200), (ONION, 100), (OIL, 15), (RICEW, 300), ('G105100', 100), ('G561100', 150), (SOYJ, 100), ('G520100', 80)],
+       steps='Sojaschnetzel in Brühe einweichen, ausdrücken, mit Zwiebel in Öl kräftig anbraten und mit Gyros-Gewürz würzen. Aus Sojajoghurt, geriebener Gurke und Knoblauch einen Dip rühren. Mit Reis und Salat servieren.'),
+  dict(id='seitan-gemuese', n='Seitan mit Paprika und Bulgur', meal='ma', p=2, d=2, a=['gl', 'so'],
+       items=[('C558000', 200), ('G543100', 200), ('G582100', 150), (ONION, 80), ('R143000', 20), (OIL, 10), ('C119132', 300)],
+       steps='Seitan in Streifen schneiden und in Öl anbraten. Zwiebel, Paprika und Zucchini zugeben, mit Sojasauce ablöschen. Mit Bulgur servieren.'),
+  dict(id='suesskartoffel-bohnen', n='Gefüllte Süßkartoffel mit Bohnen', meal='ma', p=2, d=2, a=['so'],
+       items=[('K420100', 500), ('H742902', 240), ('G570100', 100), (SOYJ, 100), ('G482100', 30), (OIL, 5)],
+       steps='Süßkartoffeln bei 200 °C etwa 45 Minuten backen, aufschneiden. Bohnen und Mais mit Gewürzen erhitzen, einfüllen, mit Sojajoghurt und Frühlingszwiebeln servieren.'),
+  dict(id='hirse-gemuese', n='Hirse-Gemüse-Pfanne mit Tofu', meal='ma', p=2, d=2, a=['so'],
+       items=[('C332000', 120), ('WATER', 240), (TOFU, 200), ('G582100', 200), ('G620100', 150), ('G760200', 100), (OIL, 15)],
+       steps='Hirse mit der doppelten Menge Wasser 10 Minuten köcheln, quellen lassen. Tofu und Gemüse in Öl braten, Hirse unterheben, mit Kräutern abschmecken.'),
+
+  # ---------- Hauptgerichte vegetarisch ----------
+  dict(id='gemuese-omelett', n='Gemüse-Omelett mit Brot', meal='ma', p=1, d=1, a=['ei', 'gl'],
+       items=[('E111100', 180), ('G543100', 80), ('G211100', 50), ('K701100', 80), (OIL, 5), (BREAD, 60)],
+       steps='Gemüse in Öl anbraten, verquirlte Eier darübergießen und bei mittlerer Hitze stocken lassen. Mit Brot servieren.'),
+  dict(id='shakshuka', n='Shakshuka mit Brot', meal='ma', p=2, d=1, a=['ei', 'gl'],
+       items=[('E111100', 240), (TOMCAN, 400), ('G543100', 200), (ONION, 80), (OLIVE, 10), (BREAD, 120)],
+       steps='Zwiebel und Paprika in Olivenöl weich dünsten, Tomaten zugeben und mit Kreuzkümmel 10 Minuten köcheln. Mulden formen, Eier hineinschlagen, zugedeckt stocken lassen. Mit Brot servieren.'),
+  dict(id='pellkartoffeln-quark', n='Pellkartoffeln mit Kräuterquark', meal='ma', p=1, d=1, a=['mi'],
+       items=[('K120134', 350), ('M713100', 200), ('G081100', 10), ('H410100', 10), ('G520100', 100)],
+       steps='Kartoffeln mit Schale kochen. Quark mit Schnittlauch, Salz und etwas Wasser cremig rühren, mit Leinsamen bestreuen. Gurke dazu.'),
+  dict(id='feta-couscous', n='Feta-Gemüse-Pfanne mit Couscous', meal='ma', p=2, d=1, a=['mi', 'gl'],
+       items=[('M012200', 120), ('G582100', 200), ('G510100', 200), ('G543100', 150), (OLIVE, 15), ('C119232', 300)],
+       steps='Zucchini, Aubergine und Paprika in Olivenöl braten, mit Oregano würzen, Feta darüberbröseln. Mit Couscous servieren.'),
+  dict(id='spinat-gnocchi', n='Gnocchi mit Spinat und Mozzarella', meal='ma', p=2, d=1, a=['mi', 'gl'],
+       items=[('K270032', 500), ('G211100', 200), ('M0A1000', 125), (PASS, 200), (GARLIC, 10), (OLIVE, 10)],
+       steps='Gnocchi kochen. Knoblauch in Olivenöl anschwitzen, passierte Tomaten und Spinat zugeben, Gnocchi unterheben, mit Mozzarella belegen und kurz überbacken.'),
+  dict(id='linsen-quark-bowl', n='Linsen-Bowl mit Joghurt-Dip', meal='ma', p=2, d=1, a=['mi'],
+       items=[('H730132', 300), (RICE, 200), ('G620100', 150), ('G613132', 150), ('M141200', 150), (OLIVE, 10)],
+       steps='Linsen und Reis anrichten, Möhre raspeln, Rote Bete würfeln. Joghurt mit Kräutern, Salz und Zitrone verrühren und darübergeben, mit Olivenöl beträufeln.'),
+
+  # ---------- Hauptgerichte mit Fleisch/Fisch ----------
+  dict(id='haehnchen-reis', n='Hähnchen mit Reis und Brokkoli', meal='ma', p=2, d=0, a=['so', 'gl'],
+       items=[('V416100', 300), ('G312100', 300), (RICE, 300), ('R143000', 20), (OIL, 10)],
+       steps='Hähnchen in Streifen schneiden und in Öl durchbraten. Brokkoli dämpfen, alles mit Sojasauce mischen und mit Reis servieren.'),
+  dict(id='puten-geschnetzeltes', n='Putengeschnetzeltes mit Nudeln', meal='ma', p=2, d=0, a=['gl', 'mi'],
+       items=[('V486100', 300), ('K701100', 200), (ONION, 80), ('M141200', 150), (OIL, 10), (PASTAW, 400)],
+       steps='Pute in Streifen in Öl anbraten, herausnehmen. Zwiebel und Champignons braten, Joghurt mit etwas Wasser einrühren (nicht kochen), Fleisch zurückgeben. Mit Nudeln servieren.'),
+  dict(id='lachs-kartoffeln', n='Lachs mit Kartoffeln und Brokkoli', meal='ma', p=2, d=0, a=['fi'],
+       items=[('T410100', 250), ('K110132', 400), ('G312100', 300), (OLIVE, 10), ('F601100', 30)],
+       steps='Lachs mit Zitrone, Salz und Pfeffer würzen und bei 180 °C etwa 15 Minuten im Ofen garen. Kartoffeln kochen, Brokkoli dämpfen, mit Olivenöl beträufeln.'),
+  dict(id='thunfisch-nudelsalat', n='Thunfisch-Nudelsalat', meal='ma', p=2, d=0, a=['fi', 'gl', 'mi'],
+       items=[(PASTA, 350), ('T121902', 150), ('G570100', 100), ('G561100', 150), ('G520100', 100), ('M141200', 100), (OLIVE, 10)],
+       steps='Abgekühlte Nudeln mit Thunfisch, Mais, Tomaten und Gurke mischen. Joghurt mit Olivenöl, Essig, Salz und Pfeffer verrühren und unterheben.'),
+  dict(id='chili-con-carne', n='Chili con Carne mit Reis', meal='ma', p=2, d=0, a=[],
+       items=[('U010100', 250), ('H742902', 240), ('G570100', 100), ('G543100', 150), (ONION, 80), (TOMCAN, 400), (TMARK, 20), (OIL, 5), (RICE, 300)],
+       steps='Hackfleisch in Öl krümelig braten, Zwiebel und Paprika mitbraten, Tomatenmark rösten. Tomaten, Bohnen und Mais zugeben, 20 Minuten köcheln und kräftig würzen. Mit Reis servieren.'),
+  dict(id='haehnchen-curry', n='Hähnchen-Curry mit Reis', meal='ma', p=2, d=0, a=[],
+       items=[('V416100', 300), ('H154000', 150), ('G543100', 150), ('G312100', 200), (ONION, 80), (OIL, 10), (RICEW, 300)],
+       steps='Hähnchen würfeln und in Öl anbraten, Zwiebel und Currypulver zugeben. Kokosmilch, Paprika und Brokkoli dazu, 12 Minuten köcheln. Mit Reis servieren.'),
+  dict(id='seelachs-reis', n='Seelachs mit Reis und Gemüse', meal='ma', p=2, d=0, a=['fi'],
+       items=[('T207100', 300), (RICE, 300), ('G582100', 200), ('G620100', 150), (OIL, 10), ('F601100', 30)],
+       steps='Seelachs würzen und in Öl von beiden Seiten braten. Zucchini und Möhren dünsten, mit Reis und Zitrone servieren.'),
+  dict(id='spaghetti-bolognese', n='Spaghetti Bolognese', meal='ma', p=2, d=0, a=['gl'],
+       items=[('U010100', 250), (ONION, 80), ('G620100', 100), (PASS, 400), (TMARK, 20), (OLIVE, 5), (PASTAW, 400)],
+       steps='Hackfleisch in Olivenöl krümelig braten, Zwiebel und Möhre mitbraten, Tomatenmark rösten. Passierte Tomaten zugeben, 25 Minuten köcheln. Mit Spaghetti servieren.'),
+  dict(id='haehnchen-wrap', n='Hähnchen-Wraps mit Salat', meal='ma', p=2, d=0, a=['gl', 'mi'],
+       items=[(TORT, 240), ('V416100', 250), ('G105100', 80), ('G561100', 150), ('G520100', 100), ('M141200', 100), (OIL, 10)],
+       steps='Hähnchen in Streifen braten und würzen. Tortillas mit Salat, Tomate, Gurke, Hähnchen und Joghurt-Sauce füllen und einrollen.'),
+  dict(id='pute-suesskartoffel', n='Putenbrust mit Süßkartoffel und Brokkoli', meal='ma', p=2, d=0, a=[],
+       items=[('V486100', 300), ('K420100', 500), ('G312100', 250), (OLIVE, 15)],
+       steps='Süßkartoffel in Spalten mit Olivenöl bei 200 °C 30 Minuten backen. Putenbrust braten, Brokkoli dämpfen und alles zusammen servieren.'),
+
+  # ---------- Snacks ----------
+  dict(id='s-apfel-sojajoghurt', n='Apfel mit Sojajoghurt', meal='s', p=1, d=2, a=['so'], items=[('F110100', 150), (SOYJ, 150)], steps='Apfel würfeln und mit Sojajoghurt mischen.'),
+  dict(id='s-hummus-gemuese', n='Gemüsesticks mit Hummus', meal='s', p=1, d=2, a=['sa'], items=[('G620100', 100), ('G520100', 100), ('G543100', 80), ('H960000', 50)], steps='Möhre, Gurke und Paprika in Sticks schneiden, mit Hummus dippen.'),
+  dict(id='s-edamame', n='Edamame', meal='s', p=1, d=2, a=['so'], items=[('G750100', 150)], steps='Edamame 4–5 Minuten in Salzwasser kochen, leicht salzen.'),
+  dict(id='s-sojajoghurt-beeren', n='Sojajoghurt mit Beeren', meal='s', p=1, d=2, a=['so'], items=[(SOYJ, 200), ('F301100', 100), ('H480100', 10)], steps='Sojajoghurt mit Erdbeeren und Chiasamen anrichten.'),
+  dict(id='s-avocado-brot', n='Vollkornbrot mit Avocado', meal='s', p=1, d=2, a=['gl'], items=[(BREAD, 60), ('F502100', 70), ('G561100', 50)], steps='Avocado zerdrücken, mit Salz und Zitrone würzen, aufs Brot streichen, Tomate darauf.'),
+  dict(id='s-shake', n='Bananen-Soja-Shake', meal='s', p=1, d=2, a=['so', 'gl'], items=[(SOYD, 300), ('F503100', 100), (OATS, 20)], steps='Sojadrink, Banane und Haferflocken fein mixen.'),
+  dict(id='s-kichererbsen-snack', n='Geröstete Kichererbsen', meal='s', p=1, d=2, a=[], items=[('H720902', 120), (OLIVE, 5)], steps='Kichererbsen trocken tupfen, mit Öl und Paprika mischen, bei 200 °C etwa 25 Minuten knusprig rösten.'),
+  dict(id='s-obstsalat', n='Obstsalat', meal='s', p=1, d=2, a=[], items=[('F110100', 100), ('F603100', 100), ('F514100', 75), ('F310100', 75)], steps='Obst klein schneiden und mischen.'),
+  dict(id='s-reiswaffeln', n='Reiswaffeln mit Hummus und Gurke', meal='s', p=1, d=2, a=['sa'], items=[('C532700', 30), ('H960000', 40), ('G520100', 60)], steps='Reiswaffeln mit Hummus bestreichen und mit Gurke belegen.'),
+  dict(id='s-knaecke-tomate', n='Knäckebrot mit Tomate', meal='s', p=1, d=2, a=['gl'], items=[('B6A2100', 30), ('G561100', 100)], steps='Knäckebrot mit Tomatenscheiben belegen, salzen und pfeffern.'),
+  dict(id='s-dattel-hafer', n='Datteln mit Haferflocken-Energie', meal='s', p=1, d=2, a=['gl'], items=[('F504400', 30), (OATS, 30), ('H480100', 5)], steps='Datteln entsteinen und mit Haferflocken und Chiasamen zu kleinen Kugeln kneten.'),
+  dict(id='s-quark-beeren', n='Magerquark mit Beeren', meal='s', p=1, d=1, a=['mi'], items=[('M713100', 200), ('F302100', 80)], steps='Quark glatt rühren und mit Himbeeren servieren.'),
+  dict(id='s-huettenkaese', n='Hüttenkäse mit Gurke', meal='s', p=1, d=1, a=['mi'], items=[('M711100', 200), ('G520100', 100)], steps='Hüttenkäse mit Gurkenscheiben, Salz und Pfeffer anrichten.'),
+  dict(id='s-eier', n='Zwei gekochte Eier', meal='s', p=1, d=1, a=['ei'], items=[('E111100', 120)], steps='Eier 8–9 Minuten kochen, abschrecken und schälen.'),
+  dict(id='s-banane', n='Banane und Sojadrink', meal='s', p=1, d=2, a=['so'], items=[('F503100', 120), (SOYD, 200)], steps='Banane zum Glas Sojadrink.'),
+]
