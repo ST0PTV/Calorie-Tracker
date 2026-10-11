@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.27.0';
+const APP_VERSION = '1.27.1';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -1555,6 +1555,16 @@ function dayGoalState(iso, k, goal) {
   if (Math.abs(k - goal) <= goal * KEEP_TOL) return 'ok';
   return k < goal && today ? 'open' : 'miss';
 }
+INFO.hcal = () => {
+  const dir = goalDir(isoDate(new Date()));
+  const now = { lose: 'Abnehmen', gain: 'Zunehmen', keep: 'Gewicht halten' }[dir];
+  const why = state.wgoal && state.wgoal.on && state.wgoal.target && state.profile.weight ? 'aus deinem Gewichtsziel' : 'aus dem Ernährungsziel des Tages (Muskelaufbau = zunehmen, Fettabbau = abnehmen, sonst halten)';
+  return { body: `<p>Der Ring zeigt, wie viel vom Kalorienziel des Tages gegessen wurde. Die Farbe zeigt, ob das zu deinem Ziel passt. Aktuell: <strong>${now}</strong> – abgeleitet ${why}.</p>`,
+    pts: [['<span style="color:var(--good)">●</span> Grün – Ziel erreicht', 'Abnehmen: unter dem Kalorienziel · Zunehmen: Ziel erreicht oder darüber · Halten: höchstens ±10 % daneben'],
+      ['<span style="color:var(--warn)">●</span> Orange – verfehlt', 'Abnehmen: über dem Ziel · Zunehmen: darunter · Halten: mehr als 10 % daneben'],
+      ['<span style="color:var(--accent)">●</span> Cyan – heute, läuft noch', 'Das Ziel soll erreicht werden, der Tag ist aber noch nicht vorbei'],
+      ['◌ Gestrichelt – nicht getrackt', 'Kein Eintrag an diesem Tag']] };
+};
 function renderHistory() {
   const today = isoDate(new Date());
   const curMonth = today.slice(0, 7);
@@ -1578,18 +1588,16 @@ function renderHistory() {
   // 1) Kalender mit Zielerreichung
   const off = (new Date(Y, M - 1, 1).getDay() + 6) % 7;
   let cells = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((w) => `<div class="hc-w">${w}</div>`).join('') + '<div></div>'.repeat(off);
-  let todayOpen = false;
   mdays.forEach((x, i) => {
     const has = x.n > 0;
     const frac = has ? (x.goal ? Math.min(x.t.k / x.goal, 1) : 1) : 0;
     const st = has ? dayGoalState(x.d, x.t.k, x.goal) : null;
-    if (st === 'open') todayOpen = true;
     const col = st === 'ok' ? 'var(--good)' : st === 'miss' ? 'var(--warn)' : 'var(--accent)';
     const ring = has ? `<span class="hc-ring" style="background:conic-gradient(${col} ${Math.round(frac * 360)}deg, rgba(255,255,255,0.08) 0)"></span><span class="hc-in"></span>` : '<span class="hc-ring none"></span>';
     cells += `<button class="hc-d ${histSel && inSel(i) ? 'sel' : ''} ${x.fut ? 'fut' : ''} ${x.d === today ? 'today' : ''}" data-i="${i}" ${x.fut ? 'disabled' : ''} aria-label="${x.d}${has ? ', ' + r0(x.t.k) + ' kcal' : ''}">${ring}<span class="hc-n ${has ? '' : 'dim'}">${i + 1}</span></button>`;
   });
   const calCard = `<div class="card hc"><div class="hc-grid">${cells}</div>
-    <div class="hc-leg small muted"><span><i style="background:var(--good)"></i>Ziel erreicht</span><span><i style="background:var(--warn)"></i>verfehlt</span>${todayOpen ? '<span><i style="background:var(--accent)"></i>heute, läuft noch</span>' : ''}</div></div>`;
+    <div class="hc-leg">${infoBtn('hcal')}</div></div>`;
 
   // 2) Kalorien pro Tag mit Auswahlfenster
   const max = Math.max(...mdays.map((x) => Math.max(x.goal || 0, x.t.k)), 1) * 1.1;
