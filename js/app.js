@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.26.5';
+const APP_VERSION = '1.26.6';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -390,7 +390,7 @@ const openMeals = new Set();   // aufgeklappte Mahlzeiten (nur für diese Sitzun
 /* Kalorien-Übersicht (K1): Ring nach Herkunft der kcal (Eiweiß/KH/Fett, Rest z. B. Alkohol grau) + Makro-Balken.
    Umschalter Übrig/Gegessen und g/% werden gespeichert. */
 function heroHtml(goal, t, s) {
-  const left = state.heroMode !== 'eaten', pct = false; // nur Gramm
+  const left = state.heroMode !== 'eaten';
   const de = (n) => r0(n).toLocaleString('de-DE');
   const over = goal && t.k > goal;
   const R = 58, L = 2 * Math.PI * R;
@@ -410,12 +410,10 @@ function heroHtml(goal, t, s) {
   const cap = !goal ? 'kcal gegessen' : left ? (over ? 'kcal über Ziel' : 'kcal übrig') : 'kcal gegessen';
   const foot = !goal ? 'Kein Tagesziel festgelegt' : left ? `${de(t.k)} von ${de(goal)} kcal gegessen` : (over ? `${de(t.k - goal)} kcal über dem Ziel von ${de(goal)}` : `${de(goal - t.k)} kcal übrig · Ziel ${de(goal)}`);
   const row = (cls, label, val, target) => {
-    const w = left ? 'übrig' : 'gegessen';
     let v;
-    if (!target) v = `${r0(val)}<small> g gegessen</small>`;
-    else if (left && val > target) v = `<span class="ov">+${pct ? r0((val - target) / target * 100) : r0(val - target)}</span><small> ${pct ? '%' : 'g'} über Ziel</small>`;
-    else if (pct) v = `${r0((left ? target - val : val) / target * 100)}<small> % ${w}</small>`;
-    else v = `${r0(left ? target - val : val)}<small> / ${r0(target)} g ${w}</small>`;
+    if (!target) v = `${r0(val)}<small> g</small>`;
+    else if (left && val > target) v = `<span class="ov">+${r0(val - target)}</span><small> g</small>`; // über dem Ziel
+    else v = `${r0(left ? target - val : val)}<small> / ${r0(target)} g</small>`;
     return `<div class="hm ${cls}"><div class="hm-h"><span>${label}</span><b>${v}</b></div><div class="mbar"><span style="width:${target ? Math.min(100, (val / target) * 100) : 0}%"></span></div></div>`;
   };
   return `<div class="hero-top">
