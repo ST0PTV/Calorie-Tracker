@@ -532,3 +532,6 @@ label.sw input:checked::after { transform: translateX(18px); }
 
 /* Blocksatz für Fließtext */
 p, .info-body, .info-src, .sp-hint, .caf-note, .refs li { text-align: justify; -webkit-hyphens: auto; hyphens: auto; }
+.linkbtn { background: none; border: 0; padding: 6px 0; margin-top: 4px; color: var(--accent); font: inherit; font-size: 0.78rem; cursor: pointer; }
+.slcalc { margin-top: 4px; padding: 10px 12px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line); }
+.slcalc label { margin-top: 0; }

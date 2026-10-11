@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.20.0';
+const APP_VERSION = '1.21.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -13,7 +13,7 @@ const MEALS = [
   { id: 'snack', label: 'Snacks' },
 ];
 const NUTRIENTS = ['k', 'p', 'c', 'f', 'fi', 'su', 'fs']; // fs = freier Zucker (WHO-Definition), Teil von su
-const OFF_FIELDS = 'code,product_name,product_name_de,brands,nutriments,serving_quantity,quantity,allergens_tags,ingredients_analysis_tags';
+const OFF_FIELDS = 'code,product_name,product_name_de,brands,nutriments,serving_quantity,serving_size,product_quantity,quantity,allergens_tags,ingredients_analysis_tags';
 
 /* ---------- Speicher ---------- */
 function emptyState() {
@@ -24,6 +24,7 @@ function emptyState() {
     sug: { enabled: true, time: '16:00', count: 2, priority: 'protein', minKcal: 200 },
     diet: { type: 'all', allergens: [] },
     sugRatings: {}, // Bewertung je Lebensmittel-ID: -3 … +3; ab -2 nicht mehr vorgeschlagen
+    slices: {}, // gelerntes Scheibengewicht je Lebensmittel-ID (g)
     water: { enabled: true, goal: 1500, log: {} }, // log: { 'JJJJ-MM-TT': [ml, ml, …] }
     supp: SUPP_DEFAULTS(),
     timeline: TL_DEFAULTS(),
@@ -94,6 +95,7 @@ function normalizeState(data) {
   s.diet = Object.assign(emptyState().diet, data.diet || {});
   if (!Array.isArray(s.diet.allergens)) s.diet.allergens = [];
   if (!s.sugRatings || typeof s.sugRatings !== 'object') s.sugRatings = {};
+  if (!s.slices || typeof s.slices !== 'object') s.slices = {};
   s.water = Object.assign(emptyState().water, data.water || {});
   if (!s.water.log || typeof s.water.log !== 'object') s.water.log = {};
   s.supp = suppNormalize(data.supp);
@@ -971,6 +973,38 @@ function pieceSize(food) {
   if (/^Kartoffel (geschält|ungeschält), roh/.test(n)) return { grams: 100, label: '1 kleine Kartoffel' };
   return null;
 }
+/* ---------- Scheibengewicht für Aufschnitt und Käse ----------
+   Richtwerte abgeleitet aus den LARN-Haushaltsmaßen (SINU 2024 via ATS Brescia): 50 g Aufschnitt = 5–6 Scheiben
+   Salami/Bresaola (≈ 9 g), 3–4 Scheiben Schinken (≈ 15 g), 2 Scheiben Mortadella (25 g); Käse: 2 Scheiben
+   „tipo formaggio fuso“ = 50 g (25 g). Echte Packungen weichen ab → eigener Wert aus Packung/Scheibenzahl hat Vorrang. */
+const SLICE_RULES = [
+  [/Salami|Bresaola|Chorizo|Cervelat|Plockwurst|Pfefferbei|Landjäger|Coppa|Rohwurst|Pepperoni|Mettwurst(?!.*(?:Streich|grob))|Sucuk/i, 9, 'Salami/Rohwurst'],
+  [/Schinken(?!wurst)|Putenbrust|Hähnchenbrust.*(?:Aufschnitt|geräuchert|gegart)|Kassler|Kasseler|Bacon|Speck|Pastrami|Roastbeef/i, 15, 'Schinken/Brustaufschnitt'],
+  [/Mortadella|Lyoner|Fleischwurst|Bierschinken|Jagdwurst|Leberkäse|Fleischkäse|Gelbwurst|Schinkenwurst|Sülze|Aspik|Blutwurst|Zungenwurst|Pressack|Mortadella/i, 25, 'Brühwurst'],
+  [/Gouda|Edamer|Emmentaler|Tilsiter|Butterkäse|Leerdammer|Maasdamer|Bergkäse|Gruy[eè]re|Appenzeller|Schmelzkäse|Scheiblette|Cheddar|Provolone|Raclette|Esrom|Havarti|Käse.*Scheiben|Scheibenkäse/i, 25, 'Schnittkäse'],
+];
+function offSliceG(s) {
+  if (!s || !/scheibe|slice|tranche|fetta|rebanada/i.test(s)) return null;
+  const m = String(s).match(/(\d+(?:[.,]\d+)?)\s*g\b/i); const g = m ? num(m[1]) : null;
+  const k = String(s).match(/^\s*(\d+)\s*(?:scheibe|slice|tranche|fetta)/i); const n = k ? +k[1] : 1;
+  return g && g > 0 && g < 200 ? Math.round(g / n * 10) / 10 : null;
+}
+function sliceRule(food) {
+  const n = food.n || '';
+  if (/gerieben|Reibe|Streich|Aufstrich|Pulver|Würfel|Pastete|Suppe|Brötchen|Sandwich|Pizza/i.test(n)) return null;
+  const id = String(food.ref || food.id || '');
+  if (id.startsWith('bls:') && !'WUM'.includes(id[4])) return null; // nur Wurst, Fleisch-Aufschnitt, Käse
+  return SLICE_RULES.find(([rx]) => rx.test(n)) || null;
+}
+function sliceInfo(food) {
+  const id = food.ref || food.id;
+  if (id && state.slices[id]) return { g: state.slices[id], src: 'own' };
+  const live = id && String(id).startsWith('off:') ? state.offCache[String(id).slice(4)] : null;
+  const og = (live && live.sliceG) || food.sliceG;
+  if (og) return { g: og, src: 'off' };
+  const r = sliceRule(food);
+  return r ? { g: r[1], src: 'larn', kind: r[2] } : null;
+}
 function portionOptions(food) {
   const out = [];
   let base = food;
@@ -989,6 +1023,8 @@ function portionOptions(food) {
   const pc = factor === 1 ? pieceSize(food) : null;
   if (pc && !out.some((o) => o.grams === pc.grams)) out.push({ grams: pc.grams, label: pc.label, hint: 'aus LARN-Haushaltsmaß', larn: true });
   if (food.serving && !out.some((o) => o.grams === Math.round(food.serving))) out.push({ grams: r1n(food.serving), label: food.src === 'off' ? 'Packungsportion' : food.src === 'recipe' ? '1 Rezeptportion' : '1 Portion', hint: food.src === 'off' ? 'laut Open Food Facts' : 'eigene Angabe' });
+  const sl = sliceInfo(food);
+  if (sl && !out.some((o) => o.grams === sl.g)) out.unshift({ grams: sl.g, label: '1 Scheibe', hint: sl.src === 'own' ? 'aus deiner Packung berechnet' : sl.src === 'off' ? 'laut Open Food Facts' : `Richtwert ${sl.kind} (LARN-Haushaltsmaß)`, larn: sl.src === 'larn', slice: true });
   return out;
 }
 // Lebensmittel, deren Portion sich direkt auf den gegarten Zustand bezieht (z. B. Hülsenfrüchte gekocht)
@@ -1018,6 +1054,14 @@ function openAmount(food, opts = {}) {
     <label for="grams">Menge in ${U === 'ml' ? 'Millilitern' : 'Gramm'}</label>
     <input id="grams" type="text" inputmode="decimal" value="${r1(defGrams)}">
     <div class="chips portions" id="portions">${portionOptions(food).map((o, i) => `<button type="button" class="chip" data-pi="${i}" title="${esc(o.hint)}">${esc(o.label)} · ${r1(o.grams)} ${U}</button>`).join('')}${recentHit && recentHit.lastGrams && !edit ? `<button type="button" class="chip" data-last="${recentHit.lastGrams}">Zuletzt · ${r1(recentHit.lastGrams)} ${U}</button>` : ''}</div>
+    <button type="button" class="linkbtn" id="slCalcBtn">Scheibengewicht aus Packung berechnen</button>
+    <div class="slcalc" id="slCalc" hidden>
+      <div class="row">
+        <div><label for="slPack">Packung (g)</label><input id="slPack" inputmode="decimal" value="${(state.offCache[String(foodId).slice(4)] || {}).pq || food.pq || ''}" placeholder="z. B. 200"></div>
+        <div><label for="slN">Scheiben</label><input id="slN" inputmode="numeric" placeholder="z. B. 10"></div>
+      </div>
+      <div class="spread" style="margin-top:8px"><span class="small muted" id="slRes">= ? g pro Scheibe</span><button type="button" class="btn secondary" id="slSave">Übernehmen</button></div>
+    </div>
     ${portionOptions(food).some((o) => o.larn) ? '<p class="small muted portion-note">Mehrfach tippen = mehrere Portionen. Standardportionen: SINU, LARN 2024 (Rohgewicht, essbarer Anteil).</p>' : ''}
     <div class="nutri" id="nutri"></div>
     <label for="meal">Mahlzeit</label>
@@ -1037,6 +1081,14 @@ function openAmount(food, opts = {}) {
   };
   g.oninput = upd; upd();
   const pOpts = portionOptions(food);
+  const slRes = () => { const p = num($('#slPack').value), n = num($('#slN').value); const v = p && n ? Math.round(p / n * 10) / 10 : null; $('#slRes').textContent = v ? `= ${r1(v)} g pro Scheibe` : '= ? g pro Scheibe'; return v; };
+  $('#slCalcBtn').onclick = () => { const c = $('#slCalc'); c.hidden = !c.hidden; if (!c.hidden) $('#slN').focus(); };
+  $('#slPack').oninput = slRes; $('#slN').oninput = slRes;
+  $('#slSave').onclick = () => {
+    const v = slRes(); if (!v || v > 500) { toast('Bitte Packungsgewicht und Anzahl Scheiben eingeben.'); return; }
+    state.slices[foodId] = v; save(); toast(`1 Scheibe = ${r1(v)} g gespeichert`);
+    const cur = $('#grams').value; openAmount(food, opts); $('#grams').value = cur; $('#grams').dispatchEvent(new Event('input'));
+  };
   let lastChip = null, mult = 0;
   document.querySelectorAll('#portions [data-pi]').forEach((b) => b.onclick = () => {
     const o = pOpts[+b.dataset.pi];
@@ -1214,6 +1266,8 @@ async function lookupBarcode(code) {
       k, p: num(nm.proteins_100g) || 0, c: num(nm.carbohydrates_100g) || 0, f: num(nm.fat_100g) || 0,
       fi: num(nm.fiber_100g) || 0, su: num(nm.sugars_100g) || 0, fs: num(nm['added-sugars_100g']), ...offDiet(p),
       serving: num(p.serving_quantity) || null,
+      pq: num(p.product_quantity) || null,
+      sliceG: offSliceG(p.serving_size),
       liq: /\d\s*(ml|cl|l)\b/i.test(p.quantity || ''),
     };
     state.offCache[code] = food; save();
