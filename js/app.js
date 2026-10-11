@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.23.0';
+const APP_VERSION = '1.24.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -356,6 +356,7 @@ function sfHalf(cls, label, val, target, kind, natural) {
 const INFO_STATIC = {
   water: { body: '<p>Richtwert der DGE: 1,5 l Getränke pro Tag; bei Hitze, Sport oder körperlicher Arbeit mehr. Die EFSA nennt 2,5 l (Männer) bzw. 2,0 l (Frauen) Gesamtwasser – inklusive Wasser aus Lebensmitteln.</p><p>Koffein-Getränke zählen mit ihren ml, Alkohol zählt nicht. Andere Getränke aus dem Journal (z. B. Schorle, Milch) zählen, wenn du im Eintrag „Zur Flüssigkeit zählen“ anhakst – die App merkt sich das je Lebensmittel.</p>', src: 'DGE · EFSA 2010' },
   sug: { body: '<p>Die Vorschläge erscheinen im Journal, wenn du die App nach dieser Uhrzeit öffnest und noch mindestens so viele kcal offen sind. Vorgeschlagen wird zuerst aus deinen bisherigen Einträgen, sonst aus gängigen Kochzutaten.</p><p>Mit 👍/👎 bewertest du einzelne Lebensmittel; zweimal 👎 schließt sie aus. Eine Benachrichtigung zur Uhrzeit ist ohne Server nicht möglich – mit einer Kurzbefehle-Automation kann iOS die App aber zur gewünschten Zeit öffnen.</p>' },
+  share: { body: '<p>Exportiert werden deine eigenen Lebensmittel und Rezepte, vorgemerkte Lebensmittel, Favoriten, gespeicherte Barcode-Produkte und Scheibengewichte – nichts aus Journal, Gewicht, Zielen oder Einstellungen.</p><p>Beim Import werden nur fehlende Lebensmittel ergänzt; was schon vorhanden ist (gleiche ID oder gleicher Name mit gleichen kcal), bleibt unverändert. Ein vollständiges Backup kann ebenfalls gewählt werden – dann werden daraus nur die Lebensmittel übernommen.</p><p>Die Datei läuft über das Teilen-Menü (z. B. AirDrop, Nachrichten) und nicht über einen Server der App.</p>' },
   diet: { body: '<p>Gilt für die Vorschläge. Erkannt wird anhand der BLS-Lebensmittelgruppe und des Namens, bei Barcode-Produkten über Open Food Facts, bei eigenen Lebensmitteln über deine Angaben.</p><p>Ist etwas unklar (z. B. Fertiggerichte), wird es nicht vorgeschlagen. Sulfite sind nicht erkennbar.</p>' },
   sf: { body: '<p>Bei den Ernährungszielen Ausgewogen, Muskelaufbau und Fettabbau rechnet die App automatisch: Ballaststoffe mindestens 30 g (DGE), freier Zucker höchstens 10 % (oder 5 %) deiner Kalorien (WHO). Bei „Eigene“ trägst du beide Werte selbst ein.</p><p>Freier Zucker = zugesetzter Zucker sowie Zucker in Honig, Sirup und Fruchtsaft. Zucker in ganzem Obst, Gemüse und Milch zählt als natürlich und wird nur angezeigt. Der freie Anteil wird aus Lebensmittelgruppe und Namen geschätzt.</p>', pts: [['< 10 % der kcal', 'WHO, starke Empfehlung'], ['< 5 % der kcal', 'WHO, bedingte Empfehlung'], ['≥ 30 g Ballaststoffe', 'DGE, für Erwachsene']], src: 'WHO 2015 · DGE/DAG/DDG 2019 · DGE 2022' },
 };
@@ -1642,6 +1643,7 @@ const SET_ICONS = {
   'Gewichtsziel': ['#6FE0C1', '<path d="M4 18l5-6 4 3 7-9"/><path d="M15 6h5v5"/>'],
   'Schlaf & Körper': ['#B9A6FF', '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>'],
   'Abend-Vorschläge': ['#B9A6FF', '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>'],
+  'Lebensmittel teilen': ['#7AB8FF', '<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.9l7.6-3.8M8.2 13.1l7.6 3.8"/>'],
   'Ernährung & Allergien': ['#6FE0C1', '<path d="M5 19c0-8 5-13 14-14 0 9-5 14-14 14z"/><path d="M5 19l8-8"/>'],
 };
 const setOpen = new Set(['Tagesziel']); // aufgeklappte Einstellungs-Bereiche
@@ -1728,6 +1730,12 @@ function renderSettingsInner() {
       <label>Allergien / Unverträglichkeiten ausschließen ${infoBtn('diet')}</label>
       <div class="chips" id="dietAll">${ALLERGENS.map(([k, l]) => `<label class="chip"><input type="checkbox" value="${k}" ${state.diet.allergens.includes(k) ? 'checked' : ''}> ${l}</label>`).join('')}</div>
       <p class="small muted" style="margin-top:8px"><strong>Keine Gewähr – bei Allergien immer die Zutatenliste prüfen.</strong></p>
+    </div>
+    <div class="card">
+      <h2>Lebensmittel teilen</h2>
+      <p class="small muted" style="margin:0 0 8px">Eigene, vorgemerkte und favorisierte Lebensmittel als Datei weitergeben, z. B. per AirDrop an deine Partnerin. Journal, Gewicht und Ziele sind nicht enthalten. ${infoBtn('share')}</p>
+      <div class="row"><button class="btn secondary" id="fExp">Exportieren</button><button class="btn secondary" id="fImpBtn">Importieren</button></div>
+      <input type="file" id="fImp" accept="application/json,.json" hidden>
     </div>
     <div class="card">
       <h2>Backup</h2>
@@ -1871,6 +1879,14 @@ function renderSettingsInner() {
     state.diet.allergens = [...document.querySelectorAll('#dietAll input:checked')].map((x) => x.value); save();
   });
   $('#exp').onclick = async () => { await exportBackup(); renderSettings(); };
+  $('#fExp').onclick = () => exportFoods();
+  $('#fImpBtn').onclick = () => $('#fImp').click();
+  $('#fImp').onchange = (ev) => {
+    const file = ev.target.files[0]; if (!file) return;
+    const rd = new FileReader();
+    rd.onload = () => { try { importFoods(JSON.parse(rd.result)); } catch (e) { toast('Datei konnte nicht gelesen werden.'); } ev.target.value = ''; keepScroll(); };
+    rd.readAsText(file);
+  };
   $('#impBtn').onclick = () => $('#imp').click();
   $('#imp').onchange = (ev) => {
     const file = ev.target.files[0]; if (!file) return;
@@ -1892,6 +1908,49 @@ function renderSettingsInner() {
   };
 }
 
+/* ---------- Lebensmittel teilen (ohne persönliche Daten) ---------- */
+async function shareJson(obj, name, done) {
+  const blob = new Blob([JSON.stringify(obj)], { type: 'application/json' });
+  try {
+    const file = new File([blob], name, { type: 'application/json' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: name }); if (done) done(); return; }
+  } catch (e) { if (e && e.name === 'AbortError') return; }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  if (done) done();
+}
+function foodsPayload() {
+  const ids = new Set([...state.custom, ...(state.pantry || []), ...state.favs].map((f) => f.id));
+  const off = {}; ids.forEach((id) => { if (String(id).startsWith('off:') && state.offCache[id.slice(4)]) off[id.slice(4)] = state.offCache[id.slice(4)]; });
+  const slices = {}; ids.forEach((id) => { if (state.slices[id]) slices[id] = state.slices[id]; });
+  return { format: 'kalorien-tracker-lebensmittel', v: 1, exported: isoDate(new Date()), custom: state.custom, pantry: state.pantry || [], favs: state.favs, off, slices };
+}
+async function exportFoods() {
+  const p = foodsPayload();
+  const n = new Set([...p.custom, ...p.pantry, ...p.favs].map((f) => f.id)).size;
+  if (!n) { toast('Noch keine eigenen, vorgemerkten oder favorisierten Lebensmittel.'); return; }
+  await shareJson(p, `lebensmittel-${isoDate(new Date())}.json`, () => toast(`${n} Lebensmittel exportiert`));
+}
+function importFoods(data) {
+  if (!data || typeof data !== 'object' || !Array.isArray(data.custom)) { toast('Keine Lebensmittel-Datei.'); return; }
+  const isBackup = data.format !== 'kalorien-tracker-lebensmittel';
+  const key = (f) => norm(f.n || '') + '|' + Math.round(f.k || 0);
+  const have = new Set(state.custom.map((f) => f.id)), haveKey = new Set(state.custom.map(key));
+  const newCustom = data.custom.filter((f) => f && f.id && f.n && !have.has(f.id) && !haveKey.has(key(f)));
+  const newPantry = (data.pantry || []).filter((f) => f && f.id && !(state.pantry || []).some((x) => x.id === f.id));
+  const newFavs = (data.favs || []).filter((f) => f && f.id && !state.favs.some((x) => x.id === f.id));
+  const total = newCustom.length + newPantry.length + newFavs.length;
+  if (!total) { toast('Alles schon vorhanden – nichts Neues.'); return; }
+  const msg = `${isBackup ? 'Die Datei ist ein vollständiges Backup – übernommen werden nur Lebensmittel. ' : ''}Hinzufügen: ${newCustom.length} eigene Lebensmittel/Rezepte, ${newPantry.length} vorgemerkt, ${newFavs.length} Favoriten? Vorhandenes bleibt unverändert.`;
+  if (!confirm(msg)) return;
+  state.custom = state.custom.concat(newCustom);
+  state.pantry = (state.pantry || []).concat(newPantry);
+  state.favs = state.favs.concat(newFavs);
+  Object.entries(data.off || data.offCache || {}).forEach(([c, f]) => { if (!state.offCache[c]) state.offCache[c] = f; });
+  Object.entries(data.slices || {}).forEach(([id, g]) => { if (!state.slices[id]) state.slices[id] = g; });
+  save(); toast(`${total} Lebensmittel übernommen`);
+}
 async function exportBackup() {
   const name = `kalorien-backup-${isoDate(new Date())}.json`;
   const blob = new Blob([JSON.stringify(state)], { type: 'application/json' });
