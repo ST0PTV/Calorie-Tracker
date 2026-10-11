@@ -158,7 +158,7 @@ function alcCardHtml(iso) {
       <div class="caf-stat"><span class="cs-l">${isToday ? 'Heute getrunken' : 'Getrunken'}</span><span class="cs-v">${r0(grams)}<small> g Alkohol</small></span><span class="cs-s">${day.length} ${day.length === 1 ? 'Getränk' : 'Getränke'}</span></div>
       <div class="caf-stat"><span class="cs-l">Höchstwert</span><span class="cs-v ${pk[1] >= 0.5 ? 'bad' : pk[1] >= 0.3 ? 'mid' : 'good'}">${alcFmt(pk[1])}<small> ‰</small></span><span class="cs-s">${pk[1] > 0 ? 'um ' + caffFmt(pk[0], iso) : ''}</span></div>
     </div>` : ''}
-    ${rows ? `<div class="caf-list-day">${rows}</div>` : '<div class="small muted caf-empty">Kein Alkohol eingetragen.</div>'}
+    ${rows ? `<div class="caf-list-day">${rows}</div>` : ''}
     <p class="small muted" style="margin:8px 0 0">Grobe Schätzung, keine Messung – nicht geeignet, um die Fahrtüchtigkeit zu beurteilen.</p>
     <button class="btn block caf-add" data-alc-add>+ Getränk hinzufügen</button>
   </div>`;
