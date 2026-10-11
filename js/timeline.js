@@ -234,8 +234,7 @@ function tlTimeSheet(iso, meal, done) {
   if (isToday) chips.push(['Jetzt', nowH], ['vor 30 min', nowH - 0.5], ['vor 1 h', nowH - 1]);
   if (auto.length) chips.push([`Eintragszeit ${tlHM(Math.min(...auto))}`, Math.min(...auto)]);
   chips.push([`Standard ${TL_DEFAULT_TIMES[meal]}`, tlH(TL_DEFAULT_TIMES[meal])]);
-  openSheet(`<div class="sheet-head"><button class="btn ghost" id="back">‹ Zurück</button><span></span></div>
-    <h1>Wann gegessen?</h1><p class="muted" style="margin-top:-4px">${TL_LABEL[meal]}</p>
+  openSheet(`${sheetHead('back', 'Wann gegessen?', false)}<p class="muted" style="margin-top:-4px">${TL_LABEL[meal]}</p>
     <div class="chips" id="tlChips">${chips.map(([l, h], i) => `<button type="button" class="chip" data-i="${i}">${esc(l)}</button>`).join('')}</div>
     <label for="tlTime">Uhrzeit</label><input id="tlTime" type="time" value="${tlHM(cur.h)}">
     <p class="small muted">Gilt für die ganze Mahlzeit. Einzelne Einträge können im Eintrag eine eigene Uhrzeit bekommen.${cur.src === 'default' ? ' Bisher wird die Standardzeit verwendet.' : cur.src === 'auto' ? ' Bisher wird die Zeit des ersten Eintrags verwendet.' : ''}</p>
