@@ -37,7 +37,7 @@ Ein schlanker Kalorien-Tracker als Web-App (PWA) fürs iPhone. Er läuft komplet
 - Timeline: wann was gegessen wurde, Magen-Füllung als grobes Modell mit Schlafzone und Phasen-Balken, Plan-Vorschlag für Uhrzeiten und Portionsgrößen (Verteilung einstellbar); Uhrzeit pro Mahlzeit und optional pro Eintrag
 - Analytics: Monatsansicht mit Kalender (Zielerreichung), Auswahlfenster, Ø Makros, Koffein-Heatmap und weiteren Durchschnittswerten
 - Backup-Export und -Import mit Erinnerung nach 7 Tagen
-- Lebensmittel teilen: eigene, vorgemerkte und favorisierte Lebensmittel (inkl. Barcode-Produkte und Scheibengewichte) als JSON-Datei über das Teilen-Menü weitergeben und auf einem anderen Gerät ergänzen; ohne Journal, Gewicht, Ziele oder Einstellungen
+- Lebensmittel teilen: eigene, vorgemerkte und favorisierte Lebensmittel (inkl. Barcode-Produkte und Scheibengewichte) als JSON-Datei über das Teilen-Menü weitergeben und auf einem anderen Gerät ergänzen (fremde Favoriten werden dort als „vorgemerkt“ übernommen); ohne Journal, Gewicht, Ziele oder Einstellungen
 
 ## Installation auf dem iPhone
 
