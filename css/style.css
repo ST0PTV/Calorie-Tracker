@@ -600,8 +600,4 @@ p, .info-body, .info-src, .sp-hint, .caf-note, .refs li { text-align: justify; -
 .hero .gear { top: 14px; width: 36px; height: 36px; }
 .hero .sf-row { margin-top: 12px; }
 .info-i.warn { background: rgba(255, 154, 107, 0.16); color: var(--warn); font: 700 16px/1 'Sora', sans-serif; }
-/* Makro-Zeilen: Name oben, Wert darunter (passt auch bei „Kohlenhydrate 145 / 280 g übrig“) */
-.hmacros { gap: 10px; }
-.hm-h { flex-direction: column; align-items: stretch; gap: 1px; margin-bottom: 5px; }
-.hm-h > span { font-size: 0.72rem; color: var(--muted); }
-.hm-h b { font-size: 0.95rem; }
+.hm-h > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
