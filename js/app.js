@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.29.6';
+const APP_VERSION = '1.29.7';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -496,7 +496,7 @@ function renderDiary() {
           <div class="sub">${sub}</div>
         </button>
         ${list.length && state.timeline.enabled ? `<button class="mtime ${(state.timeline.times[currentDate] || {})[m.id] ? 'set' : ''}" data-mtime="${m.id}" aria-label="Uhrzeit ${m.label}">${tlHM(tlMealTime(currentDate, m.id).h)}</button>` : ''}
-        <button class="add-btn ${list.length ? '' : 'primary'}" data-add="${m.id}" aria-label="${m.label} hinzufügen">+</button>
+        <button class="add-btn" data-add="${m.id}" aria-label="${m.label} hinzufügen">+</button>
       </div>
       ${open && list.length ? `<div class="entries">${list.map((e) => `<div class="entry" data-entry="${e.id}">
         <div class="name">${esc(e.n)}<div class="small muted">${e.quick ? 'Schnelleintrag' : `${r1(e.grams)} ${unitOf(e)}`}</div></div>
