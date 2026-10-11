@@ -297,8 +297,11 @@ function bodySettingsHtml() {
     </div>
     <label>Geschlecht</label>
     <div class="seg three" id="bdSex">${[['m', 'Mann'], ['f', 'Frau'], ['', 'Keine Angabe']].map(([k, l]) => `<button type="button" data-sx="${k}" class="${(state.profile.sex || '') === k ? 'active' : ''}">${l}</button>`).join('')}</div>
-    <label for="bdW">Körpergewicht (kg)</label><input id="bdW" inputmode="decimal" value="${w != null ? r1(w) : ''}" placeholder="z. B. 80">
-    <p class="small muted" style="margin-top:6px">Bett- und Aufstehzeit gelten für Koffein und Timeline. Das Geschlecht passt das Magen-Modell der Timeline an (Frauen im Mittel langsamere Magenentleerung) und den Eisen-Hinweis bei den Supplements; Kalorien-, Eiweiß-, Ballaststoff- und Zuckerziele sind laut den genutzten Quellen pro kg bzw. pro kcal für beide gleich. Das Gewicht gilt für die Makroziele im Tagesziel (bei Änderung ab heute neu berechnet; frühere Tage behalten ihre Werte) und für Eiweiß pro Mahlzeit in der Timeline.</p>
+    <div class="row">
+      <div><label for="bdW">Körpergewicht (kg)</label><input id="bdW" inputmode="decimal" value="${w != null ? r1(w) : ''}" placeholder="z. B. 80"></div>
+      <div><label for="bdH">Körpergröße (cm)</label><input id="bdH" inputmode="numeric" value="${state.profile.height != null ? r0(state.profile.height) : ''}" placeholder="z. B. 180"></div>
+    </div>
+    <p class="small muted" style="margin-top:6px">Bett- und Aufstehzeit gelten für Koffein und Timeline. Größe und Geschlecht verfeinern die Promille-Schätzung (Verteilungsfaktor aus dem BMI). Das Geschlecht passt außerdem das Magen-Modell der Timeline an (Frauen im Mittel langsamere Magenentleerung) und den Eisen-Hinweis bei den Supplements; Kalorien-, Eiweiß-, Ballaststoff- und Zuckerziele sind laut den genutzten Quellen pro kg bzw. pro kcal für beide gleich. Das Gewicht gilt für die Makroziele im Tagesziel (bei Änderung ab heute neu berechnet; frühere Tage behalten ihre Werte) und für Eiweiß pro Mahlzeit in der Timeline.</p>
   </div>`;
 }
 function bodySettingsBind() {
@@ -311,6 +314,12 @@ function bodySettingsBind() {
     const cn = document.getElementById('cfSexNote'); if (cn) cn.innerHTML = caffSexNote();
     toast('Gespeichert');
   });
+  $('#bdH').onchange = (ev) => {
+    if (ev.target.value.trim() === '') { state.profile.height = null; save(); return; }
+    const v = num(ev.target.value);
+    if (v == null || v < 120 || v > 230) { toast('Bitte eine Größe zwischen 120 und 230 cm eingeben.'); ev.target.value = state.profile.height != null ? r0(state.profile.height) : ''; return; }
+    state.profile.height = Math.round(v); save(); toast('Größe gespeichert');
+  };
   $('#bdW').onchange = (ev) => {
     const v = num(ev.target.value);
     if (ev.target.value.trim() === '') { state.profile.weight = null; save(); return; }
