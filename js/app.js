@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.32.2';
+const APP_VERSION = '1.33.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -1818,8 +1818,39 @@ function renderSettings() {
     h.onclick = toggle; h.onkeydown = (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggle(); } };
     apply();
   });
+  // Gruppen-Karten (Variante B): Bereiche einer Gruppe in einer Karte, mit Kurzinfo unter dem Namen
+  const view = $('#view'), cards = {};
+  view.querySelectorAll(':scope > .set-card').forEach((c) => { cards[c.querySelector('.set-h .set-t').textContent.trim()] = c; });
+  Object.entries(cards).forEach(([t, c]) => { if (SET_SUB[t]) c.querySelector('.set-t').insertAdjacentHTML('beforeend', `<span class="set-sub" data-sub="${esc(t)}">${esc(SET_SUB[t]())}</span>`); });
+  // Kurzinfos nach Änderungen aktualisieren (ohne neu zu zeichnen)
+  const refresh = () => setTimeout(() => document.querySelectorAll('.set-sub[data-sub]').forEach((el) => { try { el.textContent = SET_SUB[el.dataset.sub](); } catch (e) { /* unverändert lassen */ } }), 0);
+  view.addEventListener('change', refresh); view.addEventListener('click', refresh);
+  SET_GROUPS.forEach(([g, titles]) => {
+    const items = titles.map((t) => cards[t]).filter(Boolean); if (!items.length) return;
+    const h = document.createElement('div'); h.className = 'set-gh'; h.textContent = g;
+    const box = document.createElement('div'); box.className = 'card set-group';
+    items.forEach((c) => box.appendChild(c));
+    view.appendChild(h); view.appendChild(box);
+  });
   const bk = $('#setBack'); if (bk) bk.onclick = () => goTab('diary');
 }
+const SET_GROUPS = [['Ziele', ['Tagesziel', 'Gewichtsziel']], ['Über mich', ['Schlaf & Körper', 'Ernährung & Allergien']], ['Tracker', ['Wasser', 'Koffein', 'Alkohol', 'Supplements']],
+  ['Planung', ['Timeline', 'Abend-Vorschläge']], ['Daten', ['Lebensmittel teilen', 'Backup', 'Quellen & Lizenzen']]];
+const onOff = (on, txt) => (on ? txt : 'aus');
+const SET_SUB = {
+  'Tagesziel': () => { const g = goalsFor(isoDate(new Date())); return g.goal ? `${fmt(g.goal)} kcal${g.preset && PRESETS[g.preset] ? ' · ' + PRESETS[g.preset].label : ''}` : 'noch nicht festgelegt'; },
+  'Gewichtsziel': () => { const o = state.wgoal; return o.on && o.target && o.date ? `${state.profile.weight != null ? r1(state.profile.weight) + ' → ' : ''}${r1(o.target)} kg bis ${new Date(o.date + 'T12:00:00').toLocaleDateString('de-DE', { day: 'numeric', month: 'numeric' })}` : 'aus'; },
+  'Schlaf & Körper': () => `${state.caffeine.bed}–${state.caffeine.wake}${state.profile.weight != null ? ' · ' + r1(state.profile.weight) + ' kg' : ''}`,
+  'Ernährung & Allergien': () => { const d = { all: 'Alles', veg: 'Vegetarisch', vegan: 'Vegan' }[state.diet.type]; const al = state.diet.allergens.map((k) => (ALLERGENS.find((x) => x[0] === k) || [0, k])[1]); return d + (al.length ? ' · ohne ' + (al.length > 2 ? al.slice(0, 2).join(', ') + ` +${al.length - 2}` : al.join(', ')) : ''); },
+  'Wasser': () => onOff(state.water.enabled, `${litres(state.water.goal)} l · Plus ${state.water.step || 250} ml`),
+  'Koffein': () => onOff(state.caffeine.enabled, `an · Richtwert ${fmt(state.caffeine.limit)} mg`),
+  'Alkohol': () => onOff(state.alcohol.enabled, 'an'),
+  'Supplements': () => onOff(state.supp.enabled, `${state.supp.items.filter((x) => x.on).length} aktiv`),
+  'Timeline': () => onOff(state.timeline.enabled, `an · ${TL_PRESETS[state.timeline.preset].label}`),
+  'Abend-Vorschläge': () => onOff(state.sug.enabled, `ab ${state.sug.time} · ${{ kcal: 'Kalorien', protein: 'Eiweiß zuerst', balanced: 'Ausgewogen' }[state.sug.priority] || ''}`),
+  'Lebensmittel teilen': () => 'Export / Import',
+  'Backup': () => { if (!state.lastBackup) return 'noch kein Backup'; const d = Math.floor((Date.now() - state.lastBackup) / 864e5); return `zuletzt ${d === 0 ? 'heute' : d === 1 ? 'gestern' : `vor ${d} Tagen`}`; },
+};
 INFO.goalSrc = () => ({ body: `<p>Dein tägliches Kalorienziel, z. B. der Tagesbedarf aus deiner Garmin-Uhr.${state.wgoal.on ? ' <strong>Aktuell wird es aus dem Gewichtsziel berechnet</strong> (Bereich „Gewichtsziel“) und bei neuem Gewicht angepasst.' : ''}</p><p>Eiweiß und Fett rechnet die App aus deinem Körpergewicht: <strong>${state.profile.weight != null ? r1(state.profile.weight) + ' kg' : 'noch nicht eingetragen'}</strong> – änderbar unter „Schlaf &amp; Körper“.</p>` });
 INFO.sugCard = () => ({ body: '<p>Die Vorschläge suchen Lebensmittel und Mengen, die deine noch offenen kcal und Makros möglichst gut treffen – zuerst aus deinen bisherigen Einträgen, sonst aus gängigen Kochzutaten.</p><p>Mengen sind Rohgewicht bzw. so, wie im Lebensmittel angegeben.</p><p>„Ziel nicht ganz erreichbar“ heißt: Mit realistischen Portionen bleibt eine Lücke. Mit 3 Lebensmitteln (Einstellungen → Abend-Vorschläge) klappt es oft besser.</p>' });
 function renderSettingsInner() {
