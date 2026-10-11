@@ -157,6 +157,11 @@ function caffCardHtml(iso) {
     else pill = `<span class="caf-pill ${clr <= bed ? 'ok' : 'late'}">unter ${r0(thr)} mg ab <strong>${caffFmt(clr, iso)}</strong></span>`;
   } else { big = r0(total); cap = 'mg'; }
   const over = total > c.limit;
+  // nichts eingetragen (und kein Rest vom Vortag): nur Wert links + Plus (Design A2)
+  if (!day.length && (!isToday || +big < 1)) return `<div class="card caf tk-empty">
+    <div class="small muted">Koffein</div><div class="tk-e-v">${isToday ? big : 0}<span class="muted small"> mg</span></div>
+    ${trackerFoot('caf', 'data-caf-add', '', '')}
+  </div>`;
   const rows = day.map((e) => {
     const left = isToday ? caffLevel([{ t: caffAbs(iso, e.min), mg: e.mg, dur: (e.dur || 0) / 60 }], nowH, ke) : null;
     const pct = left == null ? 0 : Math.min(100, (left / e.mg) * 100);

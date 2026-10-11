@@ -149,21 +149,26 @@ function alcCardHtml(iso) {
     const sob = alcSober(doses, nowH);
     pill = sob && sob > nowH + 1 / 12 ? `<span class="caf-pill late">0,0 ‰ ab <strong>${caffFmt(sob, iso)}</strong></span>` : (grams ? '<span class="caf-pill ok">0,0 ‰</span>' : '');
   } else { big = alcFmt(pk[1]); cap = '‰ Maximum'; }
+  // nichts eingetragen und 0,0 ‰: nur Wert links + Plus (Design A2)
+  if (!grams && (!isToday || alcLevelAt(doses, nowH) < 0.005)) return `<div class="card caf alc tk-empty">
+    <div class="small muted">Alkohol</div><div class="tk-e-v">0,0<span class="muted small"> ‰</span></div>
+    ${trackerFoot('alc', 'data-alc-add', '', '')}
+  </div>`;
   const rows = day.map((e) => `<button class="caf-row" data-alc-entry="${esc(e.id)}"><span class="caf-time">${String(Math.floor(e.min / 60)).padStart(2, '0')}:${String(e.min % 60).padStart(2, '0')}</span>
       <span class="caf-name">${esc(e.n || 'Getränk')}<small class="muted"> · ${String(e.vol).replace('.', ',')} %${e.fed ? ' · mit Essen' : ''}</small></span>
       <span class="caf-mg"><strong>${r1(alcGrams(e.ml, e.vol))} g</strong><small>${isToday && caffAbs(iso, e.min) > nowH ? 'geplant' : 'Alkohol'}</small></span></button>`).join('');
   return `<div class="card caf alc">
     <div class="caf-head"><div><div class="small muted">Alkohol</div><div class="caf-big">${big}<span class="muted small"> ${cap}</span></div></div>${pill}</div>
     ${grams ? alcChartSvg({ id: 'ag-card', iso, doses, nowH }) : ''}
-    ${grams ? `<div class="caf-stats">
+    ${trackerFoot('alc', 'data-alc-add', grams ? `${isToday ? 'Heute' : 'Getrunken'} <b class="tk-v">${r0(grams)} g</b><span class="muted"> Alkohol</span> · ${day.length} ${day.length === 1 ? 'Getränk' : 'Getränke'}` : '', grams ? `<div class="caf-stats">
       <div class="caf-stat"><span class="cs-l">${isToday ? 'Heute getrunken' : 'Getrunken'}</span><span class="cs-v">${r0(grams)}<small> g Alkohol</small></span><span class="cs-s">${day.length} ${day.length === 1 ? 'Getränk' : 'Getränke'}</span></div>
       <div class="caf-stat"><span class="cs-l">Höchstwert</span><span class="cs-v ${pk[1] >= 0.5 ? 'bad' : pk[1] >= 0.3 ? 'mid' : 'good'}">${alcFmt(pk[1])}<small> ‰</small></span><span class="cs-s">${pk[1] > 0 ? 'um ' + caffFmt(pk[0], iso) : ''}</span></div>
-    </div>` : ''}
-    ${rows ? `<div class="caf-list-day">${rows}</div>` : ''}
-    <button class="btn block caf-add" data-alc-add>+ Getränk hinzufügen</button>
+    </div>
+    <div class="caf-list-day">${rows}</div>` : '')}
   </div>`;
 }
 function alcBindCard(iso) {
+  trackerBind();
   const a = document.querySelector('[data-alc-add]'); if (a) a.onclick = () => openAlcohol(iso);
   const s = document.querySelector('[data-alc-set]'); if (s) s.onclick = () => { goTab('settings', 'Schlaf & Körper'); };
   document.querySelectorAll('[data-alc-entry]').forEach((b) => b.onclick = () => {

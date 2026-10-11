@@ -614,3 +614,8 @@ p, .info-body, .info-src, .sp-hint, .caf-note, .refs li { text-align: justify; -
 .tk-det { margin-top: 8px; }
 .tk-det .caf-stats { margin-top: 0; }
 .caf-big .small { white-space: nowrap; }
+/* Leere Tracker-Karte (A2): nur Wert links + Plus auf der Linie */
+.tk-empty { padding-bottom: 12px; }
+.tk-e-v { font-size: 1.6rem; font-weight: 300; color: var(--caf); line-height: 1.1; letter-spacing: -0.02em; }
+.alc .tk-e-v { color: #C79BF2; }
+.tk-empty .tk-div { margin: 6px 0 0; }
