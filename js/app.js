@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.26.4';
+const APP_VERSION = '1.26.5';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -32,7 +32,7 @@ function emptyState() {
     supp: SUPP_DEFAULTS(),
     timeline: TL_DEFAULTS(),
     profile: { weight: null, sex: null, height: null },
-    sugarPct: 10, showSF: false, heroMode: 'left', heroUnit: 'g',
+    sugarPct: 10, showSF: false, heroMode: 'left',
     alcohol: ALC_DEFAULTS(),
     caffeine: CAFF_DEFAULTS(), // log: { 'JJJJ-MM-TT': [{ id, min (Minuten seit 0 Uhr), mg, n, dur (Minuten) }] }
   };
@@ -390,7 +390,7 @@ const openMeals = new Set();   // aufgeklappte Mahlzeiten (nur für diese Sitzun
 /* Kalorien-Übersicht (K1): Ring nach Herkunft der kcal (Eiweiß/KH/Fett, Rest z. B. Alkohol grau) + Makro-Balken.
    Umschalter Übrig/Gegessen und g/% werden gespeichert. */
 function heroHtml(goal, t, s) {
-  const left = state.heroMode !== 'eaten', pct = state.heroUnit === 'pct';
+  const left = state.heroMode !== 'eaten', pct = false; // nur Gramm
   const de = (n) => r0(n).toLocaleString('de-DE');
   const over = goal && t.k > goal;
   const R = 58, L = 2 * Math.PI * R;
@@ -420,7 +420,6 @@ function heroHtml(goal, t, s) {
   };
   return `<div class="hero-top">
       <div class="seg-pill" id="heroMode" role="group" aria-label="Anzeige"><button type="button" data-m="left" class="${left ? 'on' : ''}">Übrig</button><button type="button" data-m="eaten" class="${left ? '' : 'on'}">Gegessen</button></div>
-      <div class="seg-pill" id="heroUnit" role="group" aria-label="Einheit"><button type="button" data-u="g" class="${pct ? '' : 'on'}">g</button><button type="button" data-u="pct" class="${pct ? 'on' : ''}">%</button></div>
     </div>
     <div class="hero-body">
       <div class="kring" role="img" aria-label="${goal ? `${r0(t.k / goal * 100)} Prozent des Tagesziels gegessen` : `${de(t.k)} kcal gegessen`}">
@@ -519,7 +518,6 @@ function renderDiary() {
   const ts = $('#toSettings'); if (ts) ts.onclick = () => goTab('settings');
   const gr = $('#gear'); if (gr) gr.onclick = () => goTab('settings');
   document.querySelectorAll('#heroMode [data-m]').forEach((b) => b.onclick = () => { state.heroMode = b.dataset.m; save(); renderDiary(); });
-  document.querySelectorAll('#heroUnit [data-u]').forEach((b) => b.onclick = () => { state.heroUnit = b.dataset.u; save(); renderDiary(); });
   const qb = $('#quickBackup'); if (qb) qb.onclick = async () => { await exportBackup(); renderDiary(); };
   v.querySelectorAll('[data-toggle]').forEach((b) => b.onclick = () => {
     const id = b.dataset.toggle; if (openMeals.has(id)) openMeals.delete(id); else openMeals.add(id);
