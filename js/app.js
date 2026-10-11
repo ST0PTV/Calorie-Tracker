@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.22.1';
+const APP_VERSION = '1.22.2';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -896,16 +896,38 @@ function renderAddResults() {
   bindList(ul, hits, (f) => openAmount(f));
 }
 
+let mineQuery = '';
 function renderMine() {
-  const favs = state.favs;
-  const recent = state.recent.filter((r) => !isFav(r.id)).slice(0, 30);
-  const own = state.custom;
-  const sec = (title, items, key) => items.length ? `<h2 class="sec">${title}</h2><ul class="list" data-sec="${key}">${items.map((f, i) => foodLi(f, i)).join('')}</ul>` : '';
-  $('#addBody').innerHTML = (favs.length || recent.length || own.length)
-    ? sec('★ Favoriten', favs, 'fav') + sec('Zuletzt verwendet', recent, 'recent') + sec('Eigene Lebensmittel & Rezepte', own, 'own')
-    : '<div class="empty">Noch nichts vorhanden. Favoriten markierst du mit dem Stern beim Eintragen.</div>';
+  const body = $('#addBody');
+  body.innerHTML = `<input id="mq" type="search" placeholder="In Meine suchen" autocomplete="off" value="${esc(mineQuery)}"><div id="mineList"></div>`;
+  const q = $('#mq');
+  q.oninput = () => { mineQuery = q.value; drawMine(); };
+  drawMine();
+}
+function drawMine() {
+  const terms = norm(mineQuery).split(/\s+/).filter(Boolean);
+  const hit = (f) => !terms.length || terms.every((t) => norm(f.n + ' ' + (f.brand || '')).includes(t));
+  const favs = state.favs.filter(hit);
+  const recent = state.recent.filter((r) => !isFav(r.id)).slice(0, 30).filter(hit);
+  const own = state.custom.filter(hit);
+  const delLabel = { fav: 'Aus Favoriten entfernen', recent: 'Aus „Zuletzt verwendet“ entfernen', own: 'Lebensmittel löschen' };
+  const li = (f, i, key) => `<li data-i="${i}" class="mine-li"><div>${isFav(f.id) && key !== 'fav' ? '<span class="star">★</span>' : ''}${esc(f.n)}${{ off: '<span class="tag">Barcode</span>', custom: '<span class="tag">Eigenes</span>', recipe: '<span class="tag">Rezept</span>' }[f.src] || ''}<div class="meta">${f.brand ? esc(f.brand) + ' · ' : ''}${r0(f.k)} kcal / 100 ${unitOf(f)}</div></div>
+    <button type="button" class="mine-del" data-del="${key}:${i}" aria-label="${delLabel[key]}" title="${delLabel[key]}">✕</button></li>`;
+  const sec = (title, items, key) => items.length ? `<h2 class="sec">${title}</h2><ul class="list" data-sec="${key}">${items.map((f, i) => li(f, i, key)).join('')}</ul>` : '';
+  const any = state.favs.length || state.recent.length || state.custom.length;
+  $('#mineList').innerHTML = !any ? '<div class="empty">Noch nichts vorhanden. Favoriten markierst du mit dem Stern beim Eintragen.</div>'
+    : (favs.length || recent.length || own.length) ? sec('★ Favoriten', favs, 'fav') + sec('Zuletzt verwendet', recent, 'recent') + sec('Eigene Lebensmittel & Rezepte', own, 'own')
+    : '<div class="empty">Nichts gefunden.</div>';
   const map = { fav: favs, recent, own };
-  document.querySelectorAll('#addBody [data-sec]').forEach((ul) => bindList(ul, map[ul.dataset.sec], (f) => openAmount(f)));
+  document.querySelectorAll('#mineList [data-sec]').forEach((ul) => bindList(ul, map[ul.dataset.sec], (f) => openAmount(f)));
+  document.querySelectorAll('#mineList [data-del]').forEach((b) => b.onclick = (ev) => {
+    ev.stopPropagation();
+    const [key, i] = b.dataset.del.split(':'); const f = map[key][+i]; if (!f) return;
+    if (key === 'own') { deleteOwnFood(f); return; }
+    if (key === 'fav') { state.favs = state.favs.filter((x) => x.id !== f.id); toast('Aus Favoriten entfernt'); }
+    else { state.recent = state.recent.filter((x) => x.id !== f.id); toast('Aus „Zuletzt verwendet“ entfernt'); }
+    save(); drawMine();
+  });
 }
 
 /* ---------- Standardportionen ----------
@@ -1379,7 +1401,8 @@ function deleteOwnFood(food) {
   state.custom = state.custom.filter((x) => x.id !== food.id);
   state.favs = state.favs.filter((x) => x.id !== food.id);
   state.recent = state.recent.filter((x) => x.id !== food.id);
-  save(); toast('Gelöscht'); addTab = 'mine'; openAdd(addMeal);
+  save(); toast('Gelöscht'); addTab = 'mine';
+  if (sheetMode === 'add' && $('#mineList')) drawMine(); else openAdd(addMeal);
 }
 
 /* ---------- Rezepte ---------- */
