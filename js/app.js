@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.16.3';
+const APP_VERSION = '1.17.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -12,7 +12,7 @@ const MEALS = [
   { id: 'dinner', label: 'Abendessen' },
   { id: 'snack', label: 'Snacks' },
 ];
-const NUTRIENTS = ['k', 'p', 'c', 'f', 'fi', 'su'];
+const NUTRIENTS = ['k', 'p', 'c', 'f', 'fi', 'su', 'fs']; // fs = freier Zucker (WHO-Definition), Teil von su
 const OFF_FIELDS = 'code,product_name,product_name_de,brands,nutriments,serving_quantity,quantity,allergens_tags,ingredients_analysis_tags';
 
 /* ---------- Speicher ---------- */
@@ -28,6 +28,7 @@ function emptyState() {
     supp: SUPP_DEFAULTS(),
     timeline: TL_DEFAULTS(),
     profile: { weight: null },
+    sugarPct: 10, showSF: false,
     caffeine: CAFF_DEFAULTS(), // log: { 'JJJJ-MM-TT': [{ id, min (Minuten seit 0 Uhr), mg, n, dur (Minuten) }] }
   };
 }
@@ -97,6 +98,8 @@ function normalizeState(data) {
   s.supp = suppNormalize(data.supp);
   s.timeline = tlNormalize(data.timeline);
   s.profile = Object.assign({ weight: null }, data.profile || {});
+  if (data.showSF == null) s.showSF = !!(s.goalHistory || []).some((h) => h.fiber || h.sugar);
+  if (![5, 10].includes(s.sugarPct)) s.sugarPct = 10;
   s.caffeine = Object.assign(CAFF_DEFAULTS(), data.caffeine || {});
   if (!s.caffeine.log || typeof s.caffeine.log !== 'object') s.caffeine.log = {};
   // Übernahme aus Versionen ohne Ziel-Historie: bisheriges Ziel gilt ab dem ersten Tagebuch-Tag
@@ -125,6 +128,12 @@ function applyProfileWeight(w) {
   const nc = goalsFor(today); GOAL_KEYS.forEach((k) => { state.settings[k] = nc[k] ?? null; });
   return msg;
 }
+// Ballaststoff- und Zuckerziel: bei Presets automatisch (DGE ≥ 30 g; freier Zucker < 10 % bzw. 5 % der kcal, WHO), bei „Eigene“ manuell
+function sfTargets(s) {
+  if (s.preset && s.preset !== 'custom') return { fiber: 30, sugar: s.goal ? Math.round(s.goal * state.sugarPct / 100 / 4) : null };
+  return { fiber: s.fiber || null, sugar: s.sugar || null };
+}
+const de0 = (n) => Math.round(n).toLocaleString('de-DE');
 // Ziele, die an einem Tag galten. Tage vor dem ersten Eintrag nutzen das erste Ziel.
 function goalsFor(iso) {
   const h = state.goalHistory;
@@ -174,12 +183,19 @@ function toast(msg) {
 }
 function per(food, grams) {
   const f = grams / 100; const o = {};
-  NUTRIENTS.forEach((n) => { o[n] = (food[n] || 0) * f; });
+  NUTRIENTS.forEach((n) => { o[n] = (n === 'fs' ? fsOf(food) : (food[n] || 0)) * f; });
   return o;
+}
+/* Freier Zucker je 100 g: gespeicherter Wert, sonst aus dem BLS (abgeleitet), sonst konservativ = Gesamtzucker */
+function fsOf(food) {
+  if (food.fs != null) return Math.min(food.fs, food.su || 0);
+  const id = food.ref || food.id;
+  if (id && String(id).startsWith('bls:')) { const b = blsMap.get(id); if (b && b.fs != null) return b.fs; }
+  return food.su || 0;
 }
 function entryTotals(e) { return per(e, e.grams); }
 function sumEntries(list) {
-  const t = { k: 0, p: 0, c: 0, f: 0, fi: 0, su: 0 };
+  const t = { k: 0, p: 0, c: 0, f: 0, fi: 0, su: 0, fs: 0 };
   list.forEach((e) => { const x = entryTotals(e); NUTRIENTS.forEach((n) => { t[n] += x[n]; }); });
   return t;
 }
@@ -200,7 +216,7 @@ function blsLiquid(id, n) {
 function isLiq(x) { return x.liq != null ? !!x.liq : blsLiquid(x.ref || x.id, x.n || ''); }
 const unitOf = (x) => (isLiq(x) ? 'ml' : 'g');
 
-function nutrientsOf(food) { const o = {}; NUTRIENTS.forEach((n) => { o[n] = food[n] || 0; }); return o; }
+function nutrientsOf(food) { const o = {}; NUTRIENTS.forEach((n) => { o[n] = n === 'fs' ? fsOf(food) : (food[n] || 0); }); return o; }
 function foodSnap(food) {
   return Object.assign({ src: food.src, id: food.ref || food.id, n: food.n, brand: food.brand || '', serving: food.serving || null, liq: isLiq(food) }, nutrientsOf(food));
 }
@@ -216,7 +232,7 @@ async function loadBls() {
     const res = await fetch('data/bls.json');
     const data = await res.json();
     blsMeta = data.meta || null;
-    bls = (data.foods || []).map((x) => ({ src: 'bls', id: 'bls:' + x.id, n: x.n, k: x.k, p: x.p, c: x.c, f: x.f, fi: x.fi || 0, su: x.su || 0, d: x.d, a: x.a, b: x.b }));
+    bls = (data.foods || []).map((x) => ({ src: 'bls', id: 'bls:' + x.id, n: x.n, k: x.k, p: x.p, c: x.c, f: x.f, fi: x.fi || 0, su: x.su || 0, fs: x.fs, d: x.d, a: x.a, b: x.b }));
     blsMap = new Map(bls.map((f) => [f.id, f]));
   } catch (e) { bls = []; }
   blsReady = true;
@@ -303,7 +319,7 @@ function copyEntries(fromDate, meal) {
 }
 
 /* Zucker (Obergrenze) und Ballaststoffe (Mindestziel) – nur wenn im Tagesziel festgelegt */
-function sfHalf(cls, label, val, target, kind) {
+function sfHalf(cls, label, val, target, kind, natural) {
   const isMax = kind === 'max.';
   const r = target ? val / target : 0;
   let st, tone = '';
@@ -316,7 +332,7 @@ function sfHalf(cls, label, val, target, kind) {
   }
   return `<div class="sf ${cls}"><div class="sf-h"><span>${label}</span><span class="sf-st ${tone}">${st}</span></div>
     <div class="sf-v"><strong>${r0(val)}</strong><span>${kind} ${r0(target)} g</span></div>
-    <div class="sf-bar"><span style="width:${Math.min(100, r * 100)}%"></span></div></div>`;
+    <div class="sf-bar"><span style="width:${Math.min(100, r * 100)}%"></span></div>${natural != null ? `<div class="sf-nat">+ ${r0(Math.max(0, natural))} g natürlicher Zucker</div>` : ''}</div>`;
 }
 const openMeals = new Set();   // aufgeklappte Mahlzeiten (nur für diese Sitzung)
 function renderDiary() {
@@ -374,7 +390,7 @@ function renderDiary() {
         ${tile('c', 'Kohlenhydr.', t.c, s.carbs)}
         ${tile('f', 'Fett', t.f, s.fat)}
       </div>
-      ${(s.sugar || s.fiber) ? `<div class="sf-row">${s.sugar ? sfHalf('su', 'Zucker', t.su, s.sugar, 'max.') : ''}${s.fiber ? sfHalf('fi', 'Ballaststoffe', t.fi, s.fiber, 'mind.') : ''}</div>` : ''}
+      ${(() => { const T = sfTargets(s); return state.showSF && (T.sugar || T.fiber) ? `<div class="sf-row">${T.sugar ? sfHalf('su', 'Freier Zucker', t.fs, T.sugar, 'max.', t.su - t.fs) : ''}${T.fiber ? sfHalf('fi', 'Ballaststoffe', t.fi, T.fiber, 'mind.') : ''}</div>` : ''; })()}
     </div>`;
   html += suppReminderHtml(currentDate);
   html += suppCardHtml(currentDate);
@@ -1156,7 +1172,7 @@ async function lookupBarcode(code) {
       n: p.product_name_de || p.product_name || ('Produkt ' + code),
       brand: (p.brands || '').split(',')[0].trim(),
       k, p: num(nm.proteins_100g) || 0, c: num(nm.carbohydrates_100g) || 0, f: num(nm.fat_100g) || 0,
-      fi: num(nm.fiber_100g) || 0, su: num(nm.sugars_100g) || 0, ...offDiet(p),
+      fi: num(nm.fiber_100g) || 0, su: num(nm.sugars_100g) || 0, fs: num(nm['added-sugars_100g']), ...offDiet(p),
       serving: num(p.serving_quantity) || null,
       liq: /\d\s*(ml|cl|l)\b/i.test(p.quantity || ''),
     };
@@ -1203,6 +1219,7 @@ function openFoodForm(existing) {
       <div><label for="cFi">Ballaststoffe g</label><input id="cFi" inputmode="decimal" value="${v(e.fi)}"></div>
       <div><label for="cSu">davon Zucker g</label><input id="cSu" inputmode="decimal" value="${v(e.su)}"></div>
     </div>
+    <label for="cFs">davon freier/zugesetzter Zucker g (optional)</label><input id="cFs" inputmode="decimal" value="${e.fs != null ? v(e.fs) : ''}" placeholder="leer = gesamter Zucker zählt als frei">
     <label class="chip" style="margin-top:10px"><input type="checkbox" id="cLiq" ${e.liq ? 'checked' : ''}> Flüssigkeit (Mengen in ml, Annahme 1 ml ≈ 1 g)</label>
     <div class="row">
       <div><label for="cServ">Portion g/ml (optional)</label><input id="cServ" inputmode="decimal" value="${e.serving || ''}"></div>
@@ -1228,7 +1245,7 @@ function openFoodForm(existing) {
     const food = {
       src: 'custom', id: e.id || 'custom:' + uid(), n, brand: $('#cBrand').value.trim(), k,
       p: num($('#cP').value) || 0, c: num($('#cC').value) || 0, f: num($('#cF').value) || 0,
-      fi: num($('#cFi').value) || 0, su: num($('#cSu').value) || 0,
+      fi: num($('#cFi').value) || 0, su: num($('#cSu').value) || 0, fs: num($('#cFs').value),
       serving: num($('#cServ').value) || null, barcode: ($('#cBarcode').value || '').replace(/\D/g, '') || null,
       liq: $('#cLiq').checked,
       d: $('#cDiet').value === '' ? null : +$('#cDiet').value,
@@ -1268,7 +1285,7 @@ function openRecipe(existing) {
 }
 function recipeCalc(d) {
   const raw = d.items.reduce((s, x) => s + (x.grams || 0), 0);
-  const tot = { k: 0, p: 0, c: 0, f: 0, fi: 0, su: 0 };
+  const tot = { k: 0, p: 0, c: 0, f: 0, fi: 0, su: 0, fs: 0 };
   d.items.forEach((x) => { const v = per(x.food, x.grams || 0); NUTRIENTS.forEach((n) => { tot[n] += v[n]; }); });
   const weight = d.finalWeight || raw;
   const per100 = {}; NUTRIENTS.forEach((n) => { per100[n] = weight ? (tot[n] / weight) * 100 : 0; });
@@ -1427,7 +1444,8 @@ function renderHistory() {
     <div class="spread" style="margin-top:8px"><span class="muted">Ø kcal</span><strong>${r0(avg('k'))} kcal</strong></div>
     <div class="spread"><span class="muted">Getrackte Tage</span><strong>${tracked.length} / ${sel.length}</strong></div>
     ${withGoal.length ? `<div class="spread"><span class="muted">Ø Differenz zum Ziel</span><strong>${avgDiff > 0 ? '+' : ''}${r0(avgDiff)} kcal</strong></div>` : ''}
-    <div class="spread"><span class="muted">Ø Ballaststoffe / Zucker</span><strong>${r0(avg('fi'))} / ${r0(avg('su'))} g</strong></div>
+    <div class="spread"><span class="muted">Ø Ballaststoffe</span><strong>${r0(avg('fi'))} g</strong></div>
+    <div class="spread"><span class="muted">Ø Zucker frei / natürlich</span><strong>${r0(avg('fs'))} / ${r0(avg('su') - avg('fs'))} g</strong></div>
     ${state.water.enabled ? `<div class="spread"><span class="muted">Ø Wasser</span><strong>${wd.length ? litres(wd.reduce((a, b) => a + b, 0) / wd.length) + ' l' : '–'}</strong></div>` : ''}</div>`;
 
   const cDays = sel.map((x) => x.d);
@@ -1520,10 +1538,14 @@ function renderSettingsInner() {
       </div>
       <div class="card macro-preview" id="macroPreview"></div>
       <details class="why"><summary>Warum diese Werte? Quellen</summary><div id="presetWhy"></div></details>
-      <div class="row">
-        <div><label for="sFi">Ballaststoffe (g)</label><input id="sFi" inputmode="decimal" value="${s.fiber ?? ''}" placeholder="DGE: mind. 30"></div>
-        <div><label for="sSu">Zucker max. (g)</label><input id="sSu" inputmode="decimal" value="${s.sugar ?? ''}"></div>
+      <label>Ballaststoffe &amp; freier Zucker</label>
+      <div id="sfAuto" class="small muted"></div>
+      <div class="row" id="sfManual">
+        <div><label for="sFi">Ballaststoffe mind. (g)</label><input id="sFi" inputmode="decimal" value="${s.fiber ?? ''}" placeholder="DGE: 30"></div>
+        <div><label for="sSu">Freier Zucker max. (g)</label><input id="sSu" inputmode="decimal" value="${s.sugar ?? ''}"></div>
       </div>
+      <div class="seg two" id="sugPct" style="margin:8px 0 4px"><button type="button" data-p="10">Zucker &lt; 10 % der kcal</button><button type="button" data-p="5">&lt; 5 % der kcal</button></div>
+      <label class="switch"><input type="checkbox" id="sfShow" ${state.showSF ? 'checked' : ''}> Ballaststoffe &amp; Zucker im Journal anzeigen</label>
       <label for="sFrom">Gültig ab</label><input id="sFrom" type="date" value="${today}" max="${addDays(today, 365)}">
       <p class="small muted" style="margin-top:6px">Frühere Tage behalten ihr damaliges Ziel.</p>
       <div style="height:6px"></div>
@@ -1590,6 +1612,8 @@ function renderSettingsInner() {
       <ul class="refs">${Object.keys(REFS).map(refHtml).join('')}</ul>
       <p style="margin-top:10px"><strong style="color:var(--ink)">Analytics: woher die Werte kommen</strong></p>
       <p class="small muted">Mittelwerte (Ø) zählen nur Tage mit Einträgen; Tage ohne Eintrag und zukünftige Tage bleiben außen vor. Ein Tag mit wenig Einträgen ist nicht unbedingt ein Tag mit wenig Essen. Beim Wasser zählen Tage mit mindestens 1 ml, beim Koffein Tage mit Koffein- oder Essenseinträgen. Die Differenz zum Ziel nutzt für jeden Tag das damals gültige Ziel. Die Koffein-Pegel sind Modellwerte (Halbwertszeit in den Koffein-Einstellungen), keine Messungen. Die Makro-Anteile beziehen sich auf die Energie aus Eiweiß, Kohlenhydraten und Fett (4/4/9 kcal pro g).</p>
+      <p style="margin-top:10px"><strong style="color:var(--ink)">Ballaststoffe &amp; Zucker</strong></p>
+      <p class="small muted">Ballaststoffe: DGE-Richtwert mindestens 30 g pro Tag (2022 bestätigt). Freier Zucker: WHO (2015) empfiehlt weniger als 10 % der Energie (starke Empfehlung) und schlägt weniger als 5 % vor (bedingte Empfehlung, schwächere Evidenz); DGE, DAG und DDG schließen sich den 10 % an. Freier Zucker = zugesetzter Zucker sowie Zucker in Honig, Sirup, Fruchtsaft und -konzentrat; Zucker in ganzem Obst, Gemüse und Milch zählt als natürlich. Der BLS kennt keinen „zugesetzten“ Zucker – die App leitet ihn aus Lebensmittelgruppe und Namen ab (z. B. „gezuckert“, Süßwaren, Säfte); bei gesüßten Milchprodukten wird der Milchzucker abgezogen. Das ist eine Schätzung. Bei Barcode-Produkten wird „added sugars“ aus Open Food Facts genutzt, sonst zählt der gesamte Zucker als frei; bei eigenen Lebensmitteln ebenso, wenn kein Wert eingetragen ist.</p>
       <p style="margin-top:10px"><strong style="color:var(--ink)">Timeline</strong></p>
       <p class="small muted">Die Magen-Füllung ist ein grobes Modell: Restanteil 2^(−(t/T½)²) mit T½ ≈ 1,75 h für eine kleine fettarme Mahlzeit (ergibt nach 1/2/4 h etwa 80/40/3 % – innerhalb der Normalwerte der Szintigrafie). Längere Zeiten für große und fettreiche Mahlzeiten sowie die Darmphase (+3 h) sind Annahmen, keine Messwerte. Der Plan-Vorschlag ist eine Faustregel, keine belegte „beste“ Verteilung.</p>
       <ul class="refs"><li>Abell TL et al. (2008). Consensus recommendations for gastric emptying scintigraphy. J Nucl Med Technol 36(1):44–54. doi:10.2967/jnmt.107.048116</li>
@@ -1638,8 +1662,20 @@ function renderSettingsInner() {
     preview();
   };
   pfIn.oninput = toCustom; ffIn.oninput = toCustom;
-  $('#sGoal').oninput = preview;
-  showPreset(); preview();
+  const sfUpd = () => {
+    const custom = preset === 'custom';
+    $('#sfManual').style.display = custom ? '' : 'none';
+    const g = num($('#sGoal').value);
+    const t = sfTargets({ preset, goal: g, fiber: preset === 'custom' ? num($('#sFi').value) : null, sugar: preset === 'custom' ? num($('#sSu').value) : null });
+    $('#sfAuto').innerHTML = custom ? 'Eigene Werte (bei „Eigene“ frei wählbar).' : `Automatisch: Ballaststoffe <strong style="color:var(--ink)">mind. ${t.fiber} g</strong> (DGE) · freier Zucker <strong style="color:var(--ink)">max. ${t.sugar != null ? t.sugar + ' g' : '–'}</strong> (${state.sugarPct} % von ${g ? de0(g) : '…'} kcal, WHO)`;
+    document.querySelectorAll('#sugPct button').forEach((b) => b.classList.toggle('active', +b.dataset.p === state.sugarPct));
+  };
+  document.querySelectorAll('#sugPct button').forEach((b) => b.onclick = () => { state.sugarPct = +b.dataset.p; save(); sfUpd(); });
+  $('#sfShow').onchange = (ev) => { state.showSF = ev.target.checked; save(); };
+  document.querySelectorAll('#presetSeg button').forEach((b) => b.addEventListener('click', sfUpd));
+  pfIn.addEventListener('input', sfUpd); ffIn.addEventListener('input', sfUpd);
+  $('#sGoal').oninput = () => { preview(); sfUpd(); };
+  showPreset(); preview(); sfUpd();
 
   $('#sSave').onclick = () => {
     const goal = num($('#sGoal').value);
