@@ -503,6 +503,15 @@ function renderDiary() {
   html += alcCardHtml(currentDate);
   html += suggestionCardHtml(currentDate);
 
+  // Makro-Zusammensetzung einer Mahlzeit: g und Anteil an der Energie aus E/KH/F (4/4/9 kcal pro g, wie in Analytics)
+  const mealMacros = (list) => {
+    const t = sumEntries(list); const ek = [t.p * 4, t.c * 4, t.f * 9]; const sum = ek[0] + ek[1] + ek[2];
+    if (!(sum > 0)) return '';
+    const pc = ek.map((x) => Math.round(x / sum * 100));
+    const parts = [['p', 'Eiweiß', t.p], ['c', 'KH', t.c], ['f', 'Fett', t.f]];
+    return `<div class="meal-mac"><div class="mm-bar" role="img" aria-label="Energieanteile: Eiweiß ${pc[0]} %, Kohlenhydrate ${pc[1]} %, Fett ${pc[2]} %">${parts.map(([k], i) => `<i style="width:${(ek[i] / sum * 100).toFixed(1)}%;background:var(--${k})"></i>`).join('')}</div>
+      <div class="mm-row">${parts.map(([k, l, g], i) => `<div><span class="mm-l"><span class="mm-dot" style="background:var(--${k})"></span>${l}</span><strong>${r0(g)} g</strong><span class="mm-p">${pc[i]} %</span></div>`).join('')}</div></div>`;
+  };
   for (const m of MEALS) {
     const list = entries.filter((e) => e.meal === m.id);
     const kcal = list.reduce((sum, e) => sum + entryTotals(e).k, 0);
@@ -522,7 +531,7 @@ function renderDiary() {
       </div>
       ${open && list.length ? `<div class="entries">${list.map((e) => `<div class="entry" data-entry="${e.id}">
         <div class="name">${esc(e.n)}<div class="small muted">${e.quick ? 'Schnelleintrag' : `${r1(e.grams)} ${unitOf(e)}`}</div></div>
-        <div class="kcal">${de(entryTotals(e).k)} kcal${e.t ? `<div class="small etime" title="abweichende Uhrzeit"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> ${esc(e.t)}</div>` : ''}</div></div>`).join('')}</div>` : ''}
+        <div class="kcal">${de(entryTotals(e).k)} kcal${e.t ? `<div class="small etime" title="abweichende Uhrzeit"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> ${esc(e.t)}</div>` : ''}</div></div>`).join('')}${mealMacros(list)}</div>` : ''}
       ${!list.length && prevMeal.length ? `<button class="btn ghost copy" data-copy="${m.id}">↺ Wie am Vortag (${de(prevMeal.reduce((a, e) => a + entryTotals(e).k, 0))} kcal)</button>` : ''}
     </div>`;
   }
