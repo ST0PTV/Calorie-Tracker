@@ -79,6 +79,7 @@ Eine private, kostenlose Kalorien-Tracking-App fürs iPhone als Ersatz für YAZI
 ## 6. Offene Punkte und Ideen
 
 - Level-System „Gemüsemonster“ umsetzen (eigene Übergabe).
+- **Vorgemerkt: Einführung + Hilfe-Suche** (erst einbauen, wenn das Layout steht). Entwürfe auf der Design-Canvas, Reihen „Einführung“ (T-A Karussell, T-B Spotlight-Tour, T-C Karte „Erste Schritte“) und „Hilfe“ (H-A ?-Knopf im Journal mit Blatt und Suche, H-B Suche in den Einstellungen, „Zeig es mir“ hebt die Stelle hervor). Vorschlag: T-A kurz (3 Seiten) + T-C + H-A; noch nicht freigegeben. Technik: Hilfe-Einträge in eigener Datei (Titel, Suchwörter, Text, Sprungziel), `INFO`-Texte mit durchsuchen, Tour-Status im State. Danach Regel: jede neue Funktion bekommt einen Hilfe-Eintrag.
 - Rezept-Erstellung entfernen, wenn die Version final ist.
 - Auf dem iPhone testen: Barcode-Kamera, Analytics-Griffe, Timeline, neues Gewichtsziel.
 - Gewichtsziel mit geschätztem Bedarf nach einigen Wochen mit dem echten Gewichtsverlauf vergleichen.
