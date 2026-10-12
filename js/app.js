@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.36.0';
+const APP_VERSION = '1.37.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -27,6 +27,7 @@ function emptyState() {
     wgoal: WG_DEFAULTS(), weightLog: {},
     pantry: [], // vorgemerkte Lebensmittel (z. B. nach dem Einkauf)
     waterFoods: {}, // Lebensmittel, die standardmäßig zur Flüssigkeit zählen
+    cafFoods: {}, // eigener Koffeingehalt je Lebensmittel-ID (mg pro 100 g/ml); 0 = kein Koffein
     slices: {}, // gelerntes Scheibengewicht je Lebensmittel-ID (g)
     water: { enabled: true, goal: 1500, step: 250, log: {}, hist: [] }, // log: { 'JJJJ-MM-TT': [{ id, ml, min }, …] }; hist: Zielverlauf [{ from, goal }]
     supp: SUPP_DEFAULTS(),
@@ -101,6 +102,7 @@ function normalizeState(data) {
   if (!s.sugRatings || typeof s.sugRatings !== 'object') s.sugRatings = {};
   if (!s.slices || typeof s.slices !== 'object') s.slices = {};
   if (!s.waterFoods || typeof s.waterFoods !== 'object') s.waterFoods = {};
+  if (!s.cafFoods || typeof s.cafFoods !== 'object') s.cafFoods = {};
   if (!Array.isArray(s.pantry)) s.pantry = [];
   s.wgoal = Object.assign(WG_DEFAULTS(), data.wgoal || {});
   if (!s.weightLog || typeof s.weightLog !== 'object') s.weightLog = {};
@@ -244,7 +246,9 @@ const unitOf = (x) => (isLiq(x) ? 'ml' : 'g');
 
 function nutrientsOf(food) { const o = {}; NUTRIENTS.forEach((n) => { o[n] = n === 'fs' ? fsOf(food) : (food[n] || 0); }); return o; }
 function foodSnap(food) {
-  return Object.assign({ src: food.src, id: food.ref || food.id, n: food.n, brand: food.brand || '', serving: food.serving || null, liq: isLiq(food) }, nutrientsOf(food));
+  const o = Object.assign({ src: food.src, id: food.ref || food.id, n: food.n, brand: food.brand || '', serving: food.serving || null, liq: isLiq(food) }, nutrientsOf(food));
+  if (food.cf != null) o.cf = food.cf; // Koffein mg pro 100 g/ml (OFF oder eigenes Lebensmittel)
+  return o;
 }
 const isFav = (id) => state.favs.some((x) => x.id === id);
 // Aktuelle Werte zu einer gespeicherten Kopie (Favoriten, Zuletzt, Vorgemerkt): Original aus BLS, Barcode-Speicher,
@@ -355,8 +359,14 @@ function backupText() {
 function copyEntries(fromDate, meal) {
   const src = (state.days[fromDate] || []).filter((e) => !meal || e.meal === meal);
   if (!src.length) return 0;
-  const target = (state.days[currentDate] = state.days[currentDate] || []);
-  src.forEach((e) => target.push(Object.assign({}, e, { id: uid() })));
+  src.forEach((e) => {
+    // Getränk aus dem Koffein-Tracker: den Koffein-Eintrag mitkopieren, der legt den Journal-Eintrag selbst an
+    const ce = e.cafId && (state.caffeine.log[fromDate] || []).find((x) => x.id === e.cafId);
+    if (ce) { const nc = Object.assign({}, ce, { id: uid() }); (state.caffeine.log[currentDate] = state.caffeine.log[currentDate] || []).push(nc); caffSyncDiary(currentDate, nc); return; }
+    const ne = Object.assign({}, e, { id: uid() });
+    (state.days[currentDate] = state.days[currentDate] || []).push(ne);
+    if (ne.cf > 0) caffSyncFood(currentDate, ne);
+  });
   save();
   return src.length;
 }
@@ -379,7 +389,7 @@ function sfHalf(cls, label, val, target, kind, natural) {
 }
 /* ---------- Info-Knöpfe (Blatt von unten) ---------- */
 const INFO_STATIC = {
-  water: { body: '<p>Richtwert der DGE: 1,5 l Getränke pro Tag; bei Hitze, Sport oder körperlicher Arbeit mehr. Die EFSA nennt 2,5 l (Männer) bzw. 2,0 l (Frauen) Gesamtwasser – inklusive Wasser aus Lebensmitteln.</p><p>Koffein-Getränke zählen mit ihren ml, Alkohol zählt nicht. Andere Getränke aus dem Journal (z. B. Schorle, Milch) zählen, wenn du im Eintrag „Zur Flüssigkeit zählen“ anhakst – die App merkt sich das je Lebensmittel.</p><p>Das Plus trägt die in den Einstellungen gewählte Menge ein. Der Balken zeigt, woher das Wasser kommt: <span style="color:var(--water)">blau</span> = eigene Einträge, <span style="color:var(--caf)">gold</span> = Koffein-Getränke, <span style="color:var(--accent)">cyan</span> = Getränke aus dem Journal.</p>', src: 'DGE · EFSA 2010' },
+  water: { body: '<p>Richtwert der DGE: 1,5 l Getränke pro Tag; bei Hitze, Sport oder körperlicher Arbeit mehr. Die EFSA nennt 2,5 l (Männer) bzw. 2,0 l (Frauen) Gesamtwasser – inklusive Wasser aus Lebensmitteln.</p><p>Getränke aus dem Koffein-Tracker zählen mit ihren ml, Alkohol zählt nicht. Bei Getränken mit Koffein aus dem Journal (z. B. Red Bull) ist „Zur Flüssigkeit zählen“ vorausgewählt. Andere Getränke aus dem Journal (z. B. Schorle, Milch) zählen, wenn du im Eintrag „Zur Flüssigkeit zählen“ anhakst – die App merkt sich das je Lebensmittel.</p><p>Das Plus trägt die in den Einstellungen gewählte Menge ein. Der Balken zeigt, woher das Wasser kommt: <span style="color:var(--water)">blau</span> = eigene Einträge, <span style="color:var(--caf)">gold</span> = Koffein-Getränke, <span style="color:var(--accent)">cyan</span> = Getränke aus dem Journal.</p>', src: 'DGE · EFSA 2010' },
   sug: { body: '<p>Die Vorschläge erscheinen im Journal, wenn du die App nach dieser Uhrzeit öffnest und noch mindestens so viele kcal offen sind. Vorgeschlagen wird zuerst aus deinen bisherigen Einträgen, sonst aus gängigen Kochzutaten.</p><p>Mit 👍/👎 bewertest du einzelne Lebensmittel; zweimal 👎 schließt sie aus. Eine Benachrichtigung zur Uhrzeit ist ohne Server nicht möglich – mit einer Kurzbefehle-Automation kann iOS die App aber zur gewünschten Zeit öffnen.</p>' },
   share: { body: '<p>Exportiert werden alle Lebensmittel, die du gescannt, im Journal getrackt, selbst angelegt oder vorgemerkt hast – jeweils nur Name, Marke und Nährwerte pro 100 g, dazu Barcode-Daten und Scheibengewichte. Favoriten-Markierungen, Datum, Mengen und Mahlzeiten aus dem Journal, Gewicht, Ziele und Einstellungen sind nicht enthalten.</p><p>Beim Import werden nur fehlende Lebensmittel ergänzt: eigene Lebensmittel unter „Eigene“, alle anderen unter „Vorgemerkt“. Was schon vorhanden ist, bleibt unverändert. Wird ein vollständiges Backup gewählt, werden daraus ebenfalls nur die Lebensmittel übernommen.</p><p>Die Datei läuft über das Teilen-Menü (z. B. AirDrop, Nachrichten) und nicht über einen Server der App.</p>' },
   diet: { body: '<p><strong>Keine Gewähr – bei Allergien immer die Zutatenliste prüfen.</strong></p><p>Gilt für die Vorschläge. Erkannt wird anhand der BLS-Lebensmittelgruppe und des Namens, bei Barcode-Produkten über Open Food Facts, bei eigenen Lebensmitteln über deine Angaben.</p><p>Ist etwas unklar (z. B. Fertiggerichte), wird es nicht vorgeschlagen. Sulfite sind nicht erkennbar.</p>' },
@@ -493,6 +503,15 @@ function renderDiary() {
   html += alcCardHtml(currentDate);
   html += suggestionCardHtml(currentDate);
 
+  // Makro-Zusammensetzung einer Mahlzeit: g und Anteil an der Energie aus E/KH/F (4/4/9 kcal pro g, wie in Analytics)
+  const mealMacros = (list) => {
+    const t = sumEntries(list); const ek = [t.p * 4, t.c * 4, t.f * 9]; const sum = ek[0] + ek[1] + ek[2];
+    if (!(sum > 0)) return '';
+    const pc = ek.map((x) => Math.round(x / sum * 100));
+    const parts = [['p', 'Eiweiß', t.p], ['c', 'KH', t.c], ['f', 'Fett', t.f]];
+    return `<div class="meal-mac"><div class="mm-bar" role="img" aria-label="Energieanteile: Eiweiß ${pc[0]} %, Kohlenhydrate ${pc[1]} %, Fett ${pc[2]} %">${parts.map(([k], i) => `<i style="width:${(ek[i] / sum * 100).toFixed(1)}%;background:var(--${k})"></i>`).join('')}</div>
+      <div class="mm-row">${parts.map(([k, l, g], i) => `<div><span class="mm-l"><span class="mm-dot" style="background:var(--${k})"></span>${l}</span><strong>${r0(g)} g</strong><span class="mm-p">${pc[i]} %</span></div>`).join('')}</div></div>`;
+  };
   for (const m of MEALS) {
     const list = entries.filter((e) => e.meal === m.id);
     const kcal = list.reduce((sum, e) => sum + entryTotals(e).k, 0);
@@ -512,7 +531,7 @@ function renderDiary() {
       </div>
       ${open && list.length ? `<div class="entries">${list.map((e) => `<div class="entry" data-entry="${e.id}">
         <div class="name">${esc(e.n)}<div class="small muted">${e.quick ? 'Schnelleintrag' : `${r1(e.grams)} ${unitOf(e)}`}</div></div>
-        <div class="kcal">${de(entryTotals(e).k)} kcal${e.t ? `<div class="small etime" title="abweichende Uhrzeit"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> ${esc(e.t)}</div>` : ''}</div></div>`).join('')}</div>` : ''}
+        <div class="kcal">${de(entryTotals(e).k)} kcal${e.t ? `<div class="small etime" title="abweichende Uhrzeit"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> ${esc(e.t)}</div>` : ''}</div></div>`).join('')}${mealMacros(list)}</div>` : ''}
       ${!list.length && prevMeal.length ? `<button class="btn ghost copy" data-copy="${m.id}">↺ Wie am Vortag (${de(prevMeal.reduce((a, e) => a + entryTotals(e).k, 0))} kcal)</button>` : ''}
     </div>`;
   }
@@ -1219,6 +1238,17 @@ function openAmount(food, opts = {}) {
   const ownFood = state.custom.find((x) => x.id === foodId);
   const fav = isFav(foodId);
   const U = unitOf(food);
+  // Koffein: neuer Eintrag → gemerkter Wert, Wert am Lebensmittel oder Vorschlag; Bearbeiten → Wert des Eintrags
+  const cafOn = !!state.caffeine.enabled;
+  const cafInfo = !cafOn ? null : edit ? (food.cf > 0 ? { v: food.cf, src: 'entry' } : null) : caffPer100(food);
+  const cafShown = !!(cafInfo && cafInfo.v > 0);
+  const wDef = edit ? food.water : (state.waterFoods[foodId] != null ? state.waterFoods[foodId] : cafShown);
+  const cafHint = (ci) => ci.src === 'guess'
+    ? `<strong>Vorschlag:</strong> Für dieses Getränk ist kein Koffeinwert hinterlegt. Eingesetzt ist der Richtwert für ${esc(ci.label)}. Bitte mit der Packung abgleichen und ggf. ändern (leer oder 0 = kein Koffein).`
+    : CAFF_SRC_HINT[ci.src];
+  const cafField = (ci) => `<label for="eCaf">Koffein (mg pro 100 ${U})</label>
+    <div class="row caf-in"><input id="eCaf" inputmode="decimal" value="${ci.v > 0 ? r1(ci.v) : ''}"><span class="small muted" id="eCafMg"></span></div>
+    <p class="small muted" id="eCafHint" style="margin-top:4px">${cafHint(ci)} Der Koffein-Tracker trägt die Menge automatisch mit ein.</p>`;
   openSheet(`
     ${sheetHead('back', esc(food.n), !(edit || opts.direct), `<button class="btn ghost star-btn" id="favBtn" aria-label="Favorit">${fav ? '★' : '☆'}</button>`)}
     ${food.brand ? `<p class="muted">${esc(food.brand)}</p>` : ''}
@@ -1238,7 +1268,8 @@ function openAmount(food, opts = {}) {
     <div class="nutri" id="nutri"></div>
     <label for="meal">Mahlzeit</label>
     <select id="meal">${MEALS.map((m) => `<option value="${m.id}" ${m.id === mealSel ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
-    ${U === 'ml' && state.water.enabled ? `<label class="switch" style="margin-top:12px"><input type="checkbox" id="eWater" ${(edit ? food.water : state.waterFoods[foodId]) ? 'checked' : ''}> Zur Flüssigkeit (Wasserzähler) zählen</label>` : ''}
+    ${U === 'ml' && state.water.enabled ? `<label class="switch" style="margin-top:12px"><input type="checkbox" id="eWater" ${wDef ? 'checked' : ''}> Zur Flüssigkeit (Wasserzähler) zählen</label>` : ''}
+    ${cafOn ? `<div id="cafBox">${cafShown ? cafField(cafInfo) : '<button type="button" class="linkbtn" id="cafShow">Enthält Koffein? Wert eintragen</button>'}</div>` : ''}
     ${state.timeline.enabled ? `<label for="eTime">Abweichende Uhrzeit (optional)</label><input id="eTime" type="time" value="${edit && food.t ? esc(food.t) : ''}"><p class="small muted" id="eTimeHint" style="margin-top:4px">${mealTimeHint(mealSel)}</p>` : ''}
     <div style="height:14px"></div>
     <button class="btn block" id="save">${edit ? 'Speichern' : 'Hinzufügen'}</button>
@@ -1253,6 +1284,11 @@ function openAmount(food, opts = {}) {
       <div><strong>${r1(x.fi)}</strong><span>Ballastst.</span></div><div><strong>${r1(x.su)}</strong><span>Zucker</span></div>`;
   };
   g.oninput = upd; upd();
+  const cafMg = () => { const el = $('#eCafMg'); if (!el) return; const v = num($('#eCaf').value), q = num(g.value) || 0; el.textContent = v > 0 && q > 0 ? `= ${r0(v * q / 100)} mg Koffein` : ''; };
+  const cafBind = () => { const el = $('#eCaf'); if (el) el.oninput = cafMg; cafMg(); };
+  g.addEventListener('input', cafMg); cafBind();
+  const cs = $('#cafShow');
+  if (cs) cs.onclick = () => { $('#cafBox').innerHTML = cafField({ src: 'manual', v: 0 }); cafBind(); $('#eCaf').focus(); };
   const pOpts = portionOptions(food);
   const slRes = () => { const p = num($('#slPack').value), n = num($('#slN').value); const v = p && n ? Math.round(p / n * 10) / 10 : null; $('#slRes').textContent = v ? `= ${r1(v)} g pro Scheibe` : '= ? g pro Scheibe'; return v; };
   $('#slCalcBtn').onclick = () => { const c = $('#slCalc'); c.hidden = !c.hidden; if (!c.hidden) $('#slN').focus(); };
@@ -1288,14 +1324,22 @@ function openAmount(food, opts = {}) {
     const grams = num(g.value);
     if (!grams || grams <= 0) { toast('Bitte eine Menge eingeben.'); return; }
     const meal = $('#meal').value;
+    const cfEl = $('#eCaf'); const cf = cfEl ? (num(cfEl.value) || 0) : null;
+    if (cf != null && (cf < 0 || cf > 1000)) { toast('Bitte Koffein zwischen 0 und 1.000 mg pro 100 eingeben.'); return; }
+    if (cf != null) { // gemerkter Wert je Lebensmittel; entspricht er dem Wert am Lebensmittel, braucht es keinen eigenen
+      const lv = liveFood(food); if (lv && lv.cf != null && Math.abs(lv.cf - cf) < 0.05) delete state.cafFoods[foodId]; else state.cafFoods[foodId] = cf;
+    }
+    const setCf = (x) => { if (cf != null) { if (cf > 0) x.cf = cf; else delete x.cf; } };
     if (edit) {
       const e = (state.days[currentDate] || []).find((x) => x.id === food.id);
-      if (e) { e.grams = grams; e.meal = meal; const wv = $('#eWater'); if (wv) { if (wv.checked) e.water = true; else delete e.water; state.waterFoods[foodId] = wv.checked || undefined; } const tv = $('#eTime') && $('#eTime').value; if (tv) e.t = tv; else delete e.t; }
+      if (e) { e.grams = grams; e.meal = meal; const wv = $('#eWater'); if (wv) { if (wv.checked) e.water = true; else delete e.water; state.waterFoods[foodId] = wv.checked; } const tv = $('#eTime') && $('#eTime').value; if (tv) e.t = tv; else delete e.t; setCf(e); caffSyncFood(currentDate, e); }
     } else {
       const entry = Object.assign({ id: uid(), meal, grams, ref: foodId, src: food.src, n: food.n, brand: food.brand || '', liq: isLiq(food) }, nutrientsOf(food));
       const tv = $('#eTime') && $('#eTime').value; if (tv) entry.t = tv;
-      const wv = $('#eWater'); if (wv) { if (wv.checked) entry.water = true; state.waterFoods[foodId] = wv.checked || undefined; }
+      const wv = $('#eWater'); if (wv) { if (wv.checked) entry.water = true; state.waterFoods[foodId] = wv.checked; }
+      setCf(entry);
       (state.days[currentDate] = state.days[currentDate] || []).push(entry);
+      caffSyncFood(currentDate, entry);
       state.recent = [Object.assign(foodSnap(food), { lastGrams: grams })].concat(state.recent.filter((x) => x.id !== foodId)).slice(0, 60);
     }
     save();
@@ -1305,6 +1349,7 @@ function openAmount(food, opts = {}) {
   const del = $('#del');
   if (del) del.onclick = () => {
     state.days[currentDate] = (state.days[currentDate] || []).filter((x) => x.id !== food.id);
+    caffSyncFood(currentDate, { id: food.id }); // verknüpften Koffein-Eintrag mit entfernen
     save(); toast('Gelöscht'); closeSheet();
   };
 }
@@ -1449,6 +1494,8 @@ async function lookupBarcode(code) {
       sliceG: offSliceG(p.serving_size),
       liq: /\d\s*(ml|cl|l)\b/i.test(p.quantity || ''),
     };
+    const cafG = num(nm.caffeine_100g); // OFF speichert Koffein in g pro 100 g/ml
+    if (cafG != null && cafG >= 0 && cafG <= 5) food.cf = Math.round(cafG * 10000) / 10;
     state.offCache[code] = food; levelEvent(state, 'scan', isoDate(new Date())); save();
     openAmount(food);
   } catch (e) {
@@ -1495,6 +1542,7 @@ function openFoodForm(existing) {
     </div>
     <label for="cFs">davon freier/zugesetzter Zucker g (optional)</label><input id="cFs" inputmode="decimal" value="${e.fs != null ? v(e.fs) : ''}" placeholder="leer = gesamter Zucker zählt als frei">
     <label class="chip" style="margin-top:10px"><input type="checkbox" id="cLiq" ${e.liq ? 'checked' : ''}> Flüssigkeit (Mengen in ml, Annahme 1 ml ≈ 1 g)</label>
+    <label for="cCf">Koffein mg pro 100 g/ml (optional)</label><input id="cCf" inputmode="decimal" value="${state.cafFoods[e.id] != null ? state.cafFoods[e.id] : e.cf != null ? e.cf : ''}" placeholder="z. B. 32 bei Energy Drinks">
     <div class="row">
       <div><label for="cServ">Portion g/ml (optional)</label><input id="cServ" inputmode="decimal" value="${e.serving || ''}"></div>
       <div><label for="cBarcode">Barcode (optional)</label><input id="cBarcode" inputmode="numeric" value="${esc(e.barcode || '')}"></div>
@@ -1527,6 +1575,10 @@ function openFoodForm(existing) {
       a: [...document.querySelectorAll('#cAll input:checked')].map((x) => x.value),
     };
     if (miss.length) food.miss = miss;
+    const cfv = num($('#cCf').value);
+    if (cfv != null && (cfv < 0 || cfv > 1000)) { toast('Bitte Koffein zwischen 0 und 1.000 mg pro 100 eingeben.'); return; }
+    if (cfv != null) food.cf = cfv;
+    delete state.cafFoods[food.id]; // Wert im Lebensmittel gilt
     const today = isoDate(new Date());
     if (!isEdit && !miss.length) levelEvent(state, 'own', today);
     else if (isEdit && miss.length < (e.miss || []).length) levelEvent(state, 'fill', today);

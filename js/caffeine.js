@@ -45,6 +45,62 @@ function caffSyncDiary(iso, ent) {
   if (!day.length) delete state.days[iso];
 }
 
+/* ---------- Koffein aus dem Journal ----------
+   Lebensmittel können einen Koffeingehalt cf (mg pro 100 g bzw. 100 ml) haben: eigener Wert (state.cafFoods, je Lebensmittel
+   gemerkt) → Wert am Lebensmittel (Open Food Facts „caffeine_100g“ oder eigenes Lebensmittel) → Vorschlag nach dem Namen.
+   Ein Journal-Eintrag mit cf > 0 bekommt einen verknüpften Koffein-Eintrag (fe = ID des Journal-Eintrags). Dieser zählt
+   nur fürs Koffein – kcal und Wasser kommen aus dem Journal-Eintrag selbst (tr: false, kcal: 0), damit nichts doppelt zählt. */
+// Vorschläge nur für Flüssigkeiten, je 100 ml. Werte wie in CAFF_DRINKS (BfR bzw. übliche Werte, nicht belegt)
+const CAFF_GUESS = [
+  [/red\s?bull|monster|rockstar|relentless|energy|28\s?black|booster/i, 32, 'Energy Drinks (80 mg je 250 ml, BfR)'],
+  [/espresso|ristretto/i, 200, 'Espresso (ca. 60 mg je 30 ml, üblicher Wert, nicht belegt)'],
+  [/club-?\s?mate|\bmate\b/i, 20, 'Mate-Limonaden (ca. 20 mg/100 ml, üblicher Wert, nicht belegt)'],
+  [/kaffee|coffee|cappuccino|latte|cold brew|americano/i, 45, 'Filterkaffee (90 mg je 200 ml, BfR) – Milchkaffee enthält oft weniger'],
+  [/(^|[^a-zäöü])(cola|coke|pepsi)/i, 10, 'Cola (33 mg je 330 ml, BfR)'],
+  [/schwarztee|schwarzer tee|black tea|earl grey|assam|darjeeling/i, 25, 'Schwarztee (50 mg je 200 ml, BfR)'],
+  [/grüntee|grüner tee|green tea|matcha/i, 15, 'Grüntee (ca. 30 mg je 200 ml, üblicher Wert, nicht belegt)'],
+];
+const CAFF_NOGUESS = /koffeinfrei|entkoffeiniert|decaf|caffeine.?free|ohne koffein|sahne|weißer|weisser|malzkaffee|getreidekaffee|zichorie|likör|likoer/i;
+function caffGuess(food) {
+  if (!isLiq(food)) return null;
+  const s = `${food.n || ''} ${food.brand || ''}`;
+  if (CAFF_NOGUESS.test(s)) return null;
+  const hit = CAFF_GUESS.find(([re]) => re.test(s));
+  return hit ? { v: hit[1], src: 'guess', label: hit[2] } : null;
+}
+// Koffeingehalt eines Lebensmittels (für neue Einträge): { v, src: 'own' | 'off' | 'food' | 'guess', label } oder null
+function caffPer100(food) {
+  const id = food.ref || food.id;
+  const own = (state.cafFoods || {})[id];
+  if (own != null) return { v: own, src: 'own' };
+  const live = typeof liveFood === 'function' ? liveFood(food) : food;
+  if (live && live.cf != null) return { v: live.cf, src: live.src === 'off' ? 'off' : 'food' };
+  return caffGuess(food);
+}
+const CAFF_SRC_HINT = {
+  own: 'Von dir für dieses Lebensmittel gespeichert.',
+  off: 'Wert von Open Food Facts – bitte mit der Packung abgleichen.',
+  food: 'Wert aus deinem Lebensmittel.',
+  entry: 'Wert dieses Eintrags.',
+  manual: 'Wert von der Packung eintragen (mg pro 100). Die App merkt ihn sich für dieses Lebensmittel.',
+};
+// Koffein-Eintrag zu einem Journal-Eintrag anlegen/aktualisieren/entfernen (e = Journal-Eintrag oder { id } zum Entfernen)
+function caffSyncFood(iso, e) {
+  const c = state.caffeine;
+  let list = (c.log[iso] || []).slice();
+  const old = list.find((x) => x.fe === e.id);
+  const mg = e.cf > 0 && e.grams > 0 ? Math.round(e.cf * e.grams / 100 * 10) / 10 : 0;
+  if (!mg) list = list.filter((x) => x !== old);
+  else {
+    let min = Math.round(tlEntryTime(iso, e) * 60);
+    min = Math.max(0, Math.min(1439, isFinite(min) ? min : 720));
+    const liq = isLiq(e);
+    const vals = { min, mg, n: e.n || 'Koffein', dur: liq ? 15 : 0, ml: liq ? e.grams : 0, kcal: 0, tr: false, fe: e.id };
+    if (old) Object.assign(old, vals); else list.push(Object.assign({ id: uid() }, vals));
+  }
+  if (list.length) c.log[iso] = list; else delete c.log[iso];
+}
+
 
 const hmToMin = (s) => { const [h, m] = String(s || '0:0').split(':').map(Number); return (h || 0) * 60 + (m || 0); };
 // absolute Zeit in Stunden (lokale Uhrzeit des Tages iso + min Minuten)
@@ -214,7 +270,10 @@ function caffBindCard(iso) {
   trackerBind();
   const a = document.querySelector('[data-caf-add]'); if (a) a.onclick = () => openCaffeine(iso);
   document.querySelectorAll('[data-caf-entry]').forEach((b) => b.onclick = () => {
-    const e = (state.caffeine.log[iso] || []).find((x) => x.id === b.dataset.cafEntry); if (e) openCaffeine(iso, e);
+    const e = (state.caffeine.log[iso] || []).find((x) => x.id === b.dataset.cafEntry); if (!e) return;
+    // aus dem Journal entstanden → den Journal-Eintrag bearbeiten (Menge, Koffeingehalt, Löschen)
+    const fe = e.fe && (state.days[iso] || []).find((x) => x.id === e.fe);
+    if (fe) openAmount(fe, { edit: true }); else openCaffeine(iso, e);
   });
 }
 

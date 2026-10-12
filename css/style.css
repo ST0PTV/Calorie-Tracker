@@ -679,3 +679,14 @@ h2.ct { font-size: 0.8rem; font-weight: 400; color: var(--muted); margin: 0; let
 .wd-drop .o { fill: none; stroke: var(--water); stroke-width: 1.3; } .wd-drop.none .o { stroke: rgba(255, 255, 255, 0.18); }
 .wd-drop.today .o { stroke-dasharray: 2 2; }
 .wd-dot { width: 30px; height: 30px; display: grid; place-items: center; } .wd-dot::after { content: ''; width: 4px; height: 4px; border-radius: 50%; background: rgba(255, 255, 255, 0.15); }
+
+/* Makro-Zusammensetzung einer Mahlzeit (aufgeklappt) */
+.meal-mac { border-top: 1px solid var(--line); padding: 11px 0 6px; }
+.mm-bar { display: flex; gap: 2px; height: 6px; border-radius: 3px; overflow: hidden; background: rgba(255,255,255,0.08); }
+.mm-bar i { display: block; height: 100%; }
+.mm-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 9px; }
+.mm-row > div { display: flex; flex-direction: column; font-size: 0.72rem; }
+.mm-row .mm-l { color: var(--muted); display: inline; }
+.mm-row .mm-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; }
+.mm-row strong { font-size: 0.9rem; font-weight: 600; margin-top: 2px; }
+.mm-row .mm-p { color: var(--muted); }
