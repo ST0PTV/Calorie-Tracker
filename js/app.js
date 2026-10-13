@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.1.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -554,9 +554,10 @@ function waterGoalFor(iso) {
   return g || 1500;
 }
 const litres = (ml) => (ml / 1000).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
 const minHM = (m) => (m == null ? '–' : `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`);
-function waterAdd(iso, ml) {
-  const now = new Date(), min = iso === isoDate(now) ? now.getHours() * 60 + now.getMinutes() : null;
+function waterAdd(iso, ml, minOpt) {
+  const now = new Date(), min = minOpt !== undefined ? minOpt : iso === isoDate(now) ? now.getHours() * 60 + now.getMinutes() : null;
   (state.water.log[iso] = state.water.log[iso] || []).push({ id: uid(), ml: Math.round(ml), min });
   save(); if (navigator.vibrate) navigator.vibrate(20);
 }
@@ -576,9 +577,14 @@ function waterCardHtml(iso) {
   const ml = waterOf(iso), isToday = iso === isoDate(new Date());
   const rows = waterRows(iso);
   const add = `data-water-add aria-label="${step} ml Wasser eintragen"`;
+  const other = `<div class="w-other" hidden>
+      <div class="row"><div><label for="wOtherMl">Menge (ml)</label><input id="wOtherMl" inputmode="numeric" placeholder="z. B. 330"></div>
+      <div><label for="wOtherT">Uhrzeit</label><input id="wOtherT" type="time" value="${isToday ? minHM(nowMin()) : ''}"></div></div>
+      ${isToday ? '' : '<p class="small muted" style="margin-top:4px">Ohne Uhrzeit steht der Eintrag am Ende des Tages.</p>'}
+      <button type="button" class="btn block" id="wOtherOk" style="margin-top:10px">Eintragen</button></div>`;
   if (!rows.length) return `<div class="card water tk-empty">
     <div class="small muted">Wasser</div><div class="tk-e-v">0,00<span class="muted small"> l</span></div>
-    ${trackerFoot('water', add, '', '')}
+    ${trackerFoot('water', add, 'Noch nichts eingetragen', `<div class="row w-more"><button type="button" class="btn secondary" id="wOther">Menge &amp; Uhrzeit</button></div>${other}`)}
   </div>`;
   const parts = [[waterManual(iso), 'w'], [caffWater(iso), 'c'], [foodWater(iso), 'f']];
   const bar = parts.map(([v, k]) => (v > 0 ? `<i class="${k}" style="width:${Math.min(100, v / goal * 100).toFixed(1)}%"></i>` : '')).join('');
@@ -586,14 +592,14 @@ function waterCardHtml(iso) {
   const pill = `<span class="caf-pill ${done ? 'ok' : 'water'}">${done ? 'Ziel erreicht ✓' : `noch ${litres(goal - ml)} l`}</span>`;
   const fromCaf = caffWater(iso);
   const summary = `${isToday ? 'Heute' : 'Getrunken:'} ${rows.length} ${rows.length === 1 ? 'Eintrag' : 'Einträge'}${fromCaf ? ` · <span class="muted">${litres(fromCaf).replace(/0$/, '')} l aus Kaffee</span>` : ''}`;
-  const list = rows.map((r) => `<div class="w-row" ${r.kind === 'w' ? '' : `data-wopen="${r.kind}:${esc(r.id)}" role="button" tabindex="0"`}>
+  const list = rows.map((r) => `<div class="w-row" data-wopen="${r.kind}:${esc(r.id)}" role="button" tabindex="0">
       <span class="caf-time w-${r.kind}">${minHM(r.min)}</span>
       <span class="w-n">${esc(r.n)}${r.src ? `<small>${r.src}</small>` : ''}</span>
       <strong>${fmt(r.ml)} ml</strong>
       ${r.kind === 'w' ? `<button type="button" class="w-del" data-wdel="${esc(r.id)}" aria-label="Eintrag löschen">✕</button>` : '<span class="w-go">↗</span>'}</div>`).join('');
   const details = `<div class="w-list">${list}</div>
     <div class="row w-more"><button type="button" class="btn secondary" data-water-ml="500">+ 500 ml</button><button type="button" class="btn secondary" id="wOther">Andere Menge</button></div>
-    <div class="row w-other" hidden><input id="wOtherMl" inputmode="numeric" placeholder="ml, z. B. 330"><button type="button" class="btn" id="wOtherOk">Eintragen</button></div>`;
+    ${other}`;
   return `<div class="card water">
     <div class="caf-head"><div><div class="small muted">Wasser ${infoBtn('water')}</div><div class="caf-big">${litres(ml)}<span class="muted small"> / ${litres(goal)} l</span></div></div>${pill}</div>
     <div class="w-bar">${bar}</div>
@@ -608,7 +614,8 @@ function bindWaterCard(iso, rerender) {
   const ok = $('#wOtherOk'); if (ok) ok.onclick = () => {
     const v = num($('#wOtherMl').value);
     if (v == null || v < 10 || v > 3000) { toast('Bitte 10–3000 ml eingeben.'); return; }
-    waterAdd(iso, v); rerender();
+    const tv = $('#wOtherT').value;
+    waterAdd(iso, v, tv ? hmToMin(tv) : null); rerender();
   };
   document.querySelectorAll('[data-wdel]').forEach((b) => b.onclick = (ev) => {
     ev.stopPropagation();
@@ -620,9 +627,35 @@ function bindWaterCard(iso, rerender) {
   });
   document.querySelectorAll('[data-wopen]').forEach((el) => el.onclick = () => {
     const [k, id] = el.dataset.wopen.split(':');
-    if (k === 'c') { const e = (state.caffeine.log[iso] || []).find((x) => x.id === id); if (e) openCaffeine(iso, e); }
+    if (k === 'w') openWaterEdit(iso, id, rerender);
+    else if (k === 'c') { const e = (state.caffeine.log[iso] || []).find((x) => x.id === id); if (e) openCaffeine(iso, e); }
     else { const e = (state.days[iso] || []).find((x) => x.id === id); if (e) openAmount(e, { edit: true }); }
   });
+}
+
+// Eigenen Wasser-Eintrag bearbeiten: Menge, Uhrzeit (auch leer = ohne Uhrzeit), Löschen
+function openWaterEdit(iso, id, back) {
+  const x = wEntries(iso).find((y) => y.id === id); if (!x) return;
+  sheetMode = 'tracker';
+  openSheet(`${sheetHead('weBack', 'Wasser-Eintrag', true)}
+    <div class="row"><div><label for="weMl">Menge (ml)</label><input id="weMl" inputmode="numeric" value="${x.ml}"></div>
+    <div><label for="weT">Uhrzeit</label><input id="weT" type="time" value="${x.min != null ? minHM(x.min) : ''}"></div></div>
+    <p class="small muted" style="margin-top:4px">Ohne Uhrzeit steht der Eintrag am Ende des Tages.</p>
+    <div style="height:14px"></div><button class="btn block" id="weSave">Speichern</button>
+    <div style="height:10px"></div><button class="btn danger block" id="weDel">Eintrag löschen</button>`);
+  $('#weBack').onclick = back;
+  $('#weSave').onclick = () => {
+    const v = num($('#weMl').value);
+    if (v == null || v < 10 || v > 3000) { toast('Bitte 10–3000 ml eingeben.'); return; }
+    const t = $('#weT').value;
+    state.water.log[iso] = wEntries(iso).map((y) => (y.id === id ? Object.assign({}, y, { ml: Math.round(v), min: t ? hmToMin(t) : null }) : y));
+    save(); toast('Gespeichert'); back();
+  };
+  $('#weDel').onclick = () => {
+    state.water.log[iso] = wEntries(iso).filter((y) => y.id !== id);
+    if (!state.water.log[iso].length) delete state.water.log[iso];
+    save(); toast('Gelöscht'); back();
+  };
 }
 
 /* ---------- Ernährungsform & Allergene ---------- */
@@ -1252,9 +1285,22 @@ const r1n = (n) => Math.round((n || 0) * 10) / 10;
 /* ---------- Mengen-Dialog ---------- */
 // Hinweis unter „Abweichende Uhrzeit“: welche Uhrzeit sonst gilt (die der Mahlzeit, siehe Timeline)
 const MEAL_GEN = { breakfast: 'des Frühstücks', lunch: 'des Mittagessens', dinner: 'des Abendessens', snack: 'der Snacks' };
-function mealTimeHint(meal) {
-  if (typeof tlMealTime !== 'function') return '';
-  return `Sonst gilt die Uhrzeit ${MEAL_GEN[meal] || 'der Mahlzeit'}: ${tlHM(tlMealTime(currentDate, meal).h)}`;
+// Uhrzeit-Feld für Essen: immer sichtbar, mit der geltenden Zeit vorbelegt. Nur wenn der Nutzer sie ändert, wird sie am Eintrag gespeichert (e.t); leeren = automatisch.
+function effTimeHM(entry, meal) {
+  const h = entry ? tlEntryTime(currentDate, Object.assign({}, entry, { meal })) : tlMealTime(currentDate, meal).h;
+  return tlHM(h);
+}
+function foodTimeField(id, entry, meal) {
+  return `<label for="${id}">Uhrzeit</label><input id="${id}" type="time" value="${effTimeHM(entry, meal)}">
+    <p class="small muted" id="${id}Hint" style="margin-top:4px">${entry && entry.t ? 'Eigene Uhrzeit. Leeren = Uhrzeit der Mahlzeit.' : 'Gilt automatisch. Ändern, um eine eigene Uhrzeit zu setzen.'}</p>`;
+}
+// liefert { touched, value } – value '' = geleert
+function bindFoodTime(id, mealId, entry) {
+  const t = $('#' + id), m = $('#' + mealId); if (!t) return () => ({ touched: false, value: '' });
+  let touched = false;
+  t.addEventListener('input', () => { touched = true; });
+  if (m) m.addEventListener('change', () => { if (!touched && !(entry && entry.t)) t.value = effTimeHM(entry, m.value); });
+  return () => ({ touched, value: t.value });
 }
 /* Mengen-Lineal (2.0): ziehen verändert die Menge (8 px = 1 g/ml), dazu ±1/±10-Stufen */
 function bindAmountRuler(g) {
@@ -1329,7 +1375,7 @@ function openAmount(food, opts = {}) {
     <select id="meal">${MEALS.map((m) => `<option value="${m.id}" ${m.id === mealSel ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
     ${U === 'ml' && state.water.enabled ? `<label class="switch" style="margin-top:12px"><input type="checkbox" id="eWater" ${wDef ? 'checked' : ''}> Zur Flüssigkeit (Wasserzähler) zählen</label>` : ''}
     ${cafOn ? `<div id="cafBox">${cafShown ? cafField(cafInfo) : '<button type="button" class="linkbtn" id="cafShow">Enthält Koffein? Wert eintragen</button>'}</div>` : ''}
-    ${state.timeline.enabled ? `<label for="eTime">Abweichende Uhrzeit (optional)</label><input id="eTime" type="time" value="${edit && food.t ? esc(food.t) : ''}"><p class="small muted" id="eTimeHint" style="margin-top:4px">${mealTimeHint(mealSel)}</p>` : ''}
+    ${foodTimeField('eTime', edit ? food : null, mealSel)}
     <div style="height:14px"></div>
     <button class="btn block" id="save">${edit ? 'Speichern' : 'Hinzufügen'}</button>
     ${edit ? '<div style="height:10px"></div><button class="btn danger block" id="del">Eintrag löschen</button>' : ''}
@@ -1374,7 +1420,7 @@ function openAmount(food, opts = {}) {
   g.addEventListener('input', () => { lastChip = null; document.querySelectorAll('#portions .chip').forEach((c) => c.classList.remove('on')); });
   const back = () => { if (edit || opts.direct) closeSheet(); else openAdd(addMeal); };
   $('#back').onclick = back;
-  const ms = $('#meal'), th = $('#eTimeHint'); if (ms && th) ms.addEventListener('change', () => { th.textContent = mealTimeHint(ms.value); });
+  const eTime = bindFoodTime('eTime', 'meal', edit ? food : null);
   $('#favBtn').onclick = () => {
     if (isFav(foodId)) { state.favs = state.favs.filter((x) => x.id !== foodId); $('#favBtn').textContent = '☆'; toast('Aus Favoriten entfernt'); }
     else { state.favs.unshift(foodSnap(food)); $('#favBtn').textContent = '★'; toast('Zu Favoriten hinzugefügt'); }
@@ -1395,10 +1441,10 @@ function openAmount(food, opts = {}) {
     const setCf = (x) => { if (cf != null) { if (cf > 0) x.cf = cf; else delete x.cf; } };
     if (edit) {
       const e = (state.days[currentDate] || []).find((x) => x.id === food.id);
-      if (e) { e.grams = grams; e.meal = meal; const wv = $('#eWater'); if (wv) { if (wv.checked) e.water = true; else delete e.water; state.waterFoods[foodId] = wv.checked; } const tv = $('#eTime') && $('#eTime').value; if (tv) e.t = tv; else delete e.t; setCf(e); caffSyncFood(currentDate, e); }
+      if (e) { e.grams = grams; e.meal = meal; const wv = $('#eWater'); if (wv) { if (wv.checked) e.water = true; else delete e.water; state.waterFoods[foodId] = wv.checked; } const et = eTime(); if (et.touched) { if (et.value) e.t = et.value; else delete e.t; } setCf(e); caffSyncFood(currentDate, e); }
     } else {
       const entry = Object.assign({ id: uid(), meal, grams, ref: foodId, src: food.src, n: food.n, brand: food.brand || '', liq: isLiq(food) }, nutrientsOf(food));
-      const tv = $('#eTime') && $('#eTime').value; if (tv) entry.t = tv;
+      const et = eTime(); if (et.touched && et.value) entry.t = et.value;
       const wv = $('#eWater'); if (wv) { if (wv.checked) entry.water = true; state.waterFoods[foodId] = wv.checked; }
       setCf(entry);
       (state.days[currentDate] = state.days[currentDate] || []).push(entry);
@@ -1433,19 +1479,20 @@ function openQuick(meal, entry) {
     </div>
     <label for="qMeal">Mahlzeit</label>
     <select id="qMeal">${MEALS.map((m) => `<option value="${m.id}" ${m.id === (e.meal || meal) ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
-    ${state.timeline.enabled ? `<label for="qT">Abweichende Uhrzeit (optional)</label><input id="qT" type="time" value="${e.t ? esc(e.t) : ''}"><p class="small muted" id="qTHint" style="margin-top:4px">${mealTimeHint(e.meal || meal)}</p>` : ''}
+    ${foodTimeField('qT', entry || null, e.meal || meal)}
     <div style="height:14px"></div>
     <button class="btn block" id="qSave">${entry ? 'Speichern' : 'Hinzufügen'}</button>
     ${entry ? '<div style="height:10px"></div><button class="btn danger block" id="qDel">Eintrag löschen</button>' : ''}`);
   const back = () => { if (entry) closeSheet(); else openAdd(addMeal); };
   $('#back').onclick = back;
-  const qm = $('#qMeal'), qh = $('#qTHint'); if (qm && qh) qm.addEventListener('change', () => { qh.textContent = mealTimeHint(qm.value); });
+  const qTime = bindFoodTime('qT', 'qMeal', entry || null);
   $('#qSave').onclick = () => {
     const k = num($('#qK').value);
     if (k == null || k < 0) { toast('Bitte Kalorien eingeben.'); return; }
     // Schnelleinträge werden als „100 g“ mit Absolutwerten gespeichert, damit die Rechnung einheitlich bleibt.
     const vals = { quick: true, grams: 100, n: $('#qN').value.trim() || 'Schnelleintrag', k, p: num($('#qP').value) || 0, c: num($('#qC').value) || 0, f: num($('#qF').value) || 0, fi: 0, su: 0, meal: $('#qMeal').value, src: 'quick' };
-    const qt = $('#qT') && $('#qT').value; if (qt) vals.t = qt; else if (entry) { const ex = (state.days[currentDate] || []).find((x) => x.id === entry.id); if (ex) delete ex.t; }
+    const qt = qTime();
+    if (qt.touched) { if (qt.value) vals.t = qt.value; else if (entry) { const ex = (state.days[currentDate] || []).find((x) => x.id === entry.id); if (ex) delete ex.t; } }
     if (entry) Object.assign((state.days[currentDate] || []).find((x) => x.id === entry.id) || {}, vals);
     else { const ne = Object.assign({ id: uid() }, vals); (state.days[currentDate] = state.days[currentDate] || []).push(ne); justAdded.add(ne.id); }
     save(); toast(entry ? 'Gespeichert' : 'Hinzugefügt'); back();
