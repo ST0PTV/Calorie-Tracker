@@ -92,7 +92,7 @@ function lvCurrent(r) {
   return { kind: 'month', month: m, tpl: f >= 0 ? m.monster.tpl + f : null, shiny: m.shiny, name: f >= 0 ? m.monster.forms[f] : 'Monatsei', type: m.monster.type, form: f, monster: m.monster,
     label: `Monster des ${LV_MONTHS[+m.key.slice(5, 7) - 1]}s` };
 }
-function lvArtCur(c, size, still) { return c.tpl == null ? lvEgg(size) : lvArt(c.tpl, size, { shiny: c.shiny, still }); }
+function lvArtCur(c, size, still) { return c.tpl == null ? lvEgg(size) : lvArt(c.tpl, size, Object.assign({ shiny: c.shiny, still }, typeof lvWear === 'function' ? lvWear() : {})); }
 
 /* ---------- Level-Chip im Journal ---------- */
 function lvChipHtml() {
@@ -158,15 +158,15 @@ function lvOpenProgress() {
         <div class="small" style="margin-top:6px">${text}</div></div></div>
     ${card2}
     <div class="lv-two">
-      <button class="card lv-tile" id="lvStarter">${lvArt(r.starterTpl, 40, { still: true, shiny: r.starterShiny })}<span><small>Starter</small><b>${esc(r.starter.forms[r.starterStage])}</b></span></button>
-      <button class="card lv-tile" id="lvColl"><span class="lv-cnt">${coll.monsters}/${coll.totalMonsters}</span><span><small>Sammlung</small><b>${coll.forms} Formen</b></span></button>
+      <button class="card lv-tile" id="lvWard">${typeof LVC_HAT_ICON === 'function' ? LVC_HAT_ICON(state.level.costume || 'kuerbis') : ''}<span><small>Kleiderschrank</small><b>${typeof lvWear === 'function' && lvWear(r).costume ? 'Kostüm an' : 'Kostüme'}</b></span></button>
+      <button class="card lv-tile" id="lvColl"><span class="lv-cnt">${coll.monsters}/${coll.totalMonsters || 23}</span><span><small>Sammlung</small><b>${coll.forms} Formen</b></span></button>
     </div>
     ${typeof lvGardenTeaser === 'function' ? lvGardenTeaser(r) : ''}
     ${nextM ? `<div class="card lv-next">${lvEgg(46)}<div><b>Nächstes Monatsei</b><div class="small muted">schlüpft am ${nextM} – welches Monster, entscheidet der Zufall.</div></div></div>` : ''}
     <p class="small muted" style="margin:10px 4px 24px">Hier zählt nur, dass du einträgst – nicht, wie viel du isst. Ausgelassene Tage kosten nichts.</p>`);
   $('#lvClose').onclick = closeSheet;
-  $('#lvColl').onclick = () => toast('Sammlung kommt in Etappe 3');
-  $('#lvStarter').onclick = () => lvShowEvo(r.starter.tpl + Math.max(0, r.starterStage - 1), r.starterTpl, r.starter.forms[r.starterStage], 'Dein Starter', r.starterShiny, true);
+  $('#lvColl').onclick = () => lvOpenCollection();
+  $('#lvWard').onclick = () => lvOpenWardrobe();
   if (typeof lvBindGardenTeaser === 'function') lvBindGardenTeaser();
   $('#lvBig').onclick = (ev) => { const b = ev.currentTarget; b.classList.remove('lv-boing'); void b.offsetWidth; b.classList.add('lv-boing'); };
 }

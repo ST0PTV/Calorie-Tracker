@@ -26,6 +26,14 @@ GCLS = r'\b(wander|ffly|fall|cloud|bird|flap|tw)\b'
 def gpre(t):
     return re.sub(r'class="([^"]*)"', lambda m: 'class="' + re.sub(GCLS, r'lvg-\1', m.group(1)) + '"', t)
 garden = {k: gpre(re.sub(r'\s+', ' ', r3_garden.scene(k, deko=False, plots_fill=False))) for k in ['herbst', 'nacht', 'winter', 'fruehling', 'sommer']}
+# Hut-/Schal-Anker: von Hand korrigiert > aus den Entwürfen > automatisch geschätzt (auto_anchor.py)
+_auto = json.load(open(os.path.join(HERE, 'anchors_auto.json')))
+_fix = json.load(open(os.path.join(HERE, 'anchors_fix.json')))
+anchors = {}
+for i in IDS:
+    man = r3kit.ANCHOR.get(i)
+    hat_a = _fix.get(str(i)) or (list(man[0]) if man else _auto[str(i)])
+    anchors[f't{i}'] = [hat_a, list(man[1]) if man and man[1] else None]
 names = {f't{i}': anim.CFG[i]['name'] for i in IDS}
 js = ('/* Gemüsemonster – generiert von tools/design_gen/build_monster_art.py, nicht von Hand ändern.\n'
       '   %S% = Größe in px, %C% = Platz für Kostüm (Hut/Schal) innerhalb der Körper-Animation. */\n'
@@ -33,10 +41,11 @@ js = ('/* Gemüsemonster – generiert von tools/design_gen/build_monster_art.py
       f'const MONSTER_ART = {json.dumps(art, ensure_ascii=False)};\n'
       f'const MONSTER_PLAIN = {json.dumps(plain, ensure_ascii=False)};\n'
       f'const MONSTER_NAMES = {json.dumps(names, ensure_ascii=False)};\n'
+      f'const MONSTER_SIG = {json.dumps({f"t{i}": anim.CFG[i].get("sig", "") for i in IDS}, ensure_ascii=False)};\n'
       f'const MONSTER_HATS = {json.dumps(hats, ensure_ascii=False)};\n'
       f'const GARDEN_SCENES = {json.dumps(garden, ensure_ascii=False)};\n'
-      f'const MONSTER_ANCHOR = {json.dumps({f"t{k}": v for k, v in r3kit.ANCHOR.items()})};\n'
-      "if (typeof module !== 'undefined' && module.exports) module.exports = { MONSTER_ART, MONSTER_PLAIN, MONSTER_NAMES, MONSTER_HATS, MONSTER_ANCHOR, GARDEN_SCENES };\n")
+      f'const MONSTER_ANCHOR = {json.dumps(anchors)};\n'
+      "if (typeof module !== 'undefined' && module.exports) module.exports = { MONSTER_ART, MONSTER_PLAIN, MONSTER_NAMES, MONSTER_HATS, MONSTER_ANCHOR, GARDEN_SCENES, MONSTER_SIG };\n")
 open(os.path.join(REPO, 'js/monster_art.js'), 'w', encoding='utf-8').write(js)
 
 css = ('/* Gemüsemonster-Animationen – generiert (build_monster_art.py) */\n' + anim.css_lib(tap=True) + '\n'

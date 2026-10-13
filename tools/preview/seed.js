@@ -56,7 +56,7 @@
       s.days[TODAY] = day(4); // heute mit Mais (Spross) – lockt Maisi
       play(s, TODAY, keep);
       const g = levelGarden(srcOf(s), s.level, TODAY, levelCompute(srcOf(s), s.level, TODAY));
-      if (want(g)) { s.level.gseen = g.log.filter((x) => x.kind === 'hatch' || x.kind === 'grow').length; return s; }
+      if (want(g)) { s.level.costume = 'kuerbis'; s.level.gseen = g.log.filter((x) => x.kind === 'hatch' || x.kind === 'grow').length; return s; }
     }
     return null;
   }

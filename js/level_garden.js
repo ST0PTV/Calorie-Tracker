@@ -46,7 +46,7 @@ function lvResidents(r, g) {
   const out = [], seen = new Set();
   const add = (id, tpl, name, shiny, type) => { if (!seen.has(id) && out.length < LVG_SLOTS.length) { seen.add(id); out.push({ id, tpl, name, shiny, type }); } };
   const c = lvCurrent(r);
-  if (c.tpl != null) add(c.monster.id, c.tpl, c.name, c.shiny || !!(g.owned[c.monster.id] && g.owned[c.monster.id].shiny), c.type);
+  if (c.tpl != null) { add(c.monster.id, c.tpl, c.name, c.shiny || !!(g.owned[c.monster.id] && g.owned[c.monster.id].shiny), c.type); if (out[0] && typeof lvWear === 'function') out[0].wear = lvWear(r); }
   add(r.starter.id, r.starterTpl, r.starter.forms[r.starterStage], r.starterShiny || !!(g.owned[r.starter.id] && g.owned[r.starter.id].shiny), r.starter.type);
   g.resident.slice().reverse().forEach((id) => { const b = lvMon(id); add(id, b.tpl + 1, b.forms[1], g.owned[id].shiny, b.type); });
   r.months.slice().reverse().forEach((m) => { if (m.form >= 0) add(m.monster.id, m.monster.tpl + m.form, m.monster.forms[m.form], m.shiny || !!(g.owned[m.monster.id] && g.owned[m.monster.id].shiny), m.monster.type); });
@@ -71,7 +71,7 @@ function lvGardenScene(r, g, o = {}) {
     const [x, y, sz, wd] = LVG_SLOTS[i];
     const w = wd && !o.still ? ` class="lvg-wander" style="--wx:${(wd[0] / sz * 100).toFixed(0)}%;--wd:${wd[1]}s;--wo:-${wd[2]}s"` : '';
     const tag = o.small ? 'span' : 'button', at = o.small ? '' : ` data-lvgm="${esc(m.name)}" aria-label="${esc(m.name)}"`;
-    return `<div class="lvg-in" style="${lvgPct(x, y, sz)}"><div${w}><${tag} class="lvg-mon"${at}>${lvArt(m.tpl, '100%', { shiny: m.shiny })}</${tag}></div></div>`;
+    return `<div class="lvg-in" style="${lvgPct(x, y, sz)}"><div${w}><${tag} class="lvg-mon"${at}>${lvArt(m.tpl, '100%', Object.assign({ shiny: m.shiny }, m.wear || {}))}</${tag}></div></div>`;
   }).join('');
   const vt = o.small ? 'span' : 'button';
   const v = g.visitor && !g.visitor.done ? `<div class="lvg-in lvg-vis" style="${lvgPct(152, 198, 52)}"><${vt} class="lvg-mon" ${o.small ? '' : `id="lvgVis" aria-label="Besuch: ${esc(lvMon(g.visitor.id).forms[0])}"`}>${lvArt(lvMon(g.visitor.id).tpl, '100%', { shiny: g.visitor.shiny })}<span class="lvg-q">?</span></${vt}></div>` : '';

@@ -112,6 +112,22 @@ eq('Typ Tomate+Zwiebel', L.lvFoodTypes('Tomaten-Zwiebel-Salat').sort(), ['Blatt'
   eq('frei ab Monat 4', L.levelGarden(S, lv, T2, L.levelCompute(S, lv, T2)).unlocked, ['ingi', 'knobi', 'kichi', 'maisi']);
 }
 
+// 9) Sammlung und Kostüme
+{
+  const days = {}; let d = '2026-07-14';
+  while (d <= '2026-10-13') { days[d] = [{ n: 'Tomate roh', k: 1 }]; d = new Date(new Date(d + 'T12:00:00Z').getTime() + 864e5).toISOString().slice(0, 10); }
+  const S = src(days), lv = { startDate: '2026-07-14', starter: 'tomi', seed: 3, garden: { acts: [], gifts: {} } };
+  const r = L.levelCompute(S, lv, '2026-10-13'), g = L.levelGarden(S, lv, '2026-10-13', r), dex = L.levelDex(S, lv, '2026-10-13', r, g);
+  eq('Album: 23 Monster, 57 Formen', [dex.total, dex.totalForms], [23, 57]);
+  const tomi = dex.list.find((e) => e.id === 'tomi');
+  eq('Starter: 3 Formen, alle Notizen', [tomi.have, tomi.notes], [3, [true, true, true]]);
+  eq('Begegnungen = Tage mit Frucht seit Start', tomi.meets, 92);
+  eq('Monster: Starter + 3 Monate', dex.monsters, 4);
+  const cos = L.levelCostumes(S, lv, '2026-10-13', r);
+  eq('Kostüme: Sommer + Herbst offen', cos.filter((c) => c.open).map((c) => c.id), ['stroh', 'kuerbis']);
+  eq('Partyhut erst nach 1 Jahr', cos.find((c) => c.id === 'party').open, false);
+}
+
 // 7) Start in der Zukunft oder fehlend
 eq('ohne Start', L.levelCompute(src({}), {}, '2026-10-12'), null);
 

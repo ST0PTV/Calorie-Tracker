@@ -344,6 +344,58 @@ function levelGarden(src, lv, today, r, hook) { // hook(d, lage) → Entscheidun
   const unlocked = LV_BONUS.filter((b) => earned >= LV_UNLOCK[b.id][0] || r.curMonth >= LV_UNLOCK[b.id][1]).map((b) => b.id);
   return { acts: hook ? acts.filter((x) => x.a !== 'gift') : undefined, gifts: hook ? gifts : undefined, samen, earned, rank: lvRank(earned), plots, maxPlots: earned >= LV_GARDEN.plot6 ? LV_GARDEN.plots : LV_GARDEN.plots - 1, deko, owned, resident, unlocked, visitor, gift, log, todayTypes: lvDayTypes(src, today) };
 }
+/* ---------- Sammlung (Etappe 3): Monster-Verzeichnis, Begegnungen, Feldnotizen, Kostüme ---------- */
+// Reihenfolge im Album: Starter, Monatsmonster, Bonus, Legendäre. Nummern wie auf den Sammelkarten.
+function levelDex(src, lv, today, r, g) {
+  if (!r) return null;
+  const coll = levelCollection(r), have = {}; coll.list.forEach((o) => { have[o.id] = o; });
+  // Tage je Typ (für Begegnungen), einmal pro Tag und Typ
+  const typeDays = {}; Object.keys(src.days).filter((d) => d >= r.start && d <= today).sort().forEach((d) => lvDayTypes(src, d).forEach((t) => (typeDays[t] = typeDays[t] || []).push(d)));
+  const meets = (type, from) => (typeDays[type] || []).filter((d) => d >= from).length;
+  const firstIn = (key) => Object.keys(src.days).filter((d) => d.slice(0, 7) === key && d >= r.start && (src.days[d] || []).length).sort()[0] || null;
+  const own = (id) => (g && g.owned[id]) || null;
+  const out = [];
+  LV_STARTERS.forEach((m, i) => {
+    const h = have[m.id];
+    out.push({ id: m.id, kind: 'starter', no: 'S' + (i + 1), type: m.type, forms: m.forms, tpl: m.tpl, have: h ? h.forms : 0, shiny: !!((h && h.shiny) || (own(m.id) && own(m.id).shiny)), found: h ? { d: r.start, how: 'Starter' } : null });
+  });
+  LV_MONTHLY.forEach((m, i) => {
+    const mo = r.months.find((x) => x.monster.id === m.id && x.form >= 0);
+    const d = mo ? firstIn(mo.key) : null;
+    out.push({ id: m.id, kind: 'month', no: String(i + 1).padStart(2, '0'), type: m.type, forms: m.forms, tpl: m.tpl, have: mo ? mo.form + 1 : 0, shiny: !!((mo && mo.shiny) || (own(m.id) && own(m.id).shiny)), found: mo ? { d: d || mo.key + '-01', how: 'Monatsei', month: mo.key } : null });
+  });
+  LV_BONUS.forEach((m, i) => {
+    const o = own(m.id); const via = o && o.via === 'garden' ? o : null;
+    const h = g && g.log.find((x) => x.kind === 'hatch' && x.id === m.id);
+    const p = g && g.plots.find((x) => x.id === m.id);
+    out.push({ id: m.id, kind: 'bonus', no: 'B' + (i + 1), type: m.type, forms: m.forms, tpl: m.tpl, have: via ? via.forms : 0, shiny: !!(via && via.shiny), found: via && h ? { d: h.d, how: p && p.kind === 'sow' ? 'Beet · gesät' : 'Besuch' } : null, locked: g ? !g.unlocked.includes(m.id) : true });
+  });
+  LV_LEGENDS.forEach((m, i) => {
+    const y = r.years.find((x) => x.done && x.legend.id === m.id);
+    out.push({ id: m.id, kind: 'legend', no: 'L' + (i + 1), type: 'Legendär', forms: [m.name], tpl: m.tpl, have: y ? 1 : 0, shiny: !!(y && y.gold), found: y ? { d: today, how: `Jahr ${y.y} geschafft` } : null });
+  });
+  out.forEach((e) => {
+    e.meets = e.found ? (e.kind === 'legend' ? 1 : meets(e.type, e.found.d)) : 0;
+    e.notes = [e.have >= 1, e.have >= e.forms.length, e.meets >= 10];
+  });
+  return { list: out, monsters: out.filter((e) => e.have).length, forms: out.reduce((a, e) => a + e.have, 0), shinies: out.filter((e) => e.shiny).length, total: out.length, totalForms: out.reduce((a, e) => a + e.forms.length, 0) };
+}
+// Saison-Kostüme: Saison freigeschaltet, sobald ein Monat dieser Saison 10 gezählte Tage hat; Partyhut nach einem Jahr
+const LV_COSTUMES = [
+  ['kranz', 'Blumenkranz', 'Frühling', [3, 4, 5]], ['stroh', 'Strohhut', 'Sommer', [6, 7, 8]], ['kuerbis', 'Kürbishut', 'Herbst', [9, 10, 11]],
+  ['muetze', 'Mütze + Schal', 'Winter', [12, 1, 2]], ['party', 'Partyhut', '1 Jahr dabei', null],
+].map(([id, name, season, months]) => ({ id, name, season, months }));
+function levelCostumes(src, lv, today, r) {
+  if (!r) return [];
+  const cd = lvCountedDays(src, r.start, today), per = {};
+  cd.counted.forEach((d) => { per[d.slice(0, 7)] = (per[d.slice(0, 7)] || 0) + 1; });
+  return LV_COSTUMES.map((c) => {
+    let open, since = null;
+    if (c.months) { const ks = Object.keys(per).filter((k) => c.months.includes(+k.slice(5, 7)) && per[k] >= 10).sort(); open = ks.length > 0; since = ks[0] || null; }
+    else { open = lvIsoAdd(r.start, 365) <= today; since = open ? lvIsoAdd(r.start, 365) : null; }
+    return Object.assign({ open, since }, c);
+  });
+}
 function levelGardenAct(s, act, iso) {
   const g = (s.level.garden = s.level.garden || { acts: [], gifts: {} });
   if (!Array.isArray(g.acts)) g.acts = [];
@@ -352,5 +404,5 @@ function levelGardenAct(s, act, iso) {
 const LEVEL_DEFAULTS = () => ({ enabled: false, startDate: null, starter: null, theme: 'veg', arenas: {}, ev: {}, toasts: true, seed: null, seen: null, lively: true, garden: { acts: [], gifts: {} } });
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { LV_CFG, LV_STARTERS, LV_MONTHLY, LV_LEGENDS, LV_BONUS, LV_ARENAS, levelCompute, levelCollection, levelEvent, lvCountedDays, lvMonthIdx, lvMonthOrder, lvShinyList, LEVEL_DEFAULTS, LV_GARDEN, LV_RANKS, LV_UNLOCK, LV_DEKO, lvFoodTypes, lvDayTypes, levelGarden, levelGardenAct, lvRank };
+  module.exports = { LV_CFG, LV_STARTERS, LV_MONTHLY, LV_LEGENDS, LV_BONUS, LV_ARENAS, levelCompute, levelCollection, levelEvent, lvCountedDays, lvMonthIdx, lvMonthOrder, lvShinyList, LEVEL_DEFAULTS, LV_GARDEN, LV_RANKS, LV_UNLOCK, LV_DEKO, lvFoodTypes, lvDayTypes, levelGarden, levelGardenAct, lvRank, levelDex, levelCostumes, LV_COSTUMES };
 }
