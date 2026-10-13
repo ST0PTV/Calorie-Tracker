@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '2.1.0';
+const APP_VERSION = '2.1.1';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [

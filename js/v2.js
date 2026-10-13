@@ -409,7 +409,7 @@ function dayTimelineHtml(iso) {
     } else if (r.kind === 'alc') {
       out.push(tlRow(time, dotN('alc'), chipHtml('alc', 'glass', esc(r.e.n || 'Getränk'), `${r1(alcGrams(r.e.ml, r.e.vol))} g Alkohol`, `data-talc="${esc(r.e.id)}"`), { line }));
     } else if (r.kind === 'water') {
-      out.push(tlRow(time, dotN('water'), chipHtml('water', 'drop', 'Wasser', `${(r.ml / 1000).toLocaleString('de-DE', { maximumFractionDigits: 2 })} l${r.n > 1 ? ` (${r.n}×)` : ''}`, 'data-twater="1"'), { line }));
+      out.push(tlRow(time, dotN('water'), chipHtml('water', 'drop', 'Wasser', `${(r.ml / 1000).toLocaleString('de-DE', { maximumFractionDigits: 2 })} l`, 'data-twater="1"'), { line }));
     } else if (r.kind === 'supp') {
       const done = r.items.filter((x) => suppTaken(iso, x.id));
       const all = done.length === r.items.length;
