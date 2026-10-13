@@ -83,11 +83,13 @@ const MEAL_ICON = { breakfast: 'sunrise', lunch: 'sun', dinner: 'moon', snack: '
 /* Begleiter: das Starter-Monster aus dem Level-System (falls gewählt), sonst Möhri.
    Reagiert nur auf das Eintragen (wach / schläft), nie auf die Menge des Essens. */
 function companionName() {
+  if (typeof lvCompanion === 'function') { const c = lvCompanion(); if (c) return c.name; }
   const st = state.level && state.level.starter;
   const s = typeof LV_STARTERS !== 'undefined' && LV_STARTERS.find((x) => x.id === st);
   return s ? s.forms[0] : 'Möhri';
 }
 function monsterSvg(mood = 'awake', size = 96) {
+  if (typeof lvCompanionSvg === 'function') { const h = lvCompanionSvg(mood, size); if (h) return h; } // Level-System aktiv: echtes Monster
   const st = (state.level && state.level.starter) || 'moehri';
   const eyes = mood === 'sleep'
     ? '<path d="M44 58q5 4 10 0M66 58q5 4 10 0" fill="none" stroke="#2A1408" stroke-width="3" stroke-linecap="round"/>'

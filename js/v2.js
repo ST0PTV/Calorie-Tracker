@@ -63,12 +63,13 @@ function dayHeaderHtml(iso) {
   }
   return `<div class="topbar v2">
       <div><div class="sub">${esc(sub)}</div><div class="day">${esc(fmtDate(iso))}</div></div>
-      <label class="icon-btn cal-btn" aria-label="Datum wählen">${ic('calendar')}<input type="date" id="dayPick" value="${iso}" max="${addDays(today, 7)}"></label>
+      <div class="nav">${typeof lvChipHtml === 'function' ? lvChipHtml() : ''}<label class="icon-btn cal-btn" aria-label="Datum wählen">${ic('calendar')}<input type="date" id="dayPick" value="${iso}" max="${addDays(today, 7)}"></label></div>
     </div>
     <div class="wk" id="wkStrip">${days.join('')}</div>`;
 }
 function bindDayHeader(onDay) {
   document.querySelectorAll('#wkStrip [data-day]').forEach((b) => b.onclick = () => onDay(b.dataset.day));
+  if (typeof lvBindChip === 'function') { lvBindChip(); setTimeout(lvAfterRender, 0); }
   const p = $('#dayPick'); if (p) p.onchange = () => { if (/^\d{4}-\d{2}-\d{2}$/.test(p.value)) onDay(p.value); };
 }
 

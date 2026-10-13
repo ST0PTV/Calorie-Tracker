@@ -498,6 +498,7 @@ function renderDiary() {
   const empty = emptyDayHtml(currentDate);
   html += empty;
   html += trackerCardsHtml(currentDate);
+  if (typeof lvVisitorHtml === 'function') html += lvVisitorHtml(currentDate);
   if (currentDate === isoDate(new Date())) html += insWeekCardHtml(currentDate); // Wochenrückblick Mo–Mi
   html += suggestionCardHtml(currentDate);
   if (!empty) html += dayTimelineHtml(currentDate);
@@ -511,6 +512,7 @@ function renderDiary() {
   bindSuggestionCard(currentDate, rerender);
   insBindWeek(currentDate, rerender);
   bindTrackerCards(currentDate, rerender);
+  if (typeof lvBindVisitor === 'function' && v.querySelector('#lvgVisCard')) lvBindVisitor(null, rerender, v);
   bindDayTimeline(currentDate, rerender);
   bindClosingCard(currentDate, rerender);
   bindEntrySwipe(currentDate, rerender);
@@ -2028,6 +2030,7 @@ const SET_ICONS = {
   'Lebensmittel teilen': ['#7AB8FF', '<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.9l7.6-3.8M8.2 13.1l7.6 3.8"/>'],
   'Backup': ['#9DB4CF', '<path d="M4 8h16v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V8z"/><path d="M3 4h18v4H3z"/><path d="M12 11v6M9 14l3 3 3-3"/>'],
   'Quellen & Lizenzen': ['#A9B3C1', '<path d="M5 4h9a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3V4z"/><path d="M17 20h2V6"/><path d="M8 8h6M8 11.5h6"/>'],
+  'Level-System': ['#B9E07A', '<path d="M12 21v-7"/><path d="M12 14c-4 0-7-3-7-7 4 0 7 3 7 7z"/><path d="M12 12c0-4 3-7 7-7 0 4-3 7-7 7z"/>'],
   'Erscheinungsbild': ['#B9A6FF', '<circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16z" fill="currentColor"/>'],
   'Ernährung & Allergien': ['#6FE0C1', '<path d="M5 19c0-8 5-13 14-14 0 9-5 14-14 14z"/><path d="M5 19l8-8"/>'],
 };
@@ -2059,6 +2062,7 @@ function renderSettings() {
   view.addEventListener('change', refresh); view.addEventListener('click', refresh);
   document.querySelectorAll('#themeSeg [data-th]').forEach((b) => b.onclick = () => { state.theme = b.dataset.th; save(); applyTheme(); document.querySelectorAll('#themeSeg [data-th]').forEach((x) => x.classList.toggle('active', x === b)); });
   const co = $('#companionOn'); if (co) co.onchange = () => { state.companion = co.checked; save(); };
+  if (typeof lvBindSettings === 'function') lvBindSettings();
   SET_GROUPS.forEach(([g, titles]) => {
     const items = titles.map((t) => cards[t]).filter(Boolean); if (!items.length) return;
     const h = document.createElement('div'); h.className = 'set-gh'; h.textContent = g;
@@ -2068,7 +2072,7 @@ function renderSettings() {
   });
   }
 const SET_GROUPS = [['Ziele', ['Tagesziel', 'Gewichtsziel']], ['Über mich', ['Schlaf & Körper', 'Ernährung & Allergien']], ['Tracker', ['Wasser', 'Koffein', 'Alkohol', 'Supplements']],
-  ['Planung', ['Timeline', 'Abend-Vorschläge']], ['Darstellung', ['Erscheinungsbild']], ['Daten', ['Lebensmittel teilen', 'Backup', 'Quellen & Lizenzen']]];
+  ['Planung', ['Timeline', 'Abend-Vorschläge']], ['Motivation', ['Level-System']], ['Darstellung', ['Erscheinungsbild']], ['Daten', ['Lebensmittel teilen', 'Backup', 'Quellen & Lizenzen']]];
 const onOff = (on, txt) => (on ? txt : 'aus');
 const SET_SUB = {
   'Tagesziel': () => { const g = goalsFor(isoDate(new Date())); return g.goal ? `${fmt(g.goal)} kcal${g.preset && PRESETS[g.preset] ? ' · ' + PRESETS[g.preset].label : ''}` : 'noch nicht festgelegt'; },
@@ -2082,6 +2086,7 @@ const SET_SUB = {
   'Timeline': () => onOff(state.timeline.enabled, `an · ${TL_PRESETS[state.timeline.preset].label}`),
   'Abend-Vorschläge': () => onOff(state.sug.enabled, `ab ${state.sug.time} · ${{ kcal: 'Kalorien', protein: 'Eiweiß zuerst', balanced: 'Ausgewogen' }[state.sug.priority] || ''}`),
   'Lebensmittel teilen': () => 'Export / Import',
+  'Level-System': () => { const r = state.level.enabled && typeof lvNow === 'function' ? lvNow() : null; return !state.level.enabled ? 'aus' : r ? `an · Level ${r.level}` : 'an · Starter wählen'; },
   'Erscheinungsbild': () => ({ auto: 'Wie iPhone', dark: 'Dunkel', light: 'Hell' }[state.theme || 'auto']),
   'Backup': () => { if (!state.lastBackup) return 'noch kein Backup'; const d = Math.floor((Date.now() - state.lastBackup) / 864e5); return `zuletzt ${d === 0 ? 'heute' : d === 1 ? 'gestern' : `vor ${d} Tagen`}`; },
 };
@@ -2133,6 +2138,7 @@ function renderSettingsInner() {
     ${alcSettingsHtml()}
     ${suppSettingsHtml()}
     ${tlSettingsHtml()}
+    ${typeof lvSettingsCard === 'function' ? lvSettingsCard() : ''}
     <div class="card">
       <h2>Abend-Vorschläge</h2>
       <label class="switch"><input type="checkbox" id="sgOn" ${state.sug.enabled ? 'checked' : ''}> Vorschläge anzeigen, wenn das Ziel noch offen ist</label>

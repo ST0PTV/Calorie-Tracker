@@ -20,7 +20,7 @@ Diese Datei reicht aus, um in einem neuen Chat am Level-System weiterzuarbeiten.
 
 - **Gemüsemonster-Kompendium** (alle finalen Designs, interaktiv): `docs/gemuesemonster.html` in diesem Repo (= Inhalt des Artefakts https://claude.ai/artifact/ENhTky756yoEYbVKLDaaLy). Enthält **alle Monster als Inline-SVG** (je `viewBox="0 0 64 64"`, in `<template id="t0…t44">`), alle 8 Arena-Szenen (`<template id="s0…s7">`, `viewBox="0 0 320 180"`), die Probe-Logik für „Arena belegen“ und „Probekampf“ (JS am Ende der Datei).
   - Index der Templates: `t0–t8` Starter (Möhri, Möhrax, Möhrgon, Erbsi, Schotti, Schotador, Tomi, Tomatz, Tomagma), `t9–t41` Monatsmonster je 3 Formen (Reihenfolge wie Tabelle unten: Baby, Normal, Super), `t42–t44` Legendäre (Erntor, Rhizowal, Solarion).
-- **Design-Canvas** (alle Board-Entwürfe der App, auch ältere Level-Varianten): https://claude.ai/artifact/QLbUSrKnpRNVB5nxfCDvPR – relevante Boards: „Level-System“ (LV1–LV6), „Level-Themen“ (TH*), „Level-System v2“ (LS*), „Sport & Küche“ (TS*), „Smileys“ (TM1–TM3), „Gemüsemonster“ (MO1–MO7), „Monster-Evolutionen“ (MV1–MV7).
+- **Level-Canvas „Kalorien Tracker Level-UI“** (inkl. „Entdecker & Zufall“ EZ0–EZ8 und „Bonus-Monster & Ausbau“ BM0–BM8 sowie Runde 3: OV, GA, HA, SK, KO, LG, AD, OB, IC, SIM, FS, A11Y) (privat, seit 12.10.2026 getrennt vom App-Design-Canvas https://claude.ai/artifact/QLbUSrKnpRNVB5nxfCDvPR): https://claude.ai/artifact/UCr1R6T5B4JoQLymnBDmXB – Boards: „Level-System“ (LV1–LV6), „Level-Themen“ (TH*), „Level-System v2“ (LS*), „Sport & Küche“ (TS*), „Smileys“ (TM1–TM6), „Gemüsemonster“ (MO1–MO7), „Monster-Evolutionen“ (MV1–MV7), „Level-UI zur Freigabe“ (U1–U6, rückwirkender Start), „Monster-Animationen“ (AN1–AN6: alle 45 Formen animiert, Vergleich ruhig/lebhaft).
 - Die Python-Generatoren der Entwürfe lagen nur im temporären Arbeitsordner der alten Sitzung und sind **nicht** übernommen. Die SVGs im Kompendium sind die Quelle der Wahrheit.
 
 ## 3. Konzept (vom Nutzer freigegeben)
@@ -137,7 +137,23 @@ In `js/level.js` so umgesetzt, aber noch vom Nutzer zu bestätigen:
 - Arena i öffnet, wenn 3·(i+1) Kalendermonate seit dem Start vergangen sind.
 - Scan/Eigenes/Ergänzt/Geteilt haben kein Datum im State → Zähler in `state.level.ev[iso]` (nur Anzahl), erst ab Version 1.36.0; ältere Aktionen geben keine XP.
 
-Noch offen: Startdatum (ab Aktivierung oder rückwirkend ab erstem Eintrag), Erntor nachschärfen, weitere Themen, Einstieg (LV1-Chip → Fortschritt-Seite).
+Beschlossen (13.10.2026) – Entwürfe EZ0–EZ8 im Level-Canvas, noch nicht umgesetzt:
+5. **Zwei getrennte Fortschritte:** Level (Dranbleiben, wie oben) und **Entdecker-Rang** (Datenpflege) mit der Währung **Samen**, ohne Ende. Samen (Vorschlag): neues Produkt mit allen Nährwerten 15 · fehlenden Wert ergänzt 10 · Portions-/Scheibengewicht 10 · eigenes Rezept 20 · geteilt 25 (1×/Woche); max. 60/Tag; zählt erst, wenn das Lebensmittel einmal im Journal eingetragen wurde. Ränge: Sammler 0 · Spurenleser 150 · Kartograf 500 · Botaniker 1200 · Archivar 2500 · Meister-Entdecker 5000. Wöchentlicher Forschungsauftrag (3 gegessene Lebensmittel mit Lücken ergänzen, +50).
+6. **Zufall, alle drei Stufen:** (A) Monatsmonster in zufälliger Reihenfolge je Installation (lokaler Zufallsschlüssel, nur noch nicht besessene Monster); (B) **Schillernde** Farbvariante 1:15, Garantie spätestens beim 6. Monster, Doppelte 1:8 (Farbton-Drehung der SVGs + Funkeln); (C) Bonus-Monster über Samen (Beet säen, schlüpft nach getrackten Tagen). Zufall nie bei Level oder Fortschritt.
+7. **Begegnungen an gegessene Lebensmittel gekoppelt:** Gemüse eines Typs im Journal erhöht die Chance auf diesen Typ – zählt nur, ob es vorkam, nicht wie viel; je Typ max. 1×/Tag. Zwei Varianten zur Wahl: A Beet (EZ5), B Besucher im Journal (EZ6). Hinweis: belohnt eine Lebensmittelwahl, nicht die Menge – vom Nutzer bewusst gewählt.
+8. Sammlungs-Code zum Vergleichen und Tausch-Code (nur Monster-IDs/Form, keine Ess-/Gewichtsdaten; ohne Server nicht fälschungssicher, für Freunde gedacht).
+
+Beschlossen (13.10.2026, Teil 2) – Entwürfe BM0–BM8 im Level-Canvas:
+9. **Besucher A + B kombiniert:** Gemüse im Journal → Besuch (max. 1/Tag) → einladen (40 Samen) → Ei im Beet → schlüpft nach 3 getrackten Tagen → wächst mit 3 weiteren Tagen desselben Typs. Nicht eingeladene Besucher kommen wieder. Säen 60 Samen (Überraschung, gewichtet nach Gemüse der Woche). Beet 6 Plätze, letzter ab Rang Kartograf; Deko als Samen-Ausgabe.
+10. **6 Bonus-Monster (je Typ eins, 2 Formen, nur über Besuche/Beet):** Ingi→Ingwar (Wurzel), Knobi→Graf Knobula (Zwiebel), Kichi→Kicheron (Hülse), Maisi→Kolbrix (Spross), Kohli→Kohlossus (Blatt), Morchi→Morchelor (Pilz). SVGs + Animation in `tools/monster_bonus.py` (t45–t56, nutzt `tools/monster_anim.py`). Pool: 23 Monster.
+11. **Weitere Vorschläge (noch nicht entschieden):** Begleiter im Journal (reagiert nur auf Uhrzeit/Eintragen/Pause), Mitbringsel von Beet-Monstern (max. 1/Tag), Monatspostkarte zum Teilen (ohne kcal/Gewicht), Saison-Events mit Saisonkalender (Typ-Bonus je Monat, Saison-Deko ab 10 Tagen), Feldnotizen pro Monster, Typ-Zuordnung über Stichwörter/BLS-Gruppe (BM8).
+
+Runde 3 (13.10.2026, alles nur Entwurf im Level-Canvas, Übersicht-Board „OV“ ganz oben):
+12. **Samen-Wirtschaft simuliert** (`tools/design_gen/sim_samen.py`, Monte-Carlo, Raten geschätzt). Empfehlung **Regel E**: Einladen 40, Säen 60, Besuch an 40 % der Gemüse-Tage, Bekannte kommen gratis (Freundschaftsbesuch, 1:8 schillernd), Monatsmonster nur übers Monatsei, Mitbringsel 5–10 Samen (20 %), Saison-Deko 150/Monat, Ränge 200/700/1.800/3.500/7.000, Bonus-Monster 3–4 ab Kartograf **oder Monat 4**, 5–6 ab Botaniker **oder Monat 8** (Board SIM1, FS1).
+13. Neue Entwürfe: Garten (GA1–4, vier Stimmungen), Schlüpf-/Entwicklungsanimation (HA1–3), Sammelkarten mit Holo (SK1–2), Saison-Kostüme + Kleiderschrank (KO1–2), Erntor nachgeschärft (LG1, t57), Arena-Duell (AD1–2), Onboarding neue Nutzer (OB1–3), App-Icons (IC1), Barrierefreiheit (A11Y1: Frucht-/Pilz-Chiptext aufhellen, min. 11 px, Tippziele 44 px).
+14. Entschieden (13.10.2026): Monster **lebhaft** (Ruhe + typische Aktion), **Regel E** bestätigt, **Erntor neu** (t57) übernehmen, Typ-Chip-Text Frucht `#FF7A66` / Pilz `#B49BEA`, **alle Zusätze** kommen rein. App-Icon: erst nach dem Zusammenführen. Nächster Schritt: UI im Code entwickeln (Branch, kein Deploy). Generatoren: `tools/design_gen/`.
+
+Beschlossen (12.10.): rückwirkender Start ab dem ersten Journal-Eintrag. Noch offen: Erntor nachschärfen, weitere Themen, Einstieg (LV1-Chip → Fortschritt-Seite), Variante A oder B für Begegnungen.
 
 ## 5. Technik der App (was man wissen muss)
 
@@ -160,3 +176,21 @@ Noch offen: Startdatum (ab Aktivierung oder rückwirkend ab erstem Eintrag), Ern
 5. Später: Arenen belegen, dann optional Kämpfe.
 
 Jeden Schritt erst als Entwurf zeigen, wenn er sichtbar etwas verändert, dann nach Freigabe umsetzen, testen, Version/Cache hochzählen, Privat-Check, anonym committen.
+
+## 7. Stand der Umsetzung (Branch `wip/level-ui`, nicht in `main`)
+
+Neu aufgesetzt auf `main` 2.1.1 (Glas 2.0). Keine Versionsnummer, kein Cache-Sprung – das passiert erst beim Deploy.
+
+**Dateien:** `js/monster_art.js` + `css/monster.css` (generiert mit `tools/design_gen/build_monster_art.py`: 57 Formen mit Animation, Hüte, Garten-Szenen in 5 Stimmungen), `js/level_ui.js` + `css/level.css` (Oberfläche), `js/level_garden.js` (Garten). Skript-Reihenfolge: `level.js`, `monster_art.js`, `level_ui.js`, `level_garden.js` vor `insights.js`/`app.js`.
+
+**Etappe 1:** Level-Chip in der Kopfzeile neben dem Kalender (`dayHeaderHtml` in `v2.js`), Fortschritt-Seite, Starter-Wahl (rückwirkend ab erstem Eintrag oder Ei für Neue), Schlüpf- und Entwicklungs-Overlay (einmal abspielen, am Höhepunkt anhalten; „Bewegung reduzieren“ zeigt sofort das Ergebnis), Meldung „Tag gezählt“, Einstellungen „Ich → Motivation → Level-System“. Der Begleiter aus 2.0 (`monsterSvg`) zeigt bei aktivem Level-System das aktuelle Monster. Regel geändert: das Monatsei schlüpft erst mit dem ersten echten Eintrag im Monat (Pausetage allein reichen nicht).
+
+**Etappe 2 (Garten):** Berechnung `levelGarden()` in `level.js` (Node-Tests in `tools/test_level.js`). Gespeichert werden nur Entscheidungen `state.level.garden.acts` (`invite`/`friend`/`sow`/`deko` mit Datum) und abgeholte Mitbringsel `garden.gifts[iso]`; Samen, Rang, Besuche, Beet und Wachstum werden Tag für Tag nachgerechnet, ungültige Entscheidungen ignoriert (Samen nie negativ).
+- Samen aus Aktionszählern: Scan 15, eigenes Lebensmittel 15, Wert ergänzt 10, Teilen 25 (1×/Woche), max. 60/Tag; Mitbringsel 5–10. Ränge 200/700/1.800/3.500/7.000. 6. Beetplatz ab Kartograf.
+- Besuch: an 40 % der Tage mit Gemüse (Typ über Stichwörter im Namen, `lvFoodTypes`), Typ gewichtet nach den letzten 7 Tagen. Neue Bonus-Monster einladen 40 Samen; bekannte (Monats- oder Bonus-Monster, nie Starter) kommen gratis, 1:8 schillernd. Freischaltung Bonus 3–4 ab Kartograf oder Monat 4, 5–6 ab Botaniker oder Monat 8.
+- Beet: Ei schlüpft nach 3 getrackten Tagen, Baby wächst mit 3 weiteren Tagen seines Typs und zieht dann in den Garten. Säen 60 Samen: Überraschung aus freien Bonus-Monstern (gewichtet nach Gemüse der Woche); ist keins mehr frei, gibt es Samen zurück oder 1:8 einen schillernden Bekannten.
+- Oberfläche: Garten-Seite (Szene nach Jahreszeit/Nacht mit Bewohnern, Beet, Deko, Besucher), Garten-Kachel im Fortschritt, Besucher-Karte im Journal (nur heute), Punkt am Level-Chip, Mitbringsel-Overlay beim Öffnen.
+
+**Vereinfachungen / offen:** Samen zählen ohne die Bedingung „Lebensmittel einmal im Journal eingetragen“; Scheibengewichte und eigene Rezepte geben noch keine Samen; die Typ-Erkennung ist eine grobe Stichwortliste (z. B. zählt Obst als Frucht, Säfte auch). Wöchentlicher Forschungsauftrag, Sammlung, Karten, Kleiderschrank, Saison-Deko, Postkarte, Arena-Duell, Onboarding folgen in Etappe 3–5.
+
+**Vorschau:** `sh tools/preview/build.sh <ordner>` baut die App mit erfundenen Testdaten (`tools/preview/seed.js`, Szenarien-Schalter oben) als private Vorschau-Seite.
