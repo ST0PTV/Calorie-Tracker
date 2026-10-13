@@ -128,6 +128,29 @@ eq('Typ Tomate+Zwiebel', L.lvFoodTypes('Tomaten-Zwiebel-Salat').sort(), ['Blatt'
   eq('Partyhut erst nach 1 Jahr', cos.find((c) => c.id === 'party').open, false);
 }
 
+// 10) Samen-Buchhaltung mit Lebensmittel-Bezug, Forschungsauftrag, Codes
+{
+  const days = { '2026-10-05': [{ n: 'Brot', ref: 'custom:a', k: 1 }], '2026-10-06': [{ n: 'X', ref: 'custom:b', k: 1 }, { n: 'Y', ref: 'custom:c', k: 1 }], '2026-10-08': [{ n: 'Z', ref: 'off:1', k: 1 }] };
+  const st = { days, level: { ev: {}, fx: {} } };
+  L.levelFoodEvent(st, 'own', '2026-10-05', 'custom:z');            // nie gegessen → wartet
+  L.levelFoodEvent(st, 'scan', '2026-10-06', 'off:1');              // gegessen am 8. → Gutschrift am 8.
+  L.levelFoodEvent(st, 'scan', '2026-10-06', 'off:1');              // doppelt → zählt nicht
+  ['custom:a', 'custom:b', 'custom:c'].forEach((f) => L.levelFoodEvent(st, 'fill', '2026-10-07', f));
+  const S = src(days, { ev: st.level.ev, fx: st.level.fx });
+  const led = L.lvSamenLedger(S, '2026-10-01', '2026-10-11');
+  eq('wartet auf ersten Eintrag', led.pending.map((x) => x.id), ['custom:z']);
+  eq('Scan am Tag des Essens', led.byDay['2026-10-08'].parts, { scan: 15 });
+  eq('3 ergänzt → Auftrag +50', [led.byDay['2026-10-07'].raw, led.byDay['2026-10-07'].task, led.byDay['2026-10-07'].n], [30, 50, 80]);
+  eq('kein doppeltes Zählen mit Alt-Zählern', Object.values(led.byDay).reduce((a, x) => a + x.n, 0), 15 + 80);
+  const dex = { list: [{ id: 'erbsi', have: 3, shiny: true }, { id: 'pepi', have: 2 }, { id: 'kichi', have: 1 }] };
+  const code = L.levelCollectionCode(dex), back = L.levelParseCode(code);
+  eq('Sammlungs-Code rund', back.list.filter((x) => x.have).map((x) => [x.id, x.have, x.shiny]), [['erbsi', 3, true], ['pepi', 2, false], ['kichi', 1, false]]);
+  eq('Tippfehler erkannt', L.levelParseCode(code.slice(0, -1) + (code.slice(-1) === 'A' ? 'B' : 'A')), null);
+  const gc = L.levelGiftCode('tomi', 123456);
+  eq('Geschenk-Code', L.levelParseCode(gc), { kind: 'gift', id: 'tomi', nonce: 123456 });
+  eq('Kleinbuchstaben ok', L.levelParseCode(gc.toLowerCase()).id, 'tomi');
+}
+
 // 7) Start in der Zukunft oder fehlend
 eq('ohne Start', L.levelCompute(src({}), {}, '2026-10-12'), null);
 

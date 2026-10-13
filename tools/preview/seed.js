@@ -17,18 +17,24 @@
     tomate: ['G561100', 'Tomate roh', 22, 1, 3.3, 0.1, 1.3, 3.3], spinat: ['G211100', 'Spinat roh', 18, 2.1, 0.9, 0.3, 1.8, 0.8],
     champ: ['K701100', 'Champignon roh', 28, 3.7, 2.9, 0.3, 1.9, 0.2], zwiebel: ['G480100', 'Speisezwiebel roh', 34, 1.2, 6, 0.2, 1.4, 6],
     brokkoli: ['G312100', 'Broccoli roh', 35, 3.6, 2.3, 0.6, 3, 1.4], mais: ['G570100', 'Zuckermais roh', 67, 3.3, 9.4, 1.2, 2.8, 3.4],
+    brot: ['B271000', 'Roggenmischbrot', 218, 7.4, 42, 1, 6.1, 1.3], toast: ['custom:toast', 'Vollkorn-Toast (Bäckerei)', 255, 9, 44, 4, 0, 0], riegel: ['custom:riegel', 'Hafer-Nuss-Riegel', 420, 9, 52, 18, 0, 0],
+    drink: ['custom:drink', 'Haferdrink Barista', 59, 1, 6.6, 3, 0.8, 3.4],
     kartoffel: ['K110100', 'Kartoffel geschält, roh', 83, 1.9, 17.9, 0.1, 1.4, 0.9], paprika: ['G543100', 'Gemüsepaprika rot, roh', 36, 1, 6.2, 0.2, 2.2, 6.2],
   };
-  const ent = (meal, k, g) => { const f = F[k]; return { id: Math.random().toString(36).slice(2, 10), meal, grams: g, ref: f[0], src: 'bls', n: f[1], brand: '', liq: false, k: f[2], p: f[3], c: f[4], f: f[5], fi: f[6], su: f[7], fs: 0 }; };
+  const ent = (meal, k, g) => { const f = F[k]; return { id: Math.random().toString(36).slice(2, 10), meal, grams: g, ref: f[0].includes(':') ? f[0] : 'bls:' + f[0], src: f[0].startsWith('custom:') ? 'custom' : 'bls', n: f[1], brand: '', liq: false, k: f[2], p: f[3], c: f[4], f: f[5], fi: f[6], su: f[7], fs: 0 }; };
   const LUNCH = [['reis', 'tofu', 'brokkoli'], ['kartoffel', 'spinat', 'zwiebel'], ['reis', 'champ', 'paprika'], ['kartoffel', 'tofu', 'moehre'], ['reis', 'mais', 'tomate']];
-  const day = (i) => { const l = LUNCH[i % LUNCH.length]; return [ent('breakfast', 'hafer', 70), ent('breakfast', i % 2 ? 'apfel' : 'banane', 130), ent('lunch', l[0], 90), ent('lunch', l[1], 150), ent('lunch', l[2], 120), ent('dinner', 'tomate', 150), ent('dinner', 'zwiebel', 40)]; };
+  const day = (i) => { const l = LUNCH[i % LUNCH.length]; return [ent('breakfast', i % 3 ? 'hafer' : 'brot', 70), ...(i % 4 === 1 ? [ent('breakfast', 'toast', 60)] : []), ...(i % 5 === 2 ? [ent('lunch', 'riegel', 50)] : []), ...(i % 2 ? [ent('breakfast', 'drink', 200)] : []), ent('breakfast', i % 2 ? 'apfel' : 'banane', 130), ent('lunch', l[0], 90), ent('lunch', l[1], 150), ent('lunch', l[2], 120), ent('dinner', 'tomate', 150), ent('dinner', 'zwiebel', 40)]; };
   const srcOf = (s) => ({ days: s.days, weightLog: {}, ev: s.level.ev || {}, waterOn: false, waterOf: () => 0, waterGoalFor: () => Infinity });
 
   function base(from, to, skip) {
     const s = { days: {}, goalHistory: [{ from, goal: 2300, preset: 'dge', pf: 0.8, ff: 1.0, protein: 70, carbs: 300, fat: 80, fiber: 30, sugar: 57, weight: 75 }],
-      profile: { weight: 75, sex: null, height: null, birthYear: null }, diet: { type: 'all', allergens: [] }, lastBackup: Date.now(), level: { ev: {} } };
+      profile: { weight: 75, sex: null, height: null, birthYear: null }, diet: { type: 'all', allergens: [] }, lastBackup: Date.now(), level: { ev: {}, fx: {} },
+      custom: [['toast', ['cFi', 'cSu']], ['riegel', ['cFi', 'cSu']], ['drink', null]].map(([k, miss]) => { const f = F[k]; const o = { src: 'custom', id: f[0], n: f[1], brand: '', k: f[2], p: f[3], c: f[4], f: f[5], fi: f[6], su: f[7], fs: null, liq: k === 'drink', a: [] }; if (miss) o.miss = miss; return o; }) };
     let i = 0;
     for (let d = from; d <= to; d = add(d, 1)) { if (!skip(d)) s.days[d] = day(i); i++; if (i % 3 === 0) s.level.ev[d] = { scan: 1 + (i % 2) }; }
+    const mon = add(TODAY, -((new Date(TODAY + 'T12:00:00').getDay() + 6) % 7));
+    if (to >= mon) { s.level.fx['custom:drink'] = [['own', from], ['fill', mon]]; (s.level.ev[mon] = s.level.ev[mon] || {}).fill = 1; }
+    s.level.fx['off:4000000000001'] = [['scan', add(to, -1)]]; // gescannt, aber noch nie eingetragen → wartet
     return s;
   }
   // Garten-Verlauf nachspielen: Besucher einladen, Freunde begrüßen, Mitbringsel abholen, ab und zu säen und Deko kaufen

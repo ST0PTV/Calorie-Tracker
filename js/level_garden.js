@@ -120,11 +120,13 @@ function lvOpenGarden(scrollTo) {
     <div class="card"><div class="lv-sh"><h2>Entdecker-Rang</h2><span class="small muted">${g.earned} Samen gesammelt</span></div>
       <div class="lvg-rank"><b>${rk.name}</b>${nxt ? `<span class="small muted">noch ${nxt.need - g.earned} bis ${nxt.name}</span>` : '<span class="small muted">höchster Rang</span>'}</div>
       <div class="lv-bar"><span style="width:${Math.round(Math.min(1, pct) * 100)}%;background:#B9E07A"></span></div>
-      <ul class="lvg-earn small"><li><span>Neues Lebensmittel scannen oder anlegen</span><b>+${LV_SAMEN.scan}</b></li><li><span>Fehlenden Wert ergänzen</span><b>+${LV_SAMEN.fill}</b></li><li><span>Lebensmittel teilen (1× pro Woche)</span><b>+${LV_SAMEN.share}</b></li><li><span>Mitbringsel von Beet-Monstern</span><b>+5–10</b></li></ul>
-      <p class="small muted" style="margin:6px 0 0">Höchstens ${LV_GARDEN.dayCap} Samen pro Tag aus Datenpflege. Der Rang zählt alle je gesammelten Samen, Ausgeben senkt ihn nicht.</p></div>
+      <ul class="lvg-earn small"><li><span>Neues Lebensmittel scannen oder anlegen</span><b>+${LV_SAMEN.scan}</b></li><li><span>Fehlenden Wert ergänzen, Scheibe wiegen</span><b>+${LV_SAMEN.fill}</b></li><li><span>Lebensmittel teilen (1× pro Woche)</span><b>+${LV_SAMEN.share}</b></li><li><span>Forschungsauftrag (1× pro Woche)</span><b>+${LV_SAMEN.task}</b></li><li><span>Mitbringsel von Beet-Monstern</span><b>+5–10</b></li></ul>
+      <p class="small muted" style="margin:6px 0 0">Höchstens ${LV_GARDEN.dayCap} Samen pro Tag aus Datenpflege. Der Rang zählt alle je gesammelten Samen, Ausgeben senkt ihn nicht.</p>
+      ${typeof lvOpenExplorer === 'function' ? '<button class="btn secondary block" id="lvgExpl" style="margin-top:10px">Entdecker & Forschungsauftrag</button>' : ''}</div>
     <div class="card lvg-why small muted">Besucher kommen an etwa 4 von 10 Tagen, an denen ein Gemüse im Journal steht – es zählt nur, ob es vorkam, nie wie viel. Wer nicht eingeladen wird, kommt später wieder.</div>
     <div style="height:16px"></div>`);
   $('#lvgClose').onclick = closeSheet;
+  const ge = $('#lvgExpl'); if (ge) ge.onclick = () => lvOpenExplorer();
   lvBindVisitor(g, () => lvOpenGarden(), $('#sheet'));
   document.querySelectorAll('[data-sow]').forEach((b) => b.onclick = () => {
     if (g.samen < LV_GARDEN.sow) { toast(`Noch ${LV_GARDEN.sow - g.samen} Samen bis zum Säen`); return; }

@@ -19,6 +19,7 @@ const ASSETS = [
   'js/level_garden.js',
   'js/level_notes.js',
   'js/level_collection.js',
+  'js/level_explorer.js',
   'css/monster.css',
   'css/level.css',
   'js/insights.js',

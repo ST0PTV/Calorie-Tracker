@@ -146,7 +146,8 @@ function lvOpenProgress() {
       <div class="lv-cal" style="--c:${col}">${lvMonthCal(m.key, r.start)}</div>
       <div class="lv-leg"><span><i class="on" style="background:${col}"></i>getrackt</span><span><i class="pause" style="border-color:${col}"></i>Pausetag (zählt mit)</span></div></div>`;
   }
-  const coll = typeof lvCollectionAll === 'function' ? lvCollectionAll(r) : levelCollection(r);
+  const dxc = typeof lvDex === 'function' ? lvDex(r) : null;
+  const coll = dxc ? { monsters: dxc.monsters, totalMonsters: dxc.total, forms: dxc.forms } : levelCollection(r);
   const nextM = r.curMonth < 12 ? new Date(+r.today.slice(0, 4), +r.today.slice(5, 7), 1).toLocaleDateString('de-DE', { day: 'numeric', month: 'long' }) : null;
   openSheet(`${sheetHead('lvClose', 'Fortschritt')}
     <p class="small muted" style="margin:-4px 2px 10px">Level ${r.level} · seit ${start} dabei</p>
@@ -157,6 +158,7 @@ function lvOpenProgress() {
         <div class="small muted">${c.form >= 0 ? LV_FORM[c.kind === 'starter' ? Math.min(2, c.form) : c.form] + ' · ' : ''}${esc(LV_CHAR[c.monster.id] || '')}</div>
         <div class="small" style="margin-top:6px">${text}</div></div></div>
     ${card2}
+    ${typeof lvExplorerCard === 'function' ? lvExplorerCard(r) : ''}
     <div class="lv-two">
       <button class="card lv-tile" id="lvWard">${typeof LVC_HAT_ICON === 'function' ? LVC_HAT_ICON(state.level.costume || 'kuerbis') : ''}<span><small>Kleiderschrank</small><b>${typeof lvWear === 'function' && lvWear(r).costume ? 'Kostüm an' : 'Kostüme'}</b></span></button>
       <button class="card lv-tile" id="lvColl"><span class="lv-cnt">${coll.monsters}/${coll.totalMonsters || 23}</span><span><small>Sammlung</small><b>${coll.forms} Formen</b></span></button>
@@ -168,6 +170,7 @@ function lvOpenProgress() {
   $('#lvColl').onclick = () => lvOpenCollection();
   $('#lvWard').onclick = () => lvOpenWardrobe();
   if (typeof lvBindGardenTeaser === 'function') lvBindGardenTeaser();
+  if (typeof lvBindExplorerCard === 'function') lvBindExplorerCard();
   $('#lvBig').onclick = (ev) => { const b = ev.currentTarget; b.classList.remove('lv-boing'); void b.offsetWidth; b.classList.add('lv-boing'); };
 }
 

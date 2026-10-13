@@ -133,6 +133,9 @@ function normalizeState(data) {
   s.level = Object.assign(LEVEL_DEFAULTS(), data.level || {});
   if (!s.level.ev || typeof s.level.ev !== 'object') s.level.ev = {};
   if (!s.level.arenas || typeof s.level.arenas !== 'object') s.level.arenas = {};
+  if (!s.level.fx || typeof s.level.fx !== 'object') s.level.fx = {};
+  if (!s.level.garden || !Array.isArray(s.level.garden.acts)) s.level.garden = { acts: [], gifts: {} };
+  if (!s.level.trades || !Array.isArray(s.level.trades.got)) s.level.trades = { given: [], got: [] };
   // Übernahme aus Versionen ohne Ziel-Historie: bisheriges Ziel gilt ab dem ersten Tagebuch-Tag
   if (!s.goalHistory.length && s.settings.goal != null) {
     const first = Object.keys(s.days).filter((d) => (s.days[d] || []).length).sort()[0] || isoDate(new Date());
@@ -1405,7 +1408,7 @@ function openAmount(food, opts = {}) {
   $('#slPack').oninput = slRes; $('#slN').oninput = slRes;
   $('#slSave').onclick = () => {
     const v = slRes(); if (!v || v > 500) { toast('Bitte Packungsgewicht und Anzahl Scheiben eingeben.'); return; }
-    state.slices[foodId] = v; save(); toast(`1 Scheibe = ${r1(v)} g gespeichert`);
+    state.slices[foodId] = v; levelFoodEvent(state, 'slice', isoDate(new Date()), foodId); save(); toast(`1 Scheibe = ${r1(v)} g gespeichert`);
     const cur = $('#grams').value; openAmount(food, opts); $('#grams').value = cur; $('#grams').dispatchEvent(new Event('input'));
   };
   }
@@ -1608,7 +1611,7 @@ async function lookupBarcode(code) {
     };
     const cafG = num(nm.caffeine_100g); // OFF speichert Koffein in g pro 100 g/ml
     if (cafG != null && cafG >= 0 && cafG <= 5) food.cf = Math.round(cafG * 10000) / 10;
-    state.offCache[code] = food; levelEvent(state, 'scan', isoDate(new Date())); save();
+    state.offCache[code] = food; levelFoodEvent(state, 'scan', isoDate(new Date()), food.id); save();
     openAmount(food);
   } catch (e) {
     out.innerHTML = '<p class="muted">Keine Verbindung zu Open Food Facts. Bitte später erneut versuchen.</p>';
@@ -1692,8 +1695,8 @@ function openFoodForm(existing) {
     if (cfv != null) food.cf = cfv;
     delete state.cafFoods[food.id]; // Wert im Lebensmittel gilt
     const today = isoDate(new Date());
-    if (!isEdit && !miss.length) levelEvent(state, 'own', today);
-    else if (isEdit && miss.length < (e.miss || []).length) levelEvent(state, 'fill', today);
+    if (!isEdit && !miss.length) levelFoodEvent(state, 'own', today, food.id);
+    else if (isEdit && miss.length < (e.miss || []).length) levelFoodEvent(state, 'fill', today, food.id);
     saveOwnFood(food);
     if (isEdit) { toast('Gespeichert'); openAmount(food); } else openAmount(food);
   };

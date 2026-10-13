@@ -87,7 +87,7 @@ function lvRange(a, b) { const out = []; for (let d = a; d <= b; d = lvIsoAdd(d,
    in Tests direkt übergeben. */
 function lvSrcFromState(s) {
   return {
-    days: s.days || {}, weightLog: s.weightLog || {}, ev: (s.level && s.level.ev) || {},
+    days: s.days || {}, weightLog: s.weightLog || {}, ev: (s.level && s.level.ev) || {}, fx: (s.level && s.level.fx) || {},
     waterOn: !!(s.water && s.water.enabled),
     waterOf: typeof waterOf === 'function' ? waterOf : () => 0,
     waterGoalFor: typeof waterGoalFor === 'function' ? waterGoalFor : () => Infinity,
@@ -212,7 +212,7 @@ function levelEvent(s, kind, iso) {
    Gespeichert werden nur Entscheidungen (lv.garden.acts) und abgeholte Mitbringsel (lv.garden.gifts);
    alles andere wird Tag für Tag aus dem Journal nachgerechnet. Belohnt wird nur, OB ein Gemüse-Typ vorkam, nie wie viel. */
 const LV_GARDEN = { invite: 40, sow: 60, visitP: 0.4, hatchDays: 3, growDays: 3, plots: 6, plot6: 700, giftP: 0.2, friendShiny: 8, dayCap: 60 };
-const LV_SAMEN = { scan: 15, own: 15, fill: 10, share: 25 }; // je Aktion; Tagesgrenze LV_GARDEN.dayCap, Teilen 1×/Woche
+const LV_SAMEN = { scan: 15, own: 15, fill: 10, slice: 10, share: 25, task: 50 }; // je Aktion; Tagesgrenze LV_GARDEN.dayCap, Teilen 1×/Woche, Forschungsauftrag 1×/Woche
 const LV_RANKS = [['Sammler', 0], ['Spurenleser', 200], ['Kartograf', 700], ['Botaniker', 1800], ['Archivar', 3500], ['Meister-Entdecker', 7000]];
 // Bonus-Monster frei ab Samen-Summe ODER Monat seit Start (FS1): 1–2 sofort, 3–4 ab Kartograf/Monat 4, 5–6 ab Botaniker/Monat 8
 const LV_UNLOCK = { ingi: [0, 1], knobi: [0, 1], kichi: [700, 4], maisi: [700, 4], kohli: [1800, 8], morchi: [1800, 8] };
@@ -248,6 +248,39 @@ function lvRank(earned) {
   return { i, name: LV_RANKS[i][0], next: LV_RANKS[i + 1] ? { name: LV_RANKS[i + 1][0], need: LV_RANKS[i + 1][1] } : null };
 }
 // Samen aus den Aktionszählern eines Tages (Teilen höchstens 1× pro Woche)
+/* Samen-Buchhaltung (Etappe 4). Aktionen mit Lebensmittel-Bezug (state.level.fx[foodId] = [[art, datum], …]) zählen erst,
+   wenn das Lebensmittel einmal im Journal steht – gutgeschrieben am späteren der beiden Tage. Ältere Zähler ohne Bezug zählen sofort.
+   Forschungsauftrag: 3 verschiedene gegessene Lebensmittel in einer Woche vervollständigt (Wert ergänzt oder Scheibe gewogen) → +50. */
+function lvFirstEaten(src) {
+  const first = {};
+  Object.keys(src.days).sort().forEach((d) => (src.days[d] || []).forEach((e) => { if (e.ref && !first[e.ref]) first[e.ref] = d; }));
+  return first;
+}
+function lvSamenLedger(src, start, today) {
+  const first = lvFirstEaten(src), byDay = {}, pending = [], weeks = {};
+  const day = (d) => (byDay[d] = byDay[d] || { raw: 0, parts: {}, task: 0, n: 0 });
+  const add = (d, k, v) => { const x = day(d); x.raw += v; x.parts[k] = (x.parts[k] || 0) + v; };
+  const linked = {}; // je Tag und Art: Anzahl Aktionen mit Lebensmittel-Bezug (für den Abzug von den Alt-Zählern)
+  Object.entries(src.fx || {}).forEach(([fid, evs]) => (evs || []).forEach(([k, d]) => {
+    if (!d || d < start || d > today || !LV_SAMEN[k]) return;
+    (linked[d] = linked[d] || {})[k] = ((linked[d] || {})[k] || 0) + 1;
+    const f = first[fid];
+    const c = f && f <= today ? (f > d ? f : d) : null;
+    if (!c) { pending.push({ id: fid, k, d }); return; }
+    add(c, k, LV_SAMEN[k]);
+    if (k === 'fill' || k === 'slice') { const w = lvMonday(c); const W = (weeks[w] = weeks[w] || { foods: [], done: null }); if (!W.foods.includes(fid)) { W.foods.push(fid); if (W.foods.length === 3) W.done = c; } }
+  }));
+  let sharedWeek = null;
+  for (const d of lvRange(start, today)) {
+    const e = src.ev[d] || {}, L = linked[d] || {};
+    ['scan', 'own', 'fill'].forEach((k) => { const n = Math.max(0, (e[k] || 0) - (L[k] || 0)); if (n) add(d, k, n * LV_SAMEN[k]); });
+    const wk = lvMonday(d);
+    if (e.share && sharedWeek !== wk) { sharedWeek = wk; add(d, 'share', LV_SAMEN.share); }
+  }
+  Object.values(weeks).forEach((W) => { if (W.done) { const x = day(W.done); x.task = LV_SAMEN.task; } });
+  Object.values(byDay).forEach((x) => { x.n = Math.min(LV_GARDEN.dayCap, x.raw) + x.task; });
+  return { byDay, pending, weeks };
+}
 function lvSamenDay(ev, iso, sharedWeek) {
   const e = ev[iso] || {};
   let n = (e.scan || 0) * LV_SAMEN.scan + (e.own || 0) * LV_SAMEN.own + (e.fill || 0) * LV_SAMEN.fill;
@@ -264,16 +297,15 @@ function levelGarden(src, lv, today, r, hook) { // hook(d, lage) → Entscheidun
   (levelCollection(r).list || []).forEach((o) => { owned[o.id] = { forms: o.forms, shiny: !!o.shiny, via: 'level' }; });
   const all = [].concat(LV_STARTERS, LV_MONTHLY, LV_BONUS);
   const byId = (id) => all.find((m) => m.id === id);
-  let samen = 0, earned = 0, sharedWeek = null;
+  let samen = 0, earned = 0;
+  const ledger = lvSamenLedger(src, r.start, today);
   const plots = [], deko = [], log = [], hist = [];
   let visitor = null, gift = null;
   for (const d of lvRange(r.start, today)) {
     const types = lvDayTypes(src, d), tracked = (src.days[d] || []).length > 0;
     hist.push(types); if (hist.length > 7) hist.shift();
-    const wk = lvMonday(d);
-    const sd = lvSamenDay(src.ev, d, sharedWeek === wk);
-    if (sd.share) sharedWeek = wk;
-    samen += sd.n; earned += sd.n;
+    const sd = ledger.byDay[d];
+    if (sd) { samen += sd.n; earned += sd.n; }
     const month = lvMonthIdx(r.start, d);
     const unlocked = LV_BONUS.filter((b) => earned >= LV_UNLOCK[b.id][0] || month >= LV_UNLOCK[b.id][1]);
     const inBeet = new Set(plots.map((p) => p.id));
@@ -342,7 +374,7 @@ function levelGarden(src, lv, today, r, hook) { // hook(d, lage) → Entscheidun
   }
   const resident = LV_BONUS.filter((b) => owned[b.id] && owned[b.id].via === 'garden' && !plots.some((p) => p.id === b.id) && owned[b.id].forms >= 2).map((b) => b.id);
   const unlocked = LV_BONUS.filter((b) => earned >= LV_UNLOCK[b.id][0] || r.curMonth >= LV_UNLOCK[b.id][1]).map((b) => b.id);
-  return { acts: hook ? acts.filter((x) => x.a !== 'gift') : undefined, gifts: hook ? gifts : undefined, samen, earned, rank: lvRank(earned), plots, maxPlots: earned >= LV_GARDEN.plot6 ? LV_GARDEN.plots : LV_GARDEN.plots - 1, deko, owned, resident, unlocked, visitor, gift, log, todayTypes: lvDayTypes(src, today) };
+  return { ledger, acts: hook ? acts.filter((x) => x.a !== 'gift') : undefined, gifts: hook ? gifts : undefined, samen, earned, rank: lvRank(earned), plots, maxPlots: earned >= LV_GARDEN.plot6 ? LV_GARDEN.plots : LV_GARDEN.plots - 1, deko, owned, resident, unlocked, visitor, gift, log, todayTypes: lvDayTypes(src, today) };
 }
 /* ---------- Sammlung (Etappe 3): Monster-Verzeichnis, Begegnungen, Feldnotizen, Kostüme ---------- */
 // Reihenfolge im Album: Starter, Monatsmonster, Bonus, Legendäre. Nummern wie auf den Sammelkarten.
@@ -374,6 +406,10 @@ function levelDex(src, lv, today, r, g) {
     const y = r.years.find((x) => x.done && x.legend.id === m.id);
     out.push({ id: m.id, kind: 'legend', no: 'L' + (i + 1), type: 'Legendär', forms: [m.name], tpl: m.tpl, have: y ? 1 : 0, shiny: !!(y && y.gold), found: y ? { d: today, how: `Jahr ${y.y} geschafft` } : null });
   });
+  ((lv && lv.trades && lv.trades.got) || []).forEach((t) => {
+    const e = out.find((x) => x.id === t.id);
+    if (e && e.kind !== 'legend' && !e.have) { e.have = 1; e.found = { d: t.d, how: 'Tausch' }; e.traded = true; }
+  });
   out.forEach((e) => {
     e.meets = e.found ? (e.kind === 'legend' ? 1 : meets(e.type, e.found.d)) : 0;
     e.notes = [e.have >= 1, e.have >= e.forms.length, e.meets >= 10];
@@ -396,13 +432,64 @@ function levelCostumes(src, lv, today, r) {
     return Object.assign({ open, since }, c);
   });
 }
+/* ---------- Codes zum Vergleichen und Tauschen (EZ7/EZ8) ----------
+   Enthalten nur Monster-Nummern, Formen und „schillernd“ – keine Ess-, Gewichts- oder Zeitdaten.
+   Ohne Server nicht fälschungssicher; gedacht für Freunde. Prüfsumme fängt Tippfehler ab. */
+const LV_ALL = () => [].concat(LV_STARTERS, LV_MONTHLY, LV_BONUS, LV_LEGENDS.map((x) => ({ id: x.id, type: 'Legendär', forms: [x.name], tpl: x.tpl })));
+const LV_B32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+function lvBitsPush(b, v, n) { for (let i = n - 1; i >= 0; i--) b.push((v >>> i) & 1); }
+function lvBitsRead(b, pos, n) { let v = 0; for (let i = 0; i < n; i++) v = v * 2 + (b[pos + i] || 0); return v; }
+function lvCheck(b) { let h = 0x5A; b.forEach((x, i) => { h = (h * 31 + x * (i + 7)) & 0xFF; }); return h; }
+function lvEncode(b) {
+  lvBitsPush(b, lvCheck(b), 8);
+  while (b.length % 5) b.push(0);
+  let s = ''; for (let i = 0; i < b.length; i += 5) s += LV_B32[lvBitsRead(b, i, 5)];
+  return 'GM-' + s.match(/.{1,4}/g).join('-');
+}
+function lvDecodeBits(code, need) {
+  const raw = String(code || '').toUpperCase().replace(/^GM/, '').replace(/[^0-9A-Z]/g, '').replace(/[IL]/g, '1').replace(/O/g, '0');
+  const b = []; for (const ch of raw) { const v = LV_B32.indexOf(ch); if (v < 0) return null; lvBitsPush(b, v, 5); }
+  if (b.length < need + 8) return null;
+  const body = b.slice(0, need);
+  return lvBitsRead(b, need, 8) === lvCheck(body) ? body : null;
+}
+// Sammlungs-Code: Version 1, je Monster 2 Bit Formen + 1 Bit schillernd
+function levelCollectionCode(dex) {
+  const b = []; lvBitsPush(b, 1, 4);
+  LV_ALL().forEach((m) => { const e = dex.list.find((x) => x.id === m.id) || {}; lvBitsPush(b, Math.min(3, e.have || 0), 2); lvBitsPush(b, e.shiny ? 1 : 0, 1); });
+  return lvEncode(b);
+}
+function levelParseCode(code) {
+  const all = LV_ALL();
+  let b = lvDecodeBits(code, 4 + all.length * 3);
+  if (b && lvBitsRead(b, 0, 4) === 1) return { kind: 'collection', list: all.map((m, i) => ({ id: m.id, have: lvBitsRead(b, 4 + i * 3, 2), shiny: !!b[4 + i * 3 + 2] })) };
+  b = lvDecodeBits(code, 4 + 5 + 24);
+  if (b && lvBitsRead(b, 0, 4) === 2) { const i = lvBitsRead(b, 4, 5); if (all[i]) return { kind: 'gift', id: all[i].id, nonce: lvBitsRead(b, 9, 24) }; }
+  return null;
+}
+// Geschenk-Code: eine Kopie (erste Form, nie schillernd) eines eigenen Monsters; das eigene bleibt
+function levelGiftCode(id, nonce) {
+  const i = LV_ALL().findIndex((m) => m.id === id); if (i < 0) return null;
+  const b = []; lvBitsPush(b, 2, 4); lvBitsPush(b, i, 5); lvBitsPush(b, nonce >>> 0 & 0xFFFFFF, 24);
+  return lvEncode(b);
+}
+// Aktion mit Lebensmittel-Bezug merken (für Samen erst nach dem ersten Eintrag). Zählt zusätzlich wie levelEvent für die XP.
+function levelFoodEvent(s, kind, iso, foodId) {
+  if (!s.level) return;
+  if (!foodId) { levelEvent(s, kind, iso); return; }
+  const fx = (s.level.fx = s.level.fx || {});
+  const L = (fx[foodId] = fx[foodId] || []);
+  if (kind !== 'fill' && L.some(([k]) => k === kind)) return; // Scan, Anlegen, Scheibe: je Lebensmittel nur einmal
+  levelEvent(s, kind, iso);
+  L.push([kind, iso]); if (L.length > 20) L.splice(0, L.length - 20);
+}
 function levelGardenAct(s, act, iso) {
   const g = (s.level.garden = s.level.garden || { acts: [], gifts: {} });
   if (!Array.isArray(g.acts)) g.acts = [];
   g.acts.push(Object.assign({ d: iso }, act));
 }
-const LEVEL_DEFAULTS = () => ({ enabled: false, startDate: null, starter: null, theme: 'veg', arenas: {}, ev: {}, toasts: true, seed: null, seen: null, lively: true, garden: { acts: [], gifts: {} } });
+const LEVEL_DEFAULTS = () => ({ enabled: false, startDate: null, starter: null, theme: 'veg', arenas: {}, ev: {}, toasts: true, seed: null, seen: null, lively: true, garden: { acts: [], gifts: {} }, fx: {}, trades: { given: [], got: [] }, friend: null });
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { LV_CFG, LV_STARTERS, LV_MONTHLY, LV_LEGENDS, LV_BONUS, LV_ARENAS, levelCompute, levelCollection, levelEvent, lvCountedDays, lvMonthIdx, lvMonthOrder, lvShinyList, LEVEL_DEFAULTS, LV_GARDEN, LV_RANKS, LV_UNLOCK, LV_DEKO, lvFoodTypes, lvDayTypes, levelGarden, levelGardenAct, lvRank, levelDex, levelCostumes, LV_COSTUMES };
+  module.exports = { LV_CFG, LV_STARTERS, LV_MONTHLY, LV_LEGENDS, LV_BONUS, LV_ARENAS, levelCompute, levelCollection, levelEvent, lvCountedDays, lvMonthIdx, lvMonthOrder, lvShinyList, LEVEL_DEFAULTS, LV_GARDEN, LV_RANKS, LV_UNLOCK, LV_DEKO, lvFoodTypes, lvDayTypes, levelGarden, levelGardenAct, lvRank, levelDex, levelCostumes, LV_COSTUMES, lvSamenLedger, levelFoodEvent, LV_SAMEN, levelCollectionCode, levelParseCode, levelGiftCode };
 }

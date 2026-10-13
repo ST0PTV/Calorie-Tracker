@@ -68,8 +68,10 @@ function lvOpenCollection(tab) {
     <div class="lvc-stats"><div><b>${dx.monsters}/${dx.total}</b><small>Monster</small></div><div><b>${dx.forms}/${dx.totalForms}</b><small>Formen</small></div><div><b class="lvc-gold">✦ ${dx.shinies}</b><small>schillernd</small></div></div>
     <div class="seg two lvc-seg" id="lvcSeg"><button type="button" data-t="monster" class="${lvcTab === 'monster' ? 'active' : ''}">Monster</button><button type="button" data-t="karten" class="${lvcTab === 'karten' ? 'active' : ''}">Karten</button></div>
     ${body}
+    <button class="btn secondary block" id="lvcTrade" style="margin-top:14px">⇄ Vergleichen & Tauschen</button>
     <p class="small muted" style="margin:12px 4px 24px">Jede Form ist eine Sammelkarte. Schillernde haben einen goldenen Rahmen mit Holo-Schimmer. Gezählt wird nur, ob du dabei warst – nie, wie viel du gegessen hast.</p>`);
   $('#lvcClose').onclick = closeSheet;
+  const tb = $('#lvcTrade'); if (tb && typeof lvOpenTrade === 'function') tb.onclick = () => lvOpenTrade();
   document.querySelectorAll('#lvcSeg [data-t]').forEach((b) => b.onclick = () => lvOpenCollection(b.dataset.t));
   document.querySelectorAll('#sheet [data-dex]').forEach((b) => b.onclick = () => lvOpenDex(b.dataset.dex, b.dataset.f != null ? +b.dataset.f : null));
 }
