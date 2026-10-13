@@ -170,7 +170,7 @@ function alcCardHtml(iso) {
 function alcBindCard(iso) {
   trackerBind();
   const a = document.querySelector('[data-alc-add]'); if (a) a.onclick = () => openAlcohol(iso);
-  const s = document.querySelector('[data-alc-set]'); if (s) s.onclick = () => { goTab('settings', 'Schlaf & Körper'); };
+  const s = document.querySelector('[data-alc-set]'); if (s) s.onclick = () => { if (!$('#sheet').hidden) closeSheet(); goTab('settings', 'Schlaf & Körper'); };
   document.querySelectorAll('[data-alc-entry]').forEach((b) => b.onclick = () => {
     const e = (state.alcohol.log[iso] || []).find((x) => x.id === b.dataset.alcEntry); if (e) openAlcohol(iso, e);
   });

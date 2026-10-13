@@ -116,10 +116,11 @@ function renderTimeline() {
   const now = new Date(), nowH = now.getHours() + now.getMinutes() / 60;
   const dt = new Date(iso + 'T12:00:00');
   const title = isToday ? 'Heute' : dt.toLocaleDateString('de-DE', { weekday: 'long' });
-  const head = `<div class="topbar"><div><div class="sub">${esc(dt.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }))}</div><div class="day">Timeline</div></div>
-    <div class="nav"><button class="icon-btn" id="tlPrev" aria-label="Vorheriger Tag">‹</button><button class="icon-btn" id="tlNext" aria-label="Nächster Tag">›</button></div></div>
+  const head = `<div class="topbar v2 sub-top"><button class="icon-btn" id="tlBack" aria-label="Zurück zum Journal">${ic('chevL')}</button><div class="st-t"><div class="sub">${esc(dt.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }))}</div><div class="day">Magen-Modell</div></div>
+    <div class="nav"><button class="icon-btn" id="tlPrev" aria-label="Vorheriger Tag">${ic('chevL')}</button><button class="icon-btn" id="tlNext" aria-label="Nächster Tag">${ic('chevR')}</button></div></div>
     <div class="seg two" id="tlSeg"><button data-m="day" class="${tlMode === 'day' ? 'active' : ''}">${esc(title)}</button><button data-m="plan" class="${tlMode === 'plan' ? 'active' : ''}">Plan-Vorschlag</button></div>`;
   $('#view').innerHTML = head + (tlMode === 'day' ? tlDayHtml(iso, isToday, nowH) : tlPlanHtml(iso, isToday, nowH));
+  $('#tlBack').onclick = () => { tab = 'diary'; render(); };
   $('#tlPrev').onclick = () => { currentDate = addDays(currentDate, -1); renderTimeline(); };
   $('#tlNext').onclick = () => { currentDate = addDays(currentDate, 1); renderTimeline(); };
   document.querySelectorAll('#tlSeg button').forEach((b) => b.onclick = () => { tlMode = b.dataset.m; renderTimeline(); });
@@ -162,15 +163,16 @@ function tlDayHtml(iso, isToday, nowH) {
     ${solid.length ? `<polygon points="${xs(TL_T0)},${H} ${line} ${xs(solid[solid.length - 1][0])},${H}" class="tl-fill"></polygon><polyline points="${line}" class="tl-line"></polyline>` : ''}
     ${isToday ? `<line x1="${xs(nowH)}" x2="${xs(nowH)}" y1="0" y2="${H}" class="tl-now"></line>` : ''}
     <circle cx="${xb}" cy="${y(ghosts.length ? atBedPlan : atBed)}" r="4" class="tl-bedpt"></circle>
-    ${[6, 9, 12, 15, 18, 21, 24, 27, 30].map((h) => `<text x="${xs(h)}" y="${H + 12}" text-anchor="middle">${h % 24}</text>`).join('')}
+    ${[6, 9, 12, 15, 18, 21, 24, 27, 30].map((h, i, a) => `<text x="${xs(h)}" y="${H + 12}" text-anchor="${i === 0 ? 'start' : i === a.length - 1 ? 'end' : 'middle'}">${h % 24}</text>`).join('')}
   </svg>`;
   // Balken
-  const bars = all.map((ev) => {
+  // Balken: reine Getränke unter 20 kcal (z. B. schwarzer Kaffee) nur in der Kurve, nicht als eigener Balken
+  const bars = all.filter((ev) => ev.ghost || !ev.liq || ev.kcal >= 20).map((ev) => {
     const ph = tlPhases(ev), x0 = tlX(ev.h), xm = tlX(ph.stomachEnd), xe = tlX(ph.absorbEnd);
     const lab = `${tlHM(ev.h)} ${ev.ghost ? 'Vorschlag ' + TL_LABEL[ev.meal] : TL_LABEL[ev.meal]} · ${fmt(ev.kcal)}`;
     return `<button class="tl-bar ${ev.ghost ? 'ghost' : ''}" ${ev.ghost ? 'disabled' : `data-tlmeal="${ev.meal}"`} aria-label="${esc(lab)} kcal – Uhrzeit ändern">
       <span class="st" style="left:${x0}%;width:${Math.max(1, xm - x0)}%"></span><span class="ab" style="left:${xm}%;width:${Math.max(0, xe - xm)}%"></span>
-      <span class="lb" style="left:${Math.min(x0, 62)}%">${esc(lab)}</span></button>`;
+      <span class="lb ${x0 > 50 ? 'r' : ''}" style="${x0 > 50 ? `right:${(100 - x0).toFixed(1)}%` : `left:${x0}%`}">${esc(lab)}</span></button>`;
   }).join('');
   const sleepL = tlX(bed);
   const card = `<div class="card tl-card">
@@ -338,10 +340,6 @@ function bodySettingsBind() {
     const msg = applyProfileWeight(Math.round(v * 10) / 10); save(); toast(msg || 'Gewicht gespeichert'); if (typeof renderSettings === 'function' && msg) { const y = window.scrollY; renderSettings(); window.scrollTo(0, y); }
   };
 }
-function tlTabbar() {
-  const b = document.querySelector('.tabbar [data-tab="timeline"]');
-  if (b) b.hidden = !state.timeline.enabled;
-  const tb = document.querySelector('.tabbar'); tb.classList.toggle('four', state.timeline.enabled); tb.classList.toggle('three', !state.timeline.enabled);
-}
+function tlTabbar() { /* seit 2.0: Timeline ist Teil des Journals (Tagesverlauf), kein eigener Reiter */ }
 
 if (typeof module !== 'undefined') module.exports = { tlH, tlHM, tlHalf, tlRemain, tlPhases };

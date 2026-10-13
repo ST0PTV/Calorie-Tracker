@@ -70,7 +70,7 @@ function renderFood() {
     const tagOf = (x) => x.flags.recipe ? 'Rezept' : x.flags.own ? 'Eigenes' : x.src === 'off' ? 'Barcode' : '';
     $('#fdList').innerHTML = list.length ? list.map((x, i) => {
       const e = (x.p || 0) * 4 + (x.c || 0) * 4 + (x.f || 0) * 9 || 1;
-      return `<div class="fd-row" data-i="${i}"><div class="fd-main"><div class="fd-n">${x.flags.fav ? '<span class="star">★</span>' : ''}${esc(x.n)}${tagOf(x) ? `<span class="tag">${tagOf(x)}</span>` : ''}${x.flags.pantry ? '<span class="tag fd-p">vorgemerkt</span>' : ''}</div>
+      return `<div class="fd-row" data-i="${i}">${foodBadge(x)}<div class="fd-main"><div class="fd-n">${x.flags.fav ? '<span class="star">★</span>' : ''}${esc(x.n)}${tagOf(x) ? `<span class="tag">${tagOf(x)}</span>` : ''}${x.flags.pantry ? '<span class="tag fd-p">vorgemerkt</span>' : ''}</div>
         <div class="fd-m"><span>${fmt(x.k)} kcal/100 ${unitOf(x)}</span><span class="fd-bar"><i style="flex:${((x.p || 0) * 4 / e).toFixed(3)};background:var(--p)"></i><i style="flex:${((x.c || 0) * 4 / e).toFixed(3)};background:var(--c)"></i><i style="flex:${((x.f || 0) * 9 / e).toFixed(3)};background:var(--f)"></i></span><span class="fd-e">E ${r1(x.p || 0)}</span></div></div>
         <button type="button" class="fd-plus" data-plus="${i}" aria-label="${esc(x.n)} ins Journal eintragen">+</button></div>
         ${foodOpen === x.id ? `<div class="fd-acts">

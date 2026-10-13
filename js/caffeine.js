@@ -380,7 +380,7 @@ function openCaffeine(iso, entry) {
 /* ---------- Verlauf: Balken (7/14 Tage) und Heatmap (30 Tage) ---------- */
 let caffSel = null; // gewählter Tag (Index) in der Heatmap
 function caffHeatColor(level, thr) {
-  if (level < 1) return 'rgba(255,255,255,0.04)';
+  if (level < 1) return 'rgba(var(--fg), 0.06)'; // CSS-Variable: nur in style-Angaben, nicht in SVG-Attributen
   const r = level / thr;
   if (r < 0.5) return 'rgba(226,179,107,0.20)';
   if (r < 1) return 'rgba(226,179,107,0.42)';
@@ -421,7 +421,7 @@ function caffHistoryHtml(days, range) {
         const t = caffAbs(x.iso, h * 60 + 30);
         if (t > now) continue;
         const lv = caffLevel(x.doses, t, ke);
-        cells += `<rect x="${(L + i * cw + 0.5).toFixed(1)}" y="${top + h * ch + 0.5}" width="${(cw - 1).toFixed(1)}" height="${ch - 1}" rx="1.5" fill="${caffHeatColor(lv, thr)}"></rect>`;
+        cells += `<rect x="${(L + i * cw + 0.5).toFixed(1)}" y="${top + h * ch + 0.5}" width="${(cw - 1).toFixed(1)}" height="${ch - 1}" rx="1.5" style="fill:${caffHeatColor(lv, thr)}"></rect>`;
       }
     });
     let strip = ''; for (let h = 0; h < 24; h++) if (sleepRow(h)) strip += `<rect x="${L - 6}" y="${top + h * ch + 0.5}" width="3" height="${ch - 1}" rx="1" fill="#B9A6FF" fill-opacity="0.7"></rect>`;

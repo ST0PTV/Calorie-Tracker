@@ -1,6 +1,6 @@
 # Übergabe: Kalorien-Tracker (gesamte App)
 
-Stand: 12.10.2026 · Version **1.37.0** · Service-Worker-Cache `ct-cache-v91`
+Stand: 13.10.2026 · Version **2.0.0** · Service-Worker-Cache `ct-cache-v92`
 Repo: `ST0PTV/Calorie-Tracker` (öffentlich) · App: https://st0ptv.github.io/Calorie-Tracker/
 
 Mit dieser Datei kann ein neuer Chat die App weiterentwickeln, ohne den bisherigen Verlauf zu kennen. Für das geplante Level-System gibt es eine eigene Übergabe: `docs/HANDOVER-LEVEL-SYSTEM.md`.
@@ -16,7 +16,7 @@ Eine private, kostenlose Kalorien-Tracking-App fürs iPhone als Ersatz für YAZI
 - **Alles kostenlos:** kein Server, kein Konto, keine bezahlten Dienste.
 - **Keine privaten Daten ins öffentliche Repo.** Alle Nutzerdaten bleiben im `localStorage` des Telefons. Vor jedem Commit nach persönlichen Strings suchen (Name, E-Mail-Domains, Wohnort des Nutzers – die Suchliste kennt der Nutzer bzw. seine Notizen; nicht ins Repo schreiben). Backups und `*.xlsx` sind per `.gitignore` gesperrt.
 - **Commits anonym:** `git -c user.name=ST0PTV -c user.email=333304963+ST0PTV@users.noreply.github.com commit …`, danach `git push`.
-- **Sprache:** mit dem Nutzer Deutsch; App-Texte Deutsch (Reiter heißen Journal / Timeline / Essen / Analytics).
+- **Sprache:** mit dem Nutzer Deutsch; App-Texte Deutsch (Reiter seit 2.0: Journal / Essen / Plus / Analytics / Ich; die Timeline ist im Journal aufgegangen).
 - **Designs zuerst:** Sichtbare Änderungen erst als Entwurf zeigen (Design-Canvas, siehe 8), nach Freigabe umsetzen – außer der Nutzer sagt „kein Entwurf nötig“ / „setz es so um“.
 - **Wissenschaftliche Aussagen:** belegt / Konsens / Spekulation trennen; angeben, ob per Web geprüft oder aus Trainingswissen; Korrelation nicht als Kausalität; Schwächen aktiv nennen; bei unsicheren Daten nachfragen. Quellen in die Info-Texte (`INFO`) und die Quellenliste der App.
 - **Gesundheit:** keine Belohnung oder Ermutigung fürs Wenigessen; Untergrenzen beim Gewichtsziel; Supplement-Infos beginnen immer mit „keine Empfehlung“.
@@ -25,7 +25,7 @@ Eine private, kostenlose Kalorien-Tracking-App fürs iPhone als Ersatz für YAZI
 ## 3. Technik
 
 - **Vanilla-JS-PWA** ohne Build-Schritt; alle Dateien statisch auf GitHub Pages (deploy from branch `main`).
-- **Skript-Reihenfolge** in `index.html`: `vendor/zxing.min.js`, `js/caffeine.js`, `js/alcohol.js`, `js/weightgoal.js`, `js/food.js`, `js/timeline.js`, `js/supp_catalog.js`, `js/supplements.js`, `js/level.js`, `js/app.js`. Neue Module vor `app.js` einbinden.
+- **Skript-Reihenfolge** in `index.html`: `vendor/zxing.min.js`, `js/caffeine.js`, `js/alcohol.js`, `js/weightgoal.js`, `js/food.js`, `js/timeline.js`, `js/supp_catalog.js`, `js/supplements.js`, `js/level.js`, `js/insights.js`, `js/micro.js`, `js/icons.js`, `js/v2.js`, `js/app.js`. Neue Module vor `app.js` einbinden.
 - **Gemeinsame Info-Texte:** jede Datei beginnt mit `var INFO = globalThis.INFO || {}; globalThis.INFO = INFO;` – Info-Knopf per `infoBtn('schlüssel')`, Inhalt `{ body, pts:[[titel,text]], src }` oder Funktion, die das liefert.
 - **Speicher:** `localStorage['ct.v1']` = gesamter State (JSON). `normalizeState(data)` in `app.js` ergänzt fehlende Felder und migriert alte Backups – **jedes neue Feld dort mit Default eintragen**. Backup = Export des ganzen States (Datei), Import über dieselbe Funktion.
 - **Bei jeder Änderung:** `APP_VERSION` in `js/app.js` und `CACHE` in `sw.js` hochzählen (Service Worker holt mit `cache: 'no-cache'`). Auf dem iPhone die App danach ganz schließen und neu öffnen (evtl. zweimal); Version steht unten in den Einstellungen.
@@ -35,17 +35,21 @@ Eine private, kostenlose Kalorien-Tracking-App fürs iPhone als Ersatz für YAZI
 
 | Datei | Inhalt |
 |---|---|
-| `index.html` | Gerüst, Tab-Leiste (diary/timeline/food/history), Blätter (Sheets) |
+| `index.html` | Gerüst, Tab-Leiste (wird von `renderTabbar()` gefüllt: diary/food/Plus/history/settings), Blätter (Sheets), Startbilder, frühes Setzen des Farbschemas |
 | `js/app.js` | State, Ziele/Makros (`goalsFor`, `calcMacros`, `PRESETS`), Journal, Hero-Karte K1, Hinzufügen-Dialog, Barcode, Vorschläge, Wasser, Analytics (`renderHistory`), Einstellungen (`renderSettings`, `SET_GROUPS`, `SET_SUB`), Backup, Lebensmittel teilen, Quellen |
 | `js/caffeine.js` | Koffein-Modell, Karte (C4), Eingabe, Heatmap, Einstellungen; außerdem `trackerFoot`/`trackerBind` (gemeinsame Tracker-Fußzeile) |
 | `js/alcohol.js` | Promille-Schätzung (Widmark, BMI-Faktor), Karte, Warnhinweis beim ersten Getränk |
 | `js/weightgoal.js` | Gewichtsziel: Bedarf (Uhr / Grundumsatz × PAL / DGE-Formel), Tempo-Optionen, Grenzen, Auto-Anpassung bei neuem Gewicht |
 | `js/food.js` | Reiter „Essen“: Bibliothek mit Makro-Balken, Aktions-Chips je Lebensmittel |
 | `js/timeline.js` | Mahlzeit-Zeiten, Magen-Modell, Plan-Vorschlag, Einstellungen Timeline und „Schlaf & Körper“ |
+| `js/icons.js` | Linien-Icons (`ic(name)`), Abzeichen für Lebensmittel (`foodBadge`: Symbol nach BLS-Gruppe, Farbe nach stärkstem Makro), Begleiter-Grafik (`monsterSvg`) |
+| `js/v2.js` | Version 2.0: Tab-Leiste, Wochenleiste, Tracker-Kacheln und -Blätter, Plus-Menü, Tagesverlauf, Wischen + Rückgängig, Ring-/Zahlen-Animation, Tagesabschluss, leerer Tag, Analytics-Übersicht, Jahresansicht, Hell-Modus, Textgröße |
+| `js/insights.js` | Gewichtstrend, Energiebedarf, Gewohnheit, Wochenrückblick (Node-Tests) |
+| `js/micro.js` | Mikronährstoffe aus `data/bls_micro.json` (derzeit Platzhalter) |
 | `js/level.js` | Level-System „Gemüsemonster“: Berechnung und Aktionszähler (Schritt 1, noch ohne Anzeige; Details in `HANDOVER-LEVEL-SYSTEM.md`) |
 | `js/supp_catalog.js` | 30 Supplements mit Evidenz, BfR-Höchstmenge, Studie, Quelle |
 | `js/supplements.js` | Supplement-Karte, Icons (`suppIcon`), Katalog-Auswahl, Erinnerung |
-| `css/style.css` | Design „Glas“ |
+| `css/style.css` | Design „Glas 2.0“: alle Farben als Variablen (`--fg` = „r, g, b“ für halbtransparente Flächen), Hell-Modus über `:root[data-theme]`, Schrift-Stufen 11/13/15/17/22/30/44 px in rem (skaliert mit `--ts`) |
 | `data/bls.json` | BLS-4.0-Auszug (Energie, Makros, Ballaststoffe, Zucker je 100 g), erzeugt mit `tools/convert_bls.py` (Rohdaten nicht im Repo) |
 | `data/recipes.json` | 57 Rezepte (nur als Vorschlags-Kandidaten), erzeugt mit `tools/build_recipes.py` aus `tools/recipes_src.py` |
 | `docs/` | Übergaben, Gemüsemonster-Kompendium (Entwürfe) |
@@ -53,33 +57,44 @@ Eine private, kostenlose Kalorien-Tracking-App fürs iPhone als Ersatz für YAZI
 
 ### 3.2 State (Auszug aus `emptyState()`)
 
-`goalHistory` [{from, goal, protein, carbs, fat, fiber, sugar, weight, preset, pf, ff}] · `days[iso]` = Journal-Einträge · `custom`, `recent`, `favs`, `pantry`, `offCache` (Lebensmittel) · `sug` + `sugRatings` (Vorschläge, Bewertung −3…+3) · `diet` {type, allergens} · `wgoal` + `weightLog` · `waterFoods`, `cafFoods` (eigener Koffeingehalt je Lebensmittel, mg/100; 0 = kein Koffein), `slices` · `water` {enabled, goal, step, log, hist} · `supp` · `timeline` · `profile` {weight, sex, height, birthYear} · `sugarPct`, `showSF`, `heroMode`, `cardOpen` · `alcohol` · `caffeine` {…, log}. `settings` wird nur noch beim Import alter Backups gelesen.
+`goalHistory` [{from, goal, protein, carbs, fat, fiber, sugar, weight, preset, pf, ff}] · `days[iso]` = Journal-Einträge · `custom`, `recent`, `favs`, `pantry`, `offCache` (Lebensmittel) · `sug` + `sugRatings` (Vorschläge, Bewertung −3…+3) · `diet` {type, allergens} · `wgoal` + `weightLog` · `waterFoods`, `cafFoods` (eigener Koffeingehalt je Lebensmittel, mg/100; 0 = kein Koffein), `slices` · `water` {enabled, goal, step, log, hist} · `supp` · `timeline` · `profile` {weight, sex, height, birthYear} · `sugarPct`, `showSF`, `heroMode`, `cardOpen` · `theme` ('auto'|'dark'|'light') · `companion` (Begleiter an/aus) · `dayDone` (Tag mit „Fertig für heute“) · `meals` (gespeicherte Mahlzeiten) · `weekSeen` · `alcohol` · `caffeine` {…, log}. `settings` wird nur noch beim Import alter Backups gelesen.
 
 ### 3.3 Wichtige Hilfsfunktionen
 
-`fmt(n)` (Tausenderpunkt, echtes Minus), `fmtS(n)` (mit Vorzeichen), `r0`, `r1`, `esc`, `num`, `isoDate`, `addDays`, `save()`, `toast()`, `sheetHead(id, title, sub, extra)` (Hauptfenster „Schließen“, Unterfenster „‹ Zurück“), `liveFood(snap)` (aktuelle Werte eines Lebensmittels), `dayGoalState(iso, kcal, goal)` → ok/miss/open (Zielrichtung aus `goalDir`), `waterOf(iso)`, `waterGoalFor(iso)`, `readJsonFile`, `shareJson`, `mealTimeHint`.
+`fmt(n)` (Tausenderpunkt, echtes Minus), `fmtS(n)` (mit Vorzeichen), `r0`, `r1`, `esc`, `num`, `isoDate`, `addDays`, `save()`, `toast()`, `sheetHead(id, title, sub, extra)` (Hauptfenster „Schließen“, Unterfenster „‹ Zurück“), `liveFood(snap)` (aktuelle Werte eines Lebensmittels), `dayGoalState(iso, kcal, goal)` → ok (±10 %) / over / low / open (seit 2.0 für alle Ziele gleich – weniger essen wird nicht grün), `waterOf(iso)`, `waterGoalFor(iso)`, `readJsonFile`, `shareJson`, `mealTimeHint`.
 
-## 4. Funktionen (Stand 1.37.0)
+## 4. Funktionen (Stand 2.0.0)
 
-- **Journal:** Kalorien-Übersicht K1 (Ring nach Makro-Herkunft, Umschalter Übrig/Gegessen, Makros „x / y g“), Mahlzeiten mit Zeit-Chips und Makro-Zusammensetzung beim Aufklappen (g und Energieanteil 4/4/9), Eintrag mit optional abweichender Uhrzeit, Kopieren, Schnelleintrag/Portionen (SINU LARN 2024), Scheibengewichte, Wasser-Karte (Plus-Menge 200/250/330/500 ml, Einträge mit Uhrzeit), Koffein- und Alkohol-Karte im Stil C4 (Plus auf der Trennlinie, Details aufklappbar, leere Karte kompakt), Koffein aus dem Journal (Lebensmittel mit Koffeingehalt `cf` legen einen verknüpften Koffein-Eintrag mit `fe` an; Wert aus eigenem Speicher, OFF `caffeine_100g`, eigenem Lebensmittel oder Namens-Vorschlag `CAFF_GUESS` mit Hinweis), Supplement-Karte, kompakte Vorschlags-Karte (ab 16 Uhr, ⋯-Bewertung Öfter/Seltener/Nie mehr, hinterlegte Rezepte), Backup-Erinnerung.
-- **Ziele:** Zielverlauf mit „gültig ab“; Makro-Presets (Ausgewogen DGE, Muskelaufbau, Fettabbau, Eigene) aus g/kg Körpergewicht; automatische Ballaststoff- und freier-Zucker-Ziele; Gewichtsziel mit gesunden Grenzen (≤ 1 %/Woche abnehmen, ≤ 0,5 %/Woche zunehmen, Untergrenze 1.200 kcal Frauen/ohne Angabe, 1.500 kcal Männer, mit Warnhinweisen).
-- **Timeline:** Magen-Modell (nicht validiert) mit Schlafzone, Phasen-Balken, Plan-Vorschlag nach Verteilungs-Preset.
-- **Essen-Reiter:** Bibliothek (Meine, Favoriten, Zuletzt, Vorgemerkt), Aktions-Chips, Barcode-Scan, Einkauf vormerken.
-- **Analytics:** Monatskalender mit Zielringen (grün/orange je Zielrichtung, Info-Knopf), Kalorien-Balken mit Auswahlfenster, Ø Makros, Wasser-Tropfen-Kalender (Ø, Ziel erreicht, Serie), Koffein-Heatmap, weitere Werte. Durchschnitte ohne den laufenden Tag.
-- **Einstellungen (Variante B):** Gruppen Ziele · Über mich · Tracker · Planung · Daten mit Kurzinfo je Zeile; alle Bereiche starten zugeklappt; Info-Knöpfe mit Quellen.
-- **Daten:** Backup/Import, Lebensmittel teilen (Format `kalorien-tracker-lebensmittel` v2, ohne persönliche Daten, ohne Favoriten; Import landet in „Vorgemerkt“, max. 2.000), Quellen & Lizenzen.
-- **Ausgeblendet:** Rezept-Erstellung (`RECIPES_ON = false`) – der Nutzer will sie in der finalen Version wohl löschen; Rezepte sollen später aus einer eigenen App kommen.
+**Neu in 2.0 („Glas 2.0“, Design-Portfolio auf der Canvas, Boards UX1–UX11):**
+- **Navigation:** Tab-Leiste Journal · Essen · **Plus** · Analytics · **Ich** (Einstellungen als eigener Reiter, kein Zahnrad mehr). Die Timeline ist kein Reiter mehr: „Magen-Modell“ im Tagesverlauf öffnet sie als Unterseite (`tab = 'timeline'`, Zurück-Knopf).
+- **Plus-Menü** (`openPlus`): Suche/Scanner, Mahlzeit nach Uhrzeit vorgewählt (`mealByTime`), Schnell-Einträge (Wasser, Koffein, Gewicht, Supplements, Alkohol, Schnelleintrag, gespeicherte Mahlzeit), zuletzt verwendete Lebensmittel.
+- **Journal:** Wochenleiste + Kalender-Knopf (Datum wählen), Wischen über die Seite wechselt den Tag; Tracker als Kacheln (Tippen = Blatt mit der bisherigen Karte, Knopf = Schnellaktion); **Tagesverlauf** (`dayTimelineHtml`): Mahlzeiten an ihrer Uhrzeit (Uhrzeit antippen = ändern), Koffein-/Alkohol-/Wasser-/Supplement-Punkte, Jetzt-Linie, nächste freie Mahlzeit hervorgehoben, Bettzeit mit Magen-Modell; die Linie ist farbig, solange laut Modell Essen im Magen ist (> 40 kcal). Tracker-Getränke (`cafId`/`alcId`) stehen als eigene Punkte, nicht in der Mahlzeit.
+- **Einträge:** Abzeichen je Lebensmittel; nach links wischen = löschen, nach rechts = nochmal eintragen, jeweils 5 s „Rückgängig“ (`undoToast`); neue Einträge leuchten kurz (`justAdded`).
+- **Rückmeldung:** Ring füllt sich animiert, Zahl zählt hoch (`heroAnimate`); bei „Bewegung reduzieren“ keine Animationen. Vibration gibt es in Safari nicht (Trainingswissen, ungeprüft).
+- **Mengen-Eingabe:** große Zahl, Lineal zum Ziehen (8 px = 1 g/ml), ±1/±10.
+- **Tagesabschluss** ab 20 Uhr (bzw. Bettzeit − 3 h), wenn Essen eingetragen ist; **leerer Tag** mit schlafendem Begleiter und „Wie gestern“. Begleiter = Starter aus dem Level-System, sonst Möhri; abschaltbar unter Ich → Erscheinungsbild. Er reagiert nur aufs Eintragen, nie auf die Menge.
+- **Analytics:** Übersicht mit Kacheln (7/30/90 Tage, ohne heute): Kalorien (Balken mit Zielbereich), Gewicht, Energiebedarf, Wasser, Koffein, Gewohnheit; Detailseiten (`histPage`) mit den bisherigen Karten; **Jahresansicht** (ein Kästchen pro Tag, keine Serie).
+- **Zielfarben:** grün nur ±10 % ums Tagesziel, gelb darüber, grau deutlich darunter – für alle Ziele (vorher war bei „abnehmen“ jeder Tag unter dem Ziel grün).
+- **Darstellung:** Hell-Modus (Ich → Erscheinungsbild: wie iPhone / dunkel / hell; im Hell-Modus dunkles Band hinter der Statusleiste, weil `black-translucent` weiße Symbole zeigt), Schriftgröße folgt der iPhone-Textgröße (`-apple-system-body`, Faktor 0,94–1,24), eigene Linien-Icons, neues App-Symbol (Makro-Ring) und Startbilder (`icons/splash/`).
+
+**Weiterhin (aus 1.x):**
+- **Journal:** Kalorien-Übersicht K1 (Ring nach Makro-Herkunft, Übrig/Gegessen), Makro-Zusammensetzung je Mahlzeit, abweichende Uhrzeit je Eintrag, Kopieren, Schnelleintrag/Portionen (SINU LARN 2024), Scheibengewichte, Koffein aus dem Journal (`cf` → verknüpfter Koffein-Eintrag mit `fe`), Vorschlags-Karte ab 16 Uhr, Wochenrückblick Mo–Mi, Backup-Erinnerung, gespeicherte Mahlzeiten (`state.meals`).
+- **Ziele:** Zielverlauf mit „gültig ab“; Makro-Presets aus g/kg; Ballaststoff-/freier-Zucker-Ziele; Gewichtsziel mit gesunden Grenzen.
+- **Auswertungen (`js/insights.js`):** Gewichtstrend (EWMA a = 0,1), Energiebedarf aus Essen + Gewicht (28 Tage, 7.700 kcal/kg, nur Anzeige), Gewohnheit (Halbwertszeit 13 Tage). Mikronährstoffe (`js/micro.js`, EU-NRV) – `data/bls_micro.json` ist noch ein **leerer Platzhalter**: `python3 tools/convert_bls.py <BLS-Excel> data/bls.json data/bls_micro.json` (Spaltenerkennung ungeprüft).
+- **Essen-Reiter, Einstellungen (Gruppen-Karten), Daten** (Backup, Lebensmittel teilen, Quellen) wie bisher; Rezept-Erstellung ausgeblendet (`RECIPES_ON = false`).
 
 ## 5. Tests
 
 - Playwright (Python, Chromium vorinstalliert) gegen einen lokalen Server: `(python3 -m http.server 8765 >/dev/null 2>&1 &)` im Repo-Ordner, Seite `http://localhost:8765/index.html`, Viewport 390×844.
 - Zustand per `pg.evaluate("state.… ; save(); goTab('settings')")` setzen; Fehler über `pg.on('pageerror', …)` sammeln.
 - Server danach **separat** beenden: `pkill -f "http.server 8765"` (nicht mit `&&` verketten – Exit-Code 144 bricht die Kette ab).
-- Die alten Testskripte lagen nur im temporären Arbeitsordner und sind nicht im Repo. Bei Bedarf neu anlegen (z. B. `tests/` – aber ohne persönliche Daten).
+- Node-Tests im Repo: `node tools/test_level.js`, `node tools/test_insights.js`.
+- Für 2.0: Gesten per `TouchEvent` im Browser auslösen (Kontext mit `has_touch=True`); Prüfung auch bei 320 px Breite und `--ts` 1,24. Die Testskripte lagen nur im temporären Arbeitsordner und sind nicht im Repo. Bei Bedarf neu anlegen (z. B. `tests/` – aber ohne persönliche Daten).
 
 ## 6. Offene Punkte und Ideen
 
-- Level-System „Gemüsemonster“ umsetzen (eigene Übergabe).
+- Level-System „Gemüsemonster“ umsetzen (eigene Übergabe). Der Begleiter aus 2.0 (`monsterSvg`, `companionName`) ist eine Platzhalter-Grafik – mit der Level-Oberfläche abstimmen.
+- 2.0 auf dem iPhone prüfen: Statusleiste im Hell-Modus, Startbilder (Größen aus Trainingswissen), Wischen gegen System-Gesten, Textgröße, Kalender-Knopf (Datumsauswahl).
 - **Vorgemerkt: Einführung + Hilfe-Suche** (erst einbauen, wenn das Layout steht). Entwürfe auf der Design-Canvas, Reihen „Einführung“ (T-A Karussell, T-B Spotlight-Tour, T-C Karte „Erste Schritte“) und „Hilfe“ (H-A ?-Knopf im Journal mit Blatt und Suche, H-B Suche in den Einstellungen, „Zeig es mir“ hebt die Stelle hervor). Vorschlag: T-A kurz (3 Seiten) + T-C + H-A; noch nicht freigegeben. Technik: Hilfe-Einträge in eigener Datei (Titel, Suchwörter, Text, Sprungziel), `INFO`-Texte mit durchsuchen, Tour-Status im State. Danach Regel: jede neue Funktion bekommt einen Hilfe-Eintrag.
 - Rezept-Erstellung entfernen, wenn die Version final ist.
 - Auf dem iPhone testen: Barcode-Kamera, Analytics-Griffe, Timeline, neues Gewichtsziel.
@@ -97,8 +112,9 @@ Makros: Morton 2018, Jäger 2017 (ISSN), Thomas 2016 (ACSM), Helms 2014, Longlan
 ## 8. Entwürfe
 
 - **Design-Canvas** (privat): https://claude.ai/artifact/QLbUSrKnpRNVB5nxfCDvPR – alle Board-Entwürfe (Glas-Design, K1–K3, C1–C5, A1–A4, W1–W5, Vorschläge, Supplement-Icons, Einstellungen A/B, Gewichtsziel, Wasser-Analytics, Level-System). Die Generator-Skripte waren nur temporär; neue Entwürfe direkt als Boards anlegen.
+- **Portfolio 2.0** auf derselben Canvas: Reihen „Portfolio Umbau 2.0“ (UX1–UX11, je eine Lösung, vom Nutzer am 13.10.2026 freigegeben).
 - **Gemüsemonster-Kompendium:** https://claude.ai/artifact/ENhTky756yoEYbVKLDaaLy (Kopie `docs/gemuesemonster.html`).
-- Farben „Glas“: Hintergrund `#0D1320`, Text `#E8EEF7`, gedämpft `#93A0B4`, Akzent `#5BE7F5`, Eiweiß `#8FB4FF`, KH `#F5C76B`, Fett `#E99AD0`, Warnung `#FF9A6B`, Wasser `#7AB8FF`, Koffein `#E2B36B`, Schlaf `#B9A6FF`, Mint/gut `#6FE0C1`.
+- Farben „Glas“ (dunkel; Hell-Modus-Werte in `css/style.css`): Hintergrund `#0D1320`, Text `#E8EEF7`, gedämpft `#93A0B4`, Akzent `#5BE7F5`, Eiweiß `#8FB4FF`, KH `#F5C76B`, Fett `#E99AD0`, Warnung `#FF9A6B`, Wasser `#7AB8FF`, Koffein `#E2B36B`, Schlaf `#B9A6FF`, Mint/gut `#6FE0C1`.
 
 ## 9. Dokumentation beim Nutzer
 
@@ -202,3 +218,4 @@ Projektnotiz im privaten Obsidian-Vault „Home-Base“ auf Google Drive: `Calor
 | 2026-10-12 | `3967e07` | Übergabe der gesamten App (`docs/HANDOVER-APP.md`), `__pycache__` aus dem Repo entfernt |
 | 2026-10-12 | `725613b` | v1.36.0: Level-System Schritt 1 (Berechnung `js/level.js`, Aktionszähler) |
 | 2026-10-12 | – | v1.37.0: Koffein aus dem Journal automatisch im Koffein-Tracker; Makro-Zusammensetzung je Mahlzeit; Kopieren übernimmt Koffein-Tracker-Getränke samt Koffein |
+| 2026-10-13 | – | v2.0.0: „Glas 2.0“ – Plus in der Tab-Leiste, Journal als Tagesverlauf, Tracker-Kacheln, Wischen + Rückgängig, Mengen-Lineal, Tagesabschluss/Begleiter, Analytics-Übersicht + Jahresansicht, Hell-Modus, Schrift-Stufen, Icons und Abzeichen, neues App-Symbol; dazu das Review-Paket (gespeicherte Mahlzeiten, Gewichtstrend, Energiebedarf, Gewohnheit, Wochenrückblick, Mikronährstoffe vorbereitet) |

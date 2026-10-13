@@ -1,7 +1,12 @@
 """Konvertiert die BLS-4.0-Excel-Datei in das kompakte JSON-Format der App.
 
 Aufruf:
-    python3 tools/convert_bls.py BLS_4_0_Daten_2025_DE.xlsx data/bls.json
+    python3 tools/convert_bls.py BLS_4_0_Daten_2025_DE.xlsx data/bls.json [data/bls_micro.json]
+
+Mit dem dritten Argument werden zusätzlich ausgewählte Mikronährstoffe (siehe MICRO_HINTS) in eine eigene,
+nur bei Bedarf geladene Datei geschrieben. Die Spaltenerkennung für Mikronährstoffe ist NICHT an der echten
+Datei geprüft (die Datei lag beim Schreiben nicht vor): Das Skript gibt die gefundenen Spalten aus – bitte
+kontrollieren, dass Einheit und Nährstoff stimmen, bevor die Datei ins Repo kommt.
 
 Übernommen werden nur Code, Name, Energie (kcal), Eiweiß, Kohlenhydrate, Fett,
 Ballaststoffe, Zucker (plus abgeleiteter freier Zucker) je 100 g. Die Spaltennamen werden beim ersten Lauf ausgegeben und müssen ggf. unten in
@@ -28,6 +33,32 @@ COLUMN_HINTS = {
     "lac": ["lacs lactose [g/100g]"],
     "gal": ["gals galactose [g/100g]"],
 }
+
+# Mikronährstoffe für data/bls_micro.json: Schlüssel → (Suchbegriffe, erwartete Einheit)
+# Gesucht wird ein Spaltenname, der einen der Begriffe UND die Einheit enthält (klein geschrieben).
+MICRO_HINTS = {
+    "ca": (["calcium"], "mg/100g"),
+    "mg": (["magnesium"], "mg/100g"),
+    "fe": (["eisen"], "mg/100g"),
+    "zn": (["zink"], "mg/100g"),
+    "io": (["jodid", "jod "], "µg/100g"),
+    "se": (["selen"], "µg/100g"),
+    "b12": (["vitamin b12", "cobalamin"], "µg/100g"),
+    "d": (["vitamin d ", "vitamin d (", "calciferol"], "µg/100g"),
+    "fol": (["folat", "folsäure"], "µg/100g"),
+}
+
+
+def find_micro_columns(header):
+    low = [str(h or "").strip().lower().replace("\u03bc", "\u00b5") for h in header]  # griechisches μ wie Mikro-Zeichen µ behandeln
+    cols, report = {}, {}
+    for key, (hints, unit) in MICRO_HINTS.items():
+        hits = [i for i, h in enumerate(low) if unit in h and any(t in h for t in hints)]
+        if hits:
+            cols[key] = hits[0]
+            report[key] = [header[i] for i in hits]
+    return cols, report
+
 
 # ---------------------------------------------------------------------------
 # Ernährungsform und Allergene (für die Abend-Vorschläge)
@@ -188,7 +219,7 @@ def to_num(v):
         return None
 
 
-def main(src, dst):
+def main(src, dst, micro_dst=None):
     wb = openpyxl.load_workbook(src, read_only=True, data_only=True)
     ws = wb.worksheets[0]
     rows = ws.iter_rows(values_only=True)
@@ -201,6 +232,16 @@ def main(src, dst):
         print("Alle Spalten:", [h for h in header][:60])
         sys.exit(1)
 
+    mcols = {}
+    if micro_dst:
+        mcols, report = find_micro_columns(header)
+        print("Mikronährstoff-Spalten (bitte prüfen, erster Treffer wird genutzt):")
+        for k, names in report.items():
+            print(f"  {k}: {names}")
+        miss = set(MICRO_HINTS) - set(mcols)
+        if miss:
+            print("Nicht gefunden:", miss, "– Spaltennamen:", [h for h in header if h][:200])
+    micro = {}
     foods = []
     for r in rows:
         name = r[cols["n"]]
@@ -225,6 +266,10 @@ def main(src, dst):
                 foods[-1]["a"] = a
         if str(r[cols["id"]]) in BASICS:
             foods[-1]["b"] = 1
+        if mcols:
+            vals = [to_num(r[mcols[k]]) if k in mcols else None for k in MICRO_HINTS]
+            if any(v is not None for v in vals):
+                micro[str(r[cols["id"]])] = vals
 
     out = {
         "meta": {
@@ -242,7 +287,20 @@ def main(src, dst):
         print("Basis-IDs nicht gefunden:", missing)
         sys.exit(1)
     print(f"{len(foods)} Lebensmittel nach {dst} geschrieben.")
+    if micro_dst:
+        units = {k: u for k, (_, u) in MICRO_HINTS.items()}
+        mout = {
+            "meta": {
+                "source": out["meta"]["source"], "doi": out["meta"]["doi"],
+                "note": "Ausgewählte Mikronährstoffe je 100 g; null = kein Wert im BLS.",
+                "keys": list(MICRO_HINTS), "units": units, "columns": {k: header[i] for k, i in mcols.items()},
+            },
+            "foods": micro,
+        }
+        with open(micro_dst, "w", encoding="utf-8") as fh:
+            json.dump(mout, fh, ensure_ascii=False, separators=(",", ":"))
+        print(f"Mikronährstoffe für {len(micro)} Lebensmittel nach {micro_dst} geschrieben.")
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2])
+    main(sys.argv[1], sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else None)

@@ -37,8 +37,9 @@ Ein schlanker Kalorien-Tracker als Web-App (PWA) fürs iPhone. Er läuft komplet
 - Abend-Vorschläge kompakt: eine Zeile je Lebensmittel/Gericht, Bewertung über „⋯“ (öfter / seltener / nie mehr), Details mit Zutaten und Kurzanleitung
 - Schnelleintrag (nur kcal)
 - Mahlzeit oder ganzen Tag vom Vortag übernehmen
-- Timeline: wann was gegessen wurde, Magen-Füllung als grobes Modell mit Schlafzone und Phasen-Balken, Plan-Vorschlag für Uhrzeiten und Portionsgrößen (Verteilung einstellbar); Uhrzeit pro Mahlzeit und optional pro Eintrag
-- Analytics: Monatsansicht mit Kalender (Zielerreichung), Auswahlfenster, Ø Makros, Koffein-Heatmap und weiteren Durchschnittswerten
+- Version 2.0 („Glas 2.0“): Plus-Knopf in der Tab-Leiste (Suche, Scanner, Wasser, Koffein, Gewicht, Supplements, Alkohol), Journal als Tagesverlauf mit Wochenleiste, Tracker-Kacheln, Wischen zum Löschen/Nochmal-Eintragen mit Rückgängig, Mengen-Lineal, Tagesabschluss am Abend, Analytics-Übersicht mit Detailseiten und Jahresansicht, Hell-Modus, Schriftgröße nach iPhone-Einstellung, eigene Icons
+- Magen-Modell (Timeline, im Journal unter „Magen-Modell“): wann was gegessen wurde, Magen-Füllung als grobes Modell mit Schlafzone und Phasen-Balken, Plan-Vorschlag für Uhrzeiten und Portionsgrößen (Verteilung einstellbar); Uhrzeit pro Mahlzeit und optional pro Eintrag
+- Analytics: Übersicht mit Kacheln (7/30/90 Tage), Monatsansicht mit Kalender (grün = ±10 % ums Ziel, gelb darüber, grau deutlich darunter), Auswahlfenster, Ø Makros, Koffein-Heatmap und weiteren Durchschnittswerten
 - Backup-Export und -Import mit Erinnerung nach 7 Tagen
 - Lebensmittel teilen: alle gescannten, im Journal getrackten, eigenen und vorgemerkten Lebensmittel (nur Name, Marke, Nährwerte pro 100 g, Barcode-Daten, Scheibengewichte) als JSON-Datei über das Teilen-Menü weitergeben; beim Import landen eigene unter „Eigene“, alle anderen unter „Vorgemerkt“. Ohne Favoriten, Datum, Mengen, Gewicht, Ziele oder Einstellungen
 
@@ -46,7 +47,7 @@ Ein schlanker Kalorien-Tracker als Web-App (PWA) fürs iPhone. Er läuft komplet
 
 1. Die App-Adresse in **Safari** öffnen.
 2. Teilen-Symbol → **Zum Home-Bildschirm**.
-3. Über das neue Symbol starten und unter „Einstellungen“ das Tagesziel eintragen.
+3. Über das neue Symbol starten und im Reiter „Ich“ das Tagesziel eintragen.
 
 ## Lizenz des Codes
 

@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '1.37.0';
+const APP_VERSION = '2.0.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -27,6 +27,8 @@ function emptyState() {
     wgoal: WG_DEFAULTS(), weightLog: {},
     pantry: [], // vorgemerkte Lebensmittel (z. B. nach dem Einkauf)
     waterFoods: {}, // Lebensmittel, die standardmäßig zur Flüssigkeit zählen
+    weekSeen: null, // Wochenrückblick als gelesen markiert (Montag der aktuellen Woche)
+    meals: [], // gespeicherte Mahlzeiten [{ id, n, items: [Journal-Eintrag ohne id/Zeit] }]
     cafFoods: {}, // eigener Koffeingehalt je Lebensmittel-ID (mg pro 100 g/ml); 0 = kein Koffein
     slices: {}, // gelerntes Scheibengewicht je Lebensmittel-ID (g)
     water: { enabled: true, goal: 1500, step: 250, log: {}, hist: [] }, // log: { 'JJJJ-MM-TT': [{ id, ml, min }, …] }; hist: Zielverlauf [{ from, goal }]
@@ -34,6 +36,9 @@ function emptyState() {
     timeline: TL_DEFAULTS(),
     profile: { weight: null, sex: null, height: null, birthYear: null },
     sugarPct: 10, showSF: false, heroMode: 'left', cardOpen: {},
+    theme: 'auto', // 'auto' (wie iPhone) | 'dark' | 'light'
+    companion: true, // Begleiter (Gemüsemonster) im Journal
+    dayDone: null, // Tag, an dem „Fertig für heute“ getippt wurde
     alcohol: ALC_DEFAULTS(),
     level: LEVEL_DEFAULTS(), // Level-System: nur Auswahl + Aktionszähler (js/level.js)
     caffeine: CAFF_DEFAULTS(), // log: { 'JJJJ-MM-TT': [{ id, min (Minuten seit 0 Uhr), mg, n, dur (Minuten) }] }
@@ -103,6 +108,12 @@ function normalizeState(data) {
   if (!s.slices || typeof s.slices !== 'object') s.slices = {};
   if (!s.waterFoods || typeof s.waterFoods !== 'object') s.waterFoods = {};
   if (!s.cafFoods || typeof s.cafFoods !== 'object') s.cafFoods = {};
+  if (!Array.isArray(s.meals)) s.meals = [];
+  if (typeof s.weekSeen !== 'string') s.weekSeen = null;
+  if (!['auto', 'dark', 'light'].includes(s.theme)) s.theme = 'auto';
+  s.companion = s.companion !== false;
+  if (typeof s.dayDone !== 'string') s.dayDone = null;
+  s.meals = s.meals.filter((m) => m && m.id && Array.isArray(m.items) && m.items.length);
   if (!Array.isArray(s.pantry)) s.pantry = [];
   s.wgoal = Object.assign(WG_DEFAULTS(), data.wgoal || {});
   if (!s.weightLog || typeof s.weightLog !== 'object') s.weightLog = {};
@@ -325,15 +336,11 @@ function searchFoods(q, { includeRecipes = true } = {}) {
 /* ---------- Navigation ---------- */
 let tab = 'diary';
 let currentDate = isoDate(new Date());
-document.querySelectorAll('.tabbar button').forEach((b) => b.addEventListener('click', () => {
-  goTab(b.dataset.tab);
-}));
-function goTab(t, openSec) { if (t === 'settings' && tab !== 'settings') { setOpen.clear(); if (openSec) setOpen.add(openSec); } tab = t; render(); }
+function goTab(t, openSec) { if (t === 'settings' && (tab !== 'settings' || openSec)) { setOpen.clear(); if (openSec) setOpen.add(openSec); } tab = t; closePlus(); closeUndo(); render(); }
 function render() {
   if (tab === 'timeline' && !state.timeline.enabled) tab = 'diary';
-  tlTabbar();
-  document.body.classList.toggle('in-settings', tab === 'settings');
-  document.querySelectorAll('.tabbar button').forEach((x) => x.classList.toggle('active', x.dataset.tab === tab));
+  tabbarActive();
+  document.body.dataset.tab = tab;
   if (tab === 'diary') renderDiary();
   else if (tab === 'history') renderHistory();
   else if (tab === 'timeline') renderTimeline();
@@ -472,94 +479,54 @@ function renderDiary() {
   const t = sumEntries(entries);
   const prev = addDays(currentDate, -1);
   const prevEntries = state.days[prev] || [];
-  const de = fmt;
-  const weekday = new Date(currentDate + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+  const rerender = () => { const y = window.scrollY; renderDiary(); window.scrollTo(0, y); };
 
-
-  let html = `
-    <div class="topbar">
-      <div><div class="sub">${esc(weekday)}</div><div class="day">${esc(fmtDate(currentDate))}</div></div>
-      <div class="nav"><button class="icon-btn" id="prevDay" aria-label="Vorheriger Tag">‹</button><button class="icon-btn" id="nextDay" aria-label="Nächster Tag">›</button></div>
-    </div>`;
-
+  let html = dayHeaderHtml(currentDate);
   if (backupDue()) {
     html += `<div class="card notice"><div><strong>Backup fällig</strong><div class="small muted">${backupText()} Deine Daten liegen nur auf diesem Handy.</div></div>
       <button class="btn secondary" id="quickBackup" style="flex:0 0 auto">Sichern</button></div>`;
   }
   if (!goal) {
-    html += `<div class="card"><h2>Willkommen!</h2><p class="muted small" style="margin-top:4px">Trage zuerst dein tägliches Kalorienziel ein, z. B. deinen Tagesbedarf aus Garmin.</p>
-      <button class="btn block" id="toSettings">Ziel festlegen</button></div>`;
+    html += `<div class="card welcome">${state.companion !== false ? monsterSvg('awake', 84) : ''}<div><h2>Willkommen!</h2><p class="muted small" style="margin:4px 0 10px">Deine Daten bleiben nur auf diesem Handy. Lege zuerst dein Tagesziel fest – alles andere kannst du später einschalten.</p>
+      <button class="btn block" id="toSettings">Ziel festlegen</button></div></div>`;
   }
-
-  html += `
-    <div class="card hero">
-      <button class="gear" id="gear" aria-label="Einstellungen"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h0a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v0a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.56 1.03z"/></svg></button>
+  html += closingCardHtml(currentDate);
+  html += `<div class="card hero">
       ${heroHtml(goal, t, s)}
       ${(() => { const T = sfTargets(s); return state.showSF && (T.sugar || T.fiber) ? `<div class="sf-row">${T.sugar ? sfHalf('su', 'Freier Zucker', t.fs, T.sugar, 'max.', t.su - t.fs) : ''}${T.fiber ? sfHalf('fi', 'Ballaststoffe', t.fi, T.fiber, 'mind.') : ''}</div>` : ''; })()}
     </div>`;
-  html += suppCardHtml(currentDate);
-  html += waterCardHtml(currentDate);
-  html += caffCardHtml(currentDate);
-  html += alcCardHtml(currentDate);
+  const empty = emptyDayHtml(currentDate);
+  html += empty;
+  html += trackerTilesHtml(currentDate);
+  if (currentDate === isoDate(new Date())) html += insWeekCardHtml(currentDate); // Wochenrückblick Mo–Mi
   html += suggestionCardHtml(currentDate);
-
-  // Makro-Zusammensetzung einer Mahlzeit: g und Anteil an der Energie aus E/KH/F (4/4/9 kcal pro g, wie in Analytics)
-  const mealMacros = (list) => {
-    const t = sumEntries(list); const ek = [t.p * 4, t.c * 4, t.f * 9]; const sum = ek[0] + ek[1] + ek[2];
-    if (!(sum > 0)) return '';
-    const pc = ek.map((x) => Math.round(x / sum * 100));
-    const parts = [['p', 'Eiweiß', t.p], ['c', 'KH', t.c], ['f', 'Fett', t.f]];
-    return `<div class="meal-mac"><div class="mm-bar" role="img" aria-label="Energieanteile: Eiweiß ${pc[0]} %, Kohlenhydrate ${pc[1]} %, Fett ${pc[2]} %">${parts.map(([k], i) => `<i style="width:${(ek[i] / sum * 100).toFixed(1)}%;background:var(--${k})"></i>`).join('')}</div>
-      <div class="mm-row">${parts.map(([k, l, g], i) => `<div><span class="mm-l"><span class="mm-dot" style="background:var(--${k})"></span>${l}</span><strong>${r0(g)} g</strong><span class="mm-p">${pc[i]} %</span></div>`).join('')}</div></div>`;
-  };
-  for (const m of MEALS) {
-    const list = entries.filter((e) => e.meal === m.id);
-    const kcal = list.reduce((sum, e) => sum + entryTotals(e).k, 0);
-    const prevMeal = prevEntries.filter((e) => e.meal === m.id);
-    const open = openMeals.has(m.id);
-    const sub = list.length
-      ? (list.length === 1 ? `${esc(list[0].n)} · ${de(kcal)} kcal` : `${list.length} Einträge · ${de(kcal)} kcal`)
-      : (prevMeal.length ? 'Noch leer · gestern gab es etwas' : 'Noch leer');
-    html += `<div class="card meal ${list.length ? '' : 'is-empty'}">
-      <div class="meal-head">
-        <button class="meal-toggle" ${list.length ? `data-toggle="${m.id}" aria-expanded="${open}"` : 'disabled'}>
-          <h2>${m.label}${list.length ? `<span class="chev">${open ? '▴' : '▾'}</span>` : ''}</h2>
-          <div class="sub">${sub}</div>
-        </button>
-        ${list.length && state.timeline.enabled ? `<button class="mtime ${(state.timeline.times[currentDate] || {})[m.id] ? 'set' : ''}" data-mtime="${m.id}" aria-label="Uhrzeit ${m.label}">${tlHM(tlMealTime(currentDate, m.id).h)}</button>` : ''}
-        <button class="add-btn" data-add="${m.id}" aria-label="${m.label} hinzufügen">+</button>
-      </div>
-      ${open && list.length ? `<div class="entries">${list.map((e) => `<div class="entry" data-entry="${e.id}">
-        <div class="name">${esc(e.n)}<div class="small muted">${e.quick ? 'Schnelleintrag' : `${r1(e.grams)} ${unitOf(e)}`}</div></div>
-        <div class="kcal">${de(entryTotals(e).k)} kcal${e.t ? `<div class="small etime" title="abweichende Uhrzeit"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> ${esc(e.t)}</div>` : ''}</div></div>`).join('')}${mealMacros(list)}</div>` : ''}
-      ${!list.length && prevMeal.length ? `<button class="btn ghost copy" data-copy="${m.id}">↺ Wie am Vortag (${de(prevMeal.reduce((a, e) => a + entryTotals(e).k, 0))} kcal)</button>` : ''}
-    </div>`;
-  }
-  if (!entries.length && prevEntries.length) {
-    html += `<button class="btn secondary block" id="copyDay" style="margin-top:4px">Ganzen Vortag übernehmen (${de(sumEntries(prevEntries).k)} kcal)</button>`;
+  if (!empty) html += dayTimelineHtml(currentDate);
+  if (!empty && !entries.length && prevEntries.length) {
+    html += `<button class="btn secondary block" id="copyDay" style="margin-top:4px">Ganzen Vortag übernehmen (${fmt(sumEntries(prevEntries).k)} kcal)</button>`;
   }
   v.innerHTML = html;
-  bindSuggestionCard(currentDate, () => { const y = window.scrollY; renderDiary(); window.scrollTo(0, y); });
-  bindWaterCard(currentDate, () => { const y = window.scrollY; renderDiary(); window.scrollTo(0, y); });
-  caffBindCard(currentDate);
-  alcBindCard(currentDate);
-  suppBind(currentDate, () => { const y = window.scrollY; renderDiary(); window.scrollTo(0, y); });
-
-  $('#prevDay').onclick = () => { currentDate = addDays(currentDate, -1); openMeals.clear(); renderDiary(); };
-  $('#nextDay').onclick = () => { currentDate = addDays(currentDate, 1); openMeals.clear(); renderDiary(); };
+  justAdded.clear();
+  if (pulseKey) { const el = v.querySelector(`.tk-tile.t-${pulseKey}`); if (el) el.classList.add('pulse'); pulseKey = null; }
+  heroAnimate(currentDate);
+  bindSuggestionCard(currentDate, rerender);
+  insBindWeek(currentDate, rerender);
+  bindTrackerTiles(currentDate, rerender);
+  bindDayTimeline(currentDate, rerender);
+  bindClosingCard(currentDate, rerender);
+  bindEntrySwipe(currentDate, rerender);
+  const goDay = (d) => { currentDate = d; closedMeals.clear(); renderDiary(); };
+  bindDayHeader(goDay);
+  bindDaySwipe((n) => { const vv = $('#view'); vv.classList.remove('slide-l', 'slide-r'); currentDate = addDays(currentDate, n); closedMeals.clear(); renderDiary(); if (!reduceMotion()) { void vv.offsetWidth; vv.classList.add(n > 0 ? 'slide-l' : 'slide-r'); } });
   const ts = $('#toSettings'); if (ts) ts.onclick = () => goTab('settings');
-  const gr = $('#gear'); if (gr) gr.onclick = () => goTab('settings');
   document.querySelectorAll('#heroMode [data-m]').forEach((b) => b.onclick = () => { state.heroMode = b.dataset.m; save(); renderDiary(); });
   const qb = $('#quickBackup'); if (qb) qb.onclick = async () => { await exportBackup(); renderDiary(); };
-  v.querySelectorAll('[data-toggle]').forEach((b) => b.onclick = () => {
-    const id = b.dataset.toggle; if (openMeals.has(id)) openMeals.delete(id); else openMeals.add(id);
-    const y = window.scrollY; renderDiary(); window.scrollTo(0, y);
-  });
-  v.querySelectorAll('[data-mtime]').forEach((b) => b.onclick = () => tlTimeSheet(currentDate, b.dataset.mtime, () => { const y = window.scrollY; renderDiary(); window.scrollTo(0, y); }));
-  v.querySelectorAll('[data-add]').forEach((b) => b.onclick = () => { openMeals.add(b.dataset.add); openAdd(b.dataset.add); });
-  v.querySelectorAll('[data-copy]').forEach((b) => b.onclick = () => { const n = copyEntries(prev, b.dataset.copy); openMeals.add(b.dataset.copy); toast(`${n} übernommen`); renderDiary(); });
-  const cd = $('#copyDay'); if (cd) cd.onclick = () => { const n = copyEntries(prev, null); toast(`${n} Einträge übernommen`); renderDiary(); };
+  v.querySelectorAll('[data-mtime]').forEach((b) => b.onclick = () => tlTimeSheet(currentDate, b.dataset.mtime, rerender));
+  v.querySelectorAll('[data-add]').forEach((b) => b.onclick = () => { closedMeals.delete(b.dataset.add); addTab = 'search'; addQuery = ''; openAdd(b.dataset.add); });
+  v.querySelectorAll('[data-msave]').forEach((b) => b.onclick = () => openSaveMeal(currentDate, b.dataset.msave));
+  v.querySelectorAll('[data-copy]').forEach((b) => b.onclick = () => { const before = new Set((state.days[currentDate] || []).map((e) => e.id)); const n = copyEntries(prev, b.dataset.copy); (state.days[currentDate] || []).forEach((e) => { if (!before.has(e.id)) justAdded.add(e.id); }); toast(`${n} übernommen`); renderDiary(); });
+  const cd = $('#copyDay'); if (cd) cd.onclick = () => { const n = copyEntries(prev, null); (state.days[currentDate] || []).forEach((e) => justAdded.add(e.id)); toast(`${n} Einträge übernommen`); renderDiary(); };
   v.querySelectorAll('[data-entry]').forEach((el) => el.onclick = () => {
+    const row = el.closest('.sw'); if (row && row.dataset.swiped) return; // Wischen ist kein Tippen
     const e = entries.find((x) => x.id === el.dataset.entry);
     if (!e) return;
     const ae = e.alcId && ((state.alcohol.log[currentDate] || []).find((x) => x.id === e.alcId));
@@ -1029,7 +996,7 @@ function renderAddTab() {
 function foodLi(f, i) {
   const tag = { off: 'Barcode', custom: 'Eigenes', recipe: 'Rezept' }[f.src];
   const star = isFav(f.id) ? '<span class="star">★</span>' : '';
-  return `<li data-i="${i}"><div>${star}${esc(f.n)}${tag ? `<span class="tag">${tag}</span>` : ''}<div class="meta">${f.brand ? esc(f.brand) + ' · ' : ''}${fmt(f.k)} kcal / 100 ${unitOf(f)}</div></div><div class="meta">›</div></li>`;
+  return `<li data-i="${i}" class="fli">${foodBadge(f)}<div class="grow">${star}${esc(f.n)}${tag ? `<span class="tag">${tag}</span>` : ''}<div class="meta">${f.brand ? esc(f.brand) + ' · ' : ''}${fmt(f.k)} kcal / 100 ${unitOf(f)}</div></div><div class="meta">›</div></li>`;
 }
 function bindList(root, items, onPick) {
   root.querySelectorAll('li[data-i]').forEach((li) => li.onclick = () => onPick(items[+li.dataset.i]));
@@ -1038,9 +1005,21 @@ function bindList(root, items, onPick) {
 function renderAddResults() {
   const ul = $('#results'); if (!ul) return;
   if (!addQuery.trim()) {
-    ul.innerHTML = `<div class="empty">${!blsReady ? 'Lade Lebensmitteldaten…' : bls.length ? `${bls.length.toLocaleString('de-DE')} Lebensmittel aus dem BLS verfügbar.` : 'Lebensmitteldatenbank nicht geladen – nutze Barcode oder „Neu“.'}</div>`;
+    // Leeres Suchfeld: gespeicherte Mahlzeiten, Favoriten und zuletzt Verwendetes direkt anbieten (häufigster Weg)
+    const meals = state.meals || [];
+    const favs = state.favs.map(liveFood).slice(0, 8);
+    const recent = state.recent.filter((x) => !isFav(x.id)).slice(0, 8).map(liveFood);
+    const info = `<div class="empty">${!blsReady ? 'Lade Lebensmitteldaten…' : bls.length ? `${bls.length.toLocaleString('de-DE')} Lebensmittel aus dem BLS verfügbar.` : 'Lebensmitteldatenbank nicht geladen – nutze Barcode oder „Neu“.'}</div>`;
+    const mealLi = (m, i) => `<li data-mi="${i}" class="fli"><span class="fb fb-c" aria-hidden="true">${ic('pot')}</span><div class="grow">${esc(m.n)}<span class="tag">Mahlzeit</span><div class="meta">${m.items.length} ${m.items.length === 1 ? 'Lebensmittel' : 'Lebensmittel'} · ${fmt(sumEntries(m.items).k)} kcal</div></div><div class="meta">›</div></li>`;
+    ul.outerHTML = `<div id="results">${meals.length ? `<h2 class="sec">Gespeicherte Mahlzeiten</h2><ul class="list" id="qMeals">${meals.map(mealLi).join('')}</ul>` : ''}
+      ${favs.length ? `<h2 class="sec">★ Favoriten</h2><ul class="list" id="qFavs">${favs.map((f, i) => foodLi(f, i)).join('')}</ul>` : ''}
+      ${recent.length ? `<h2 class="sec">Zuletzt verwendet</h2><ul class="list" id="qRecent">${recent.map((f, i) => foodLi(f, i)).join('')}</ul>` : ''}${info}</div>`;
+    const qf = $('#qFavs'); if (qf) bindList(qf, favs, (f) => openAmount(f));
+    const qr = $('#qRecent'); if (qr) bindList(qr, recent, (f) => openAmount(f));
+    document.querySelectorAll('#qMeals li[data-mi]').forEach((li) => li.onclick = () => openSavedMeal(meals[+li.dataset.mi]));
     return;
   }
+  if (ul.tagName !== 'UL') { ul.outerHTML = '<ul class="list" id="results"></ul>'; return renderAddResults(); }
   const hits = searchFoods(addQuery);
   ul.innerHTML = hits.length ? hits.map((f, i) => foodLi(f, i)).join('')
     : '<div class="empty">Nichts gefunden. Unter „Neu“ kannst du es selbst anlegen.</div>';
@@ -1062,7 +1041,7 @@ function drawMine() {
   const recent = state.recent.filter((r) => !isFav(r.id)).slice(0, 30).map(liveFood).filter(hit);
   const own = state.custom.filter(hit);
   const pantry = (state.pantry || []).map(liveFood).filter(hit);
-  const li = (f, i, key) => `<li data-i="${i}"><div>${isFav(f.id) && key !== 'fav' ? '<span class="star">★</span>' : ''}${esc(f.n)}${{ off: '<span class="tag">Barcode</span>', custom: '<span class="tag">Eigenes</span>', recipe: '<span class="tag">Rezept</span>', rcp: '<span class="tag">Rezept</span>' }[f.src] || ''}<div class="meta">${f.brand ? esc(f.brand) + ' · ' : ''}${fmt(f.k)} kcal / 100 ${unitOf(f)}</div></div><div class="meta">›</div></li>`;
+  const li = (f, i, key) => `<li data-i="${i}" class="fli">${foodBadge(f)}<div class="grow">${isFav(f.id) && key !== 'fav' ? '<span class="star">★</span>' : ''}${esc(f.n)}${{ off: '<span class="tag">Barcode</span>', custom: '<span class="tag">Eigenes</span>', recipe: '<span class="tag">Rezept</span>', rcp: '<span class="tag">Rezept</span>' }[f.src] || ''}<div class="meta">${f.brand ? esc(f.brand) + ' · ' : ''}${fmt(f.k)} kcal / 100 ${unitOf(f)}</div></div><div class="meta">›</div></li>`;
   const sec = (title, items, key) => items.length ? `<h2 class="sec">${title}</h2><ul class="list" data-sec="${key}">${items.map((f, i) => li(f, i, key)).join('')}</ul>` : '';
   const any = state.favs.length || state.recent.length || state.custom.length || (state.pantry || []).length;
   $('#mineList').innerHTML = (!any ? '<div class="empty">Noch nichts vorhanden. Favoriten markierst du mit dem Stern beim Eintragen.</div>'
@@ -1073,6 +1052,57 @@ function drawMine() {
   document.querySelectorAll('#mineList [data-sec]').forEach((ul) => bindList(ul, map[ul.dataset.sec], (f) => openAmount(f)));
   const mm = $('#mineManage'); if (mm) mm.onclick = () => { closeSheet(); goTab('food'); };
 }
+/* ---------- Gespeicherte Mahlzeiten ----------
+   Eine Mahlzeit ist eine Kopie der Journal-Einträge (Nährwerte zum Speicherzeitpunkt, Mengen, Koffeingehalt).
+   Einträge aus dem Koffein- oder Alkohol-Tracker werden nicht übernommen (die gehören zu ihrem Tracker). */
+const MEAL_KEEP = ['ref', 'src', 'n', 'brand', 'liq', 'grams', 'quick', 'cf', 'water', 'serving'].concat(NUTRIENTS);
+function mealItemOf(e) { const o = {}; MEAL_KEEP.forEach((k) => { if (e[k] != null) o[k] = e[k]; }); return o; }
+function openSaveMeal(iso, meal) {
+  const items = (state.days[iso] || []).filter((e) => e.meal === meal && !e.cafId && !e.alcId).map(mealItemOf);
+  if (!items.length) return;
+  sheetMode = 'savemeal';
+  const label = (MEALS.find((m) => m.id === meal) || {}).label || 'Mahlzeit';
+  const def = items.length === 1 ? items[0].n : `${items[0].n} + ${items.length - 1}`;
+  openSheet(`${sheetHead('smBack', 'Mahlzeit speichern', false)}
+    <p class="small muted">Speichert die ${items.length} Einträge aus „${esc(label)}“ mit ihren Mengen. Später trägst du alles mit einem Tipp ein (Plus → Suche).</p>
+    <label for="smName">Name</label><input id="smName" type="text" value="${esc(def)}" maxlength="60">
+    <ul class="list sm-items">${items.map((x) => `<li><div>${esc(x.n)}<div class="meta">${x.quick ? 'Schnelleintrag' : `${r1(x.grams)} ${unitOf(x)}`}</div></div><div class="meta">${fmt(entryTotals(x).k)} kcal</div></li>`).join('')}</ul>
+    <button class="btn block" id="smSave">Speichern</button>`);
+  $('#smBack').onclick = closeSheet;
+  $('#smSave').onclick = () => {
+    const n = $('#smName').value.trim() || def;
+    state.meals = [{ id: uid(), n, items }].concat(state.meals || []).slice(0, 50);
+    save(); toast('Mahlzeit gespeichert'); closeSheet();
+  };
+}
+function openSavedMeal(m) {
+  sheetMode = 'usemeal';
+  const tot = sumEntries(m.items);
+  openSheet(`${sheetHead('umBack', esc(m.n), true)}
+    <p class="small muted">${fmt(tot.k)} kcal · E ${r0(tot.p)} g · KH ${r0(tot.c)} g · F ${r0(tot.f)} g</p>
+    <ul class="list sm-items">${m.items.map((x) => `<li><div>${esc(x.n)}<div class="meta">${x.quick ? 'Schnelleintrag' : `${r1(x.grams)} ${unitOf(x)}`}</div></div><div class="meta">${fmt(entryTotals(x).k)} kcal</div></li>`).join('')}</ul>
+    <label for="umMeal">Eintragen bei</label>
+    <select id="umMeal">${MEALS.map((x) => `<option value="${x.id}" ${x.id === addMeal ? 'selected' : ''}>${x.label}</option>`).join('')}</select>
+    <div style="height:14px"></div>
+    <button class="btn block" id="umAdd">Alle eintragen</button>
+    <div style="height:10px"></div><button class="btn danger block" id="umDel">Gespeicherte Mahlzeit löschen</button>`);
+  $('#umBack').onclick = () => openAdd(addMeal);
+  $('#umAdd').onclick = () => {
+    const meal = $('#umMeal').value;
+    m.items.forEach((x) => {
+      const e = Object.assign({}, x, { id: uid(), meal });
+      (state.days[currentDate] = state.days[currentDate] || []).push(e);
+      if (e.cf > 0) caffSyncFood(currentDate, e);
+      justAdded.add(e.id);
+    });
+    save(); toast(`${m.items.length} Einträge hinzugefügt`); closeSheet();
+  };
+  $('#umDel').onclick = () => {
+    if (!confirm(`„${m.n}“ löschen? Bereits eingetragene Einträge bleiben erhalten.`)) return;
+    state.meals = (state.meals || []).filter((x) => x.id !== m.id); save(); toast('Gelöscht'); openAdd(addMeal);
+  };
+}
+
 // Eigenes Lebensmittel überall entfernen (Journal-Einträge bleiben)
 function removeOwnFood(id) {
   state.custom = state.custom.filter((x) => x.id !== id);
@@ -1226,6 +1256,31 @@ function mealTimeHint(meal) {
   if (typeof tlMealTime !== 'function') return '';
   return `Sonst gilt die Uhrzeit ${MEAL_GEN[meal] || 'der Mahlzeit'}: ${tlHM(tlMealTime(currentDate, meal).h)}`;
 }
+/* Mengen-Lineal (2.0): ziehen verändert die Menge (8 px = 1 g/ml), dazu ±1/±10-Stufen */
+function bindAmountRuler(g) {
+  const svg = $('#ruler svg'), box = $('#ruler'); if (!svg) return;
+  const PX = 8, W = 352;
+  const draw = () => {
+    const v = num(g.value) || 0; let out = '';
+    const lo = Math.floor(v - W / 2 / PX) - 1, hi = Math.ceil(v + W / 2 / PX) + 1;
+    for (let i = Math.max(0, lo); i <= hi; i++) {
+      const x = W / 2 + (i - v) * PX; if (x < -2 || x > W + 2) continue;
+      const big = i % 10 === 0, mid = i % 5 === 0;
+      out += `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${big ? 6 : mid ? 14 : 20}" y2="30" class="${big ? 'b' : ''}"></line>`;
+      if (big) out += `<text x="${x.toFixed(1)}" y="43" text-anchor="middle">${i}</text>`;
+    }
+    svg.innerHTML = out;
+  };
+  const set = (v) => { g.value = r1(Math.max(0, Math.round(v * 10) / 10)); g.dispatchEvent(new Event('input')); };
+  g.addEventListener('input', draw); draw();
+  document.querySelectorAll('[data-step]').forEach((b) => b.onclick = () => { const d = +b.dataset.step; const v = num(g.value) || 0; set(v + d); });
+  box.onpointerdown = (ev) => {
+    ev.preventDefault(); box.setPointerCapture(ev.pointerId);
+    const x0 = ev.clientX, v0 = num(g.value) || 0, scale = W / box.getBoundingClientRect().width;
+    box.onpointermove = (e2) => set(Math.round(v0 - (e2.clientX - x0) * scale / PX));
+    box.onpointerup = box.onpointercancel = () => { box.onpointermove = box.onpointerup = box.onpointercancel = null; };
+  };
+}
 function openAmount(food, opts = {}) {
   if (pantryMode && !opts.edit) { pantryAdd(food); return; } // Vormerken: nur speichern
   stopScanner();
@@ -1238,6 +1293,8 @@ function openAmount(food, opts = {}) {
   const ownFood = state.custom.find((x) => x.id === foodId);
   const fav = isFav(foodId);
   const U = unitOf(food);
+  // Scheiben-Rechner nur, wo Scheiben üblich sind (Aufschnitt, Käse, Brot) oder schon ein Scheibengewicht bekannt ist
+  const slicey = U === 'g' && (!!sliceInfo(food) || /Brot|Toast|Käse|Wurst|Schinken|Salami|Aufschnitt|Scheibe/i.test(food.n || ''));
   // Koffein: neuer Eintrag → gemerkter Wert, Wert am Lebensmittel oder Vorschlag; Bearbeiten → Wert des Eintrags
   const cafOn = !!state.caffeine.enabled;
   const cafInfo = !cafOn ? null : edit ? (food.cf > 0 ? { v: food.cf, src: 'entry' } : null) : caffPer100(food);
@@ -1253,17 +1310,19 @@ function openAmount(food, opts = {}) {
     ${sheetHead('back', esc(food.n), !(edit || opts.direct), `<button class="btn ghost star-btn" id="favBtn" aria-label="Favorit">${fav ? '★' : '☆'}</button>`)}
     ${food.brand ? `<p class="muted">${esc(food.brand)}</p>` : ''}
     <p class="small muted">Pro 100 ${U}: ${fmt(food.k)} kcal · E ${r1(food.p)} g · KH ${r1(food.c)} g · F ${r1(food.f)} g · Ballastst. ${r1(food.fi)} g · Zucker ${r1(food.su)} g</p>
-    <label for="grams">Menge in ${U === 'ml' ? 'Millilitern' : 'Gramm'}</label>
-    <input id="grams" type="text" inputmode="decimal" value="${r1(defGrams)}">
+    <div class="amt"><label for="grams" class="amt-l">Menge in ${U === 'ml' ? 'Millilitern' : 'Gramm'}</label>
+      <div class="amt-big"><input id="grams" type="text" inputmode="decimal" value="${r1(defGrams)}" aria-label="Menge in ${U}"><span>${U}</span></div>
+      <div class="ruler" id="ruler" aria-hidden="true"><svg viewBox="0 0 352 46" preserveAspectRatio="none"></svg><i class="ruler-p"></i></div>
+      <div class="amt-step">${[-10, -1, 1, 10].map((d) => `<button type="button" class="btn secondary" data-step="${d}">${d > 0 ? '+' : '−'}${Math.abs(d)}</button>`).join('')}</div></div>
     <div class="chips portions" id="portions">${portionOptions(food).map((o, i) => `<button type="button" class="chip" data-pi="${i}" title="${esc(o.hint)}">${esc(o.label)} · ${r1(o.grams)} ${U}</button>`).join('')}${recentHit && recentHit.lastGrams && !edit ? `<button type="button" class="chip" data-last="${recentHit.lastGrams}">Zuletzt · ${r1(recentHit.lastGrams)} ${U}</button>` : ''}</div>
-    <button type="button" class="linkbtn" id="slCalcBtn">Scheibengewicht aus Packung berechnen</button>
+    ${slicey ? `<button type="button" class="linkbtn" id="slCalcBtn">Scheibengewicht aus Packung berechnen</button>
     <div class="slcalc" id="slCalc" hidden>
       <div class="row">
         <div><label for="slPack">Packung (g)</label><input id="slPack" inputmode="decimal" value="${(state.offCache[String(foodId).slice(4)] || {}).pq || food.pq || ''}" placeholder="z. B. 200"></div>
         <div><label for="slN">Scheiben</label><input id="slN" inputmode="numeric" placeholder="z. B. 10"></div>
       </div>
       <div class="spread" style="margin-top:8px"><span class="small muted" id="slRes">= ? g pro Scheibe</span><button type="button" class="btn secondary" id="slSave">Übernehmen</button></div>
-    </div>
+    </div>` : ''}
     ${portionOptions(food).some((o) => o.larn) ? '<p class="small muted portion-note">Mehrfach tippen = mehrere Portionen. Standardportionen: SINU, LARN 2024 (Rohgewicht, essbarer Anteil).</p>' : ''}
     <div class="nutri" id="nutri"></div>
     <label for="meal">Mahlzeit</label>
@@ -1279,11 +1338,13 @@ function openAmount(food, opts = {}) {
   const g = $('#grams');
   const upd = () => {
     const x = per(food, num(g.value) || 0);
-    $('#nutri').innerHTML = `<div><strong>${fmt(x.k)}</strong><span>kcal</span></div><div><strong>${r1(x.p)}</strong><span>Eiweiß</span></div>
-      <div><strong>${r1(x.c)}</strong><span>KH</span></div><div><strong>${r1(x.f)}</strong><span>Fett</span></div>
-      <div><strong>${r1(x.fi)}</strong><span>Ballastst.</span></div><div><strong>${r1(x.su)}</strong><span>Zucker</span></div>`;
+    const g1 = (v) => (v >= 10 ? r0(v) : r1(v)); // ab 10 g ganze Gramm, darunter eine Nachkommastelle
+    $('#nutri').innerHTML = `<div><strong>${fmt(x.k)}</strong><span>kcal</span></div><div><strong>${g1(x.p)}</strong><span>Eiweiß g</span></div>
+      <div><strong>${g1(x.c)}</strong><span>KH g</span></div><div><strong>${g1(x.f)}</strong><span>Fett g</span></div>
+      <div><strong>${g1(x.fi)}</strong><span>Ballastst. g</span></div><div><strong>${g1(x.su)}</strong><span>Zucker g</span></div>`;
   };
   g.oninput = upd; upd();
+  bindAmountRuler(g);
   const cafMg = () => { const el = $('#eCafMg'); if (!el) return; const v = num($('#eCaf').value), q = num(g.value) || 0; el.textContent = v > 0 && q > 0 ? `= ${r0(v * q / 100)} mg Koffein` : ''; };
   const cafBind = () => { const el = $('#eCaf'); if (el) el.oninput = cafMg; cafMg(); };
   g.addEventListener('input', cafMg); cafBind();
@@ -1291,6 +1352,7 @@ function openAmount(food, opts = {}) {
   if (cs) cs.onclick = () => { $('#cafBox').innerHTML = cafField({ src: 'manual', v: 0 }); cafBind(); $('#eCaf').focus(); };
   const pOpts = portionOptions(food);
   const slRes = () => { const p = num($('#slPack').value), n = num($('#slN').value); const v = p && n ? Math.round(p / n * 10) / 10 : null; $('#slRes').textContent = v ? `= ${r1(v)} g pro Scheibe` : '= ? g pro Scheibe'; return v; };
+  if (slicey) {
   $('#slCalcBtn').onclick = () => { const c = $('#slCalc'); c.hidden = !c.hidden; if (!c.hidden) $('#slN').focus(); };
   $('#slPack').oninput = slRes; $('#slN').oninput = slRes;
   $('#slSave').onclick = () => {
@@ -1298,6 +1360,7 @@ function openAmount(food, opts = {}) {
     state.slices[foodId] = v; save(); toast(`1 Scheibe = ${r1(v)} g gespeichert`);
     const cur = $('#grams').value; openAmount(food, opts); $('#grams').value = cur; $('#grams').dispatchEvent(new Event('input'));
   };
+  }
   let lastChip = null, mult = 0;
   document.querySelectorAll('#portions [data-pi]').forEach((b) => b.onclick = () => {
     const o = pOpts[+b.dataset.pi];
@@ -1339,7 +1402,7 @@ function openAmount(food, opts = {}) {
       const wv = $('#eWater'); if (wv) { if (wv.checked) entry.water = true; state.waterFoods[foodId] = wv.checked; }
       setCf(entry);
       (state.days[currentDate] = state.days[currentDate] || []).push(entry);
-      caffSyncFood(currentDate, entry);
+      caffSyncFood(currentDate, entry); justAdded.add(entry.id);
       state.recent = [Object.assign(foodSnap(food), { lastGrams: grams })].concat(state.recent.filter((x) => x.id !== foodId)).slice(0, 60);
     }
     save();
@@ -1384,7 +1447,7 @@ function openQuick(meal, entry) {
     const vals = { quick: true, grams: 100, n: $('#qN').value.trim() || 'Schnelleintrag', k, p: num($('#qP').value) || 0, c: num($('#qC').value) || 0, f: num($('#qF').value) || 0, fi: 0, su: 0, meal: $('#qMeal').value, src: 'quick' };
     const qt = $('#qT') && $('#qT').value; if (qt) vals.t = qt; else if (entry) { const ex = (state.days[currentDate] || []).find((x) => x.id === entry.id); if (ex) delete ex.t; }
     if (entry) Object.assign((state.days[currentDate] || []).find((x) => x.id === entry.id) || {}, vals);
-    else (state.days[currentDate] = state.days[currentDate] || []).push(Object.assign({ id: uid() }, vals));
+    else { const ne = Object.assign({ id: uid() }, vals); (state.days[currentDate] = state.days[currentDate] || []).push(ne); justAdded.add(ne.id); }
     save(); toast(entry ? 'Gespeichert' : 'Hinzugefügt'); back();
   };
   const qd = $('#qDel');
@@ -1703,23 +1766,24 @@ function goalDir(iso) {
   return pr === 'muscle' ? 'gain' : pr === 'cut' ? 'lose' : 'keep';
 }
 const KEEP_TOL = 0.1; // „Halten“: ±10 % um das Kalorienziel gelten als erreicht
-// 'ok' (grün) · 'miss' (orange) · 'open' (heute, Zunahme-Ziel noch nicht erreicht) · null (kein Ziel)
+/* Seit 2.0 für alle Ziele gleich: grün nur im Bereich ±10 % ums Tagesziel, darüber gelb, deutlich darunter neutral grau.
+   Vorher war beim Abnehmen jeder Tag unter dem Ziel grün – das hätte auch sehr wenig Essen belohnt (Projektregel). */
+// 'ok' (grün) · 'over' (gelb) · 'low' (grau) · 'open' (heute, noch unter dem Bereich) · null (kein Ziel)
 function dayGoalState(iso, k, goal) {
   if (!goal) return null;
-  const dir = goalDir(iso), today = iso === isoDate(new Date());
-  if (dir === 'lose') return k <= goal ? 'ok' : 'miss';
-  if (dir === 'gain') return k >= goal ? 'ok' : today ? 'open' : 'miss';
   if (Math.abs(k - goal) <= goal * KEEP_TOL) return 'ok';
-  return k < goal && today ? 'open' : 'miss';
+  if (k > goal) return 'over';
+  return iso === isoDate(new Date()) ? 'open' : 'low';
 }
 INFO.hcal = () => {
   const dir = goalDir(isoDate(new Date()));
   const now = { lose: 'Abnehmen', gain: 'Zunehmen', keep: 'Gewicht halten' }[dir];
   const why = state.wgoal && state.wgoal.on && state.wgoal.target && state.profile.weight ? 'aus deinem Gewichtsziel' : 'aus dem Ernährungsziel des Tages (Muskelaufbau = zunehmen, Fettabbau = abnehmen, sonst halten)';
-  return { body: `<p>Der Ring zeigt, wie viel vom Kalorienziel des Tages gegessen wurde. Die Farbe zeigt, ob das zu deinem Ziel passt – im Kalender und genauso bei den Balken „Kalorien pro Tag“. Aktuell: <strong>${now}</strong> – abgeleitet ${why}.</p>`,
-    pts: [['<span style="color:var(--good)">●</span> Grün – Ziel erreicht', 'Abnehmen: unter dem Kalorienziel · Zunehmen: Ziel erreicht oder darüber · Halten: höchstens ±10 % daneben'],
-      ['<span style="color:var(--warn)">●</span> Orange – verfehlt', 'Abnehmen: über dem Ziel · Zunehmen: darunter · Halten: mehr als 10 % daneben'],
-      ['<span style="color:var(--accent)">●</span> Cyan – heute, läuft noch', 'Das Ziel soll erreicht werden, der Tag ist aber noch nicht vorbei'],
+  return { body: `<p>Die Farbe zeigt, wie nah ein Tag am Kalorienziel dieses Tages lag – im Kalender, bei den Balken und in der Übersicht. Das Ziel selbst enthält schon dein Vorhaben (aktuell: <strong>${now}</strong>, abgeleitet ${why}).</p><p>Deutlich weniger zu essen ist <strong>kein</strong> Erfolg und wird deshalb nicht grün, sondern neutral angezeigt.</p>`,
+    pts: [['<span style="color:var(--good)">●</span> Grün – im Zielbereich', 'höchstens ±10 % neben dem Kalorienziel'],
+      ['<span style="color:var(--c)">●</span> Gelb – darüber', 'mehr als 10 % über dem Ziel'],
+      ['<span style="color:var(--muted)">●</span> Grau – deutlich darunter', 'mehr als 10 % unter dem Ziel; keine Wertung'],
+      ['<span style="color:var(--accent)">●</span> Cyan – heute, läuft noch', 'Der Tag ist noch nicht vorbei'],
       ['◌ Gestrichelt – nicht getrackt', 'Kein Eintrag an diesem Tag']] };
 };
 // Serien beim Wasser: aufeinanderfolgende Tage mit erreichtem Ziel (heute zählt nur, wenn schon erreicht)
@@ -1741,7 +1805,11 @@ function waterDrop(frac, i, isToday, none) {
 }
 INFO.wStat = { body: '<p>Jeder Tropfen ist ein Tag. Er ist so weit gefüllt, wie viel vom Wasserziel dieses Tages getrunken wurde; ganz gefüllt und kräftig = Ziel erreicht. Jeder Tag wird mit dem Ziel bewertet, das damals galt.</p>',
   pts: [['Ø pro Tag', 'nur Tage mit Wasser; heute zählt erst, wenn nur heute gewählt ist'], ['Ziel erreicht', 'Tage mit erreichtem Ziel / Tage mit Wasser im Zeitraum'], ['Serie', 'Tage in Folge mit erreichtem Ziel bis heute; „beste“ = längste Serie bisher'], ['Gestrichelt', 'heute (läuft noch) bzw. leerer Tropfen = kein Wasser eingetragen']] };
+let histPage = null; // null = Übersicht (Kacheln); sonst Detailseite: cal, weight, energy, water, caf, habit, micro, year
+const HIST_PAGES = { cal: ['Kalorien', true], weight: ['Gewicht', false], energy: ['Energiebedarf', false], water: ['Wasser', true], caf: ['Koffein', true], habit: ['Gewohnheit', false], micro: ['Mikronährstoffe', true] };
 function renderHistory() {
+  if (!histPage) { renderAnalyticsOverview(); return; }
+  if (histPage === 'year') { renderYear(); return; }
   const today = isoDate(new Date());
   const curMonth = today.slice(0, 7);
   if (!histMonth) histMonth = curMonth;
@@ -1772,8 +1840,8 @@ function renderHistory() {
     const has = x.n > 0;
     const frac = has ? (x.goal ? Math.min(x.t.k / x.goal, 1) : 1) : 0;
     const st = has ? dayGoalState(x.d, x.t.k, x.goal) : null;
-    const col = st === 'ok' ? 'var(--good)' : st === 'miss' ? 'var(--warn)' : 'var(--accent)';
-    const ring = has ? `<span class="hc-ring" style="background:conic-gradient(${col} ${Math.round(frac * 360)}deg, rgba(255,255,255,0.08) 0)"></span><span class="hc-in"></span>` : '<span class="hc-ring none"></span>';
+    const col = st === 'ok' ? 'var(--good)' : st === 'over' ? 'var(--c)' : st === 'low' ? 'var(--muted)' : 'var(--accent)';
+    const ring = has ? `<span class="hc-ring" style="background:conic-gradient(${col} ${Math.round(frac * 360)}deg, rgba(var(--fg), 0.08) 0)"></span><span class="hc-in"></span>` : '<span class="hc-ring none"></span>';
     cells += `<button class="hc-d ${histSel && inSel(i) ? 'sel' : ''} ${x.fut ? 'fut' : ''} ${x.d === today ? 'today' : ''}" data-i="${i}" ${x.fut ? 'disabled' : ''} aria-label="${x.d}${has ? ', ' + r0(x.t.k) + ' kcal' : ''}">${ring}<span class="hc-n ${has ? '' : 'dim'}">${i + 1}</span></button>`;
   });
   const calCard = `<div class="card hc"><div class="hc-grid">${cells}</div>
@@ -1847,13 +1915,27 @@ function renderHistory() {
 
   const cDays = sel.map((x) => x.d);
   const nextOff = histMonth >= curMonth;
+  const [pTitle, monthly] = HIST_PAGES[histPage] || ['Analytics', true];
+  const microDays = done.filter((x) => insLogged(state, x.d)).map((x) => x.d);
+  const body = {
+    cal: calCard + barCard + macroCard + otherCard,
+    weight: insWeightCardHtml(today),
+    energy: insEnergyCardHtml(today),
+    water: waterCard || '<div class="card"><p class="muted">Der Wasser-Tracker ist ausgeschaltet (Ich → Wasser).</p></div>',
+    caf: cDays.length ? caffHistoryHtml(cDays, cDays.length >= 15 ? 30 : 7) : '',
+    habit: insHabitCardHtml(today),
+    micro: microCardHtml(microDays) || `<div class="card"><p class="muted">${microStatus === 'missing' ? 'Die Mikronährstoff-Daten aus dem BLS sind noch nicht in der App. Sobald sie da sind, erscheinen hier Durchschnitte für Calcium, Eisen, Jod und weitere Werte.' : microStatus === 'loading' || microStatus === 'idle' ? 'Lade Mikronährstoff-Daten …' : 'Im gewählten Zeitraum gibt es keine Tage mit Einträgen.'}</p></div>`,
+  }[histPage] || '';
   $('#view').innerHTML = `
-    <div class="topbar"><div><div class="sub">${HIST_MON[M - 1]} ${Y}</div><div class="day">Analytics</div></div>
-      <div class="nav"><button class="icon-btn" id="hmPrev" aria-label="Vorheriger Monat">‹</button><button class="icon-btn" id="hmNext" aria-label="Nächster Monat" ${nextOff ? 'disabled' : ''}>›</button></div></div>
-    ${calCard}${barCard}${macroCard}${waterCard}${cDays.length ? caffHistoryHtml(cDays, cDays.length >= 15 ? 30 : 7) : ''}${otherCard}`;
-  caffHistoryBind(cDays, cDays.length >= 15 ? 30 : 7, () => { const sy = window.scrollY; renderHistory(); window.scrollTo(0, sy); });
+    <div class="topbar v2 sub-top"><button class="icon-btn" id="anBack" aria-label="Zurück zur Übersicht">${ic('chevL')}</button><div class="st-t"><div class="sub">${monthly ? `${HIST_MON[M - 1]} ${Y}` : 'Analytics'}</div><div class="day">${pTitle}</div></div>
+      ${monthly ? `<div class="nav"><button class="icon-btn" id="hmPrev" aria-label="Vorheriger Monat">${ic('chevL')}</button><button class="icon-btn" id="hmNext" aria-label="Nächster Monat" ${nextOff ? 'disabled' : ''}>${ic('chevR')}</button></div>` : ''}</div>
+    ${body}`;
+  $('#anBack').onclick = () => { histPage = null; render(); };
+  if (histPage === 'caf' && cDays.length) caffHistoryBind(cDays, cDays.length >= 15 ? 30 : 7, () => { const sy = window.scrollY; renderHistory(); window.scrollTo(0, sy); });
 
   const rerender = () => { const sy = window.scrollY; renderHistory(); window.scrollTo(0, sy); };
+  insBindHistory(rerender);
+  if (!monthly) return;
   $('#hmPrev').onclick = () => { const d = new Date(Y, M - 2, 1); histMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; histSel = null; histPick = false; renderHistory(); };
   $('#hmNext').onclick = () => { const d = new Date(Y, M, 1); histMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; histSel = null; histPick = false; renderHistory(); };
   document.querySelectorAll('.hc-d').forEach((b) => b.onclick = () => {
@@ -1865,6 +1947,7 @@ function renderHistory() {
   document.querySelectorAll('.hch').forEach((b) => b.onclick = () => { const c = chips[+b.dataset.ch][1]; histSel = c; histPick = false; rerender(); });
   // Auswahlfenster ziehen
   const wrap = $('#hWrap'), br = $('#hBrush');
+  if (!wrap || !br) return;
   const idxAt = (cx) => { const r = wrap.getBoundingClientRect(); const x = (cx - r.left) / r.width * W; return Math.max(0, Math.min(nDays - 1, Math.floor((x - pad) / bw))); };
   br.querySelectorAll('.hb-h').forEach((h) => {
     h.onpointerdown = (e) => {
@@ -1898,6 +1981,7 @@ const SET_ICONS = {
   'Lebensmittel teilen': ['#7AB8FF', '<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.9l7.6-3.8M8.2 13.1l7.6 3.8"/>'],
   'Backup': ['#9DB4CF', '<path d="M4 8h16v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V8z"/><path d="M3 4h18v4H3z"/><path d="M12 11v6M9 14l3 3 3-3"/>'],
   'Quellen & Lizenzen': ['#A9B3C1', '<path d="M5 4h9a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3V4z"/><path d="M17 20h2V6"/><path d="M8 8h6M8 11.5h6"/>'],
+  'Erscheinungsbild': ['#B9A6FF', '<circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16z" fill="currentColor"/>'],
   'Ernährung & Allergien': ['#6FE0C1', '<path d="M5 19c0-8 5-13 14-14 0 9-5 14-14 14z"/><path d="M5 19l8-8"/>'],
 };
 const setOpen = new Set(); // aufgeklappte Einstellungs-Bereiche (beim Öffnen der Einstellungen alle zugeklappt)
@@ -1926,6 +2010,8 @@ function renderSettings() {
   // Kurzinfos nach Änderungen aktualisieren (ohne neu zu zeichnen)
   const refresh = () => setTimeout(() => document.querySelectorAll('.set-sub[data-sub]').forEach((el) => { try { el.textContent = SET_SUB[el.dataset.sub](); } catch (e) { /* unverändert lassen */ } }), 0);
   view.addEventListener('change', refresh); view.addEventListener('click', refresh);
+  document.querySelectorAll('#themeSeg [data-th]').forEach((b) => b.onclick = () => { state.theme = b.dataset.th; save(); applyTheme(); document.querySelectorAll('#themeSeg [data-th]').forEach((x) => x.classList.toggle('active', x === b)); });
+  const co = $('#companionOn'); if (co) co.onchange = () => { state.companion = co.checked; save(); };
   SET_GROUPS.forEach(([g, titles]) => {
     const items = titles.map((t) => cards[t]).filter(Boolean); if (!items.length) return;
     const h = document.createElement('div'); h.className = 'set-gh'; h.textContent = g;
@@ -1933,10 +2019,9 @@ function renderSettings() {
     items.forEach((c) => box.appendChild(c));
     view.appendChild(h); view.appendChild(box);
   });
-  const bk = $('#setBack'); if (bk) bk.onclick = () => goTab('diary');
-}
+  }
 const SET_GROUPS = [['Ziele', ['Tagesziel', 'Gewichtsziel']], ['Über mich', ['Schlaf & Körper', 'Ernährung & Allergien']], ['Tracker', ['Wasser', 'Koffein', 'Alkohol', 'Supplements']],
-  ['Planung', ['Timeline', 'Abend-Vorschläge']], ['Daten', ['Lebensmittel teilen', 'Backup', 'Quellen & Lizenzen']]];
+  ['Planung', ['Timeline', 'Abend-Vorschläge']], ['Darstellung', ['Erscheinungsbild']], ['Daten', ['Lebensmittel teilen', 'Backup', 'Quellen & Lizenzen']]];
 const onOff = (on, txt) => (on ? txt : 'aus');
 const SET_SUB = {
   'Tagesziel': () => { const g = goalsFor(isoDate(new Date())); return g.goal ? `${fmt(g.goal)} kcal${g.preset && PRESETS[g.preset] ? ' · ' + PRESETS[g.preset].label : ''}` : 'noch nicht festgelegt'; },
@@ -1950,6 +2035,7 @@ const SET_SUB = {
   'Timeline': () => onOff(state.timeline.enabled, `an · ${TL_PRESETS[state.timeline.preset].label}`),
   'Abend-Vorschläge': () => onOff(state.sug.enabled, `ab ${state.sug.time} · ${{ kcal: 'Kalorien', protein: 'Eiweiß zuerst', balanced: 'Ausgewogen' }[state.sug.priority] || ''}`),
   'Lebensmittel teilen': () => 'Export / Import',
+  'Erscheinungsbild': () => ({ auto: 'Wie iPhone', dark: 'Dunkel', light: 'Hell' }[state.theme || 'auto']),
   'Backup': () => { if (!state.lastBackup) return 'noch kein Backup'; const d = Math.floor((Date.now() - state.lastBackup) / 864e5); return `zuletzt ${d === 0 ? 'heute' : d === 1 ? 'gestern' : `vor ${d} Tagen`}`; },
 };
 INFO.goalSrc = () => ({ body: `<p>Dein tägliches Kalorienziel, z. B. der Tagesbedarf aus deiner Garmin-Uhr.${state.wgoal.on ? ' <strong>Aktuell wird es aus dem Gewichtsziel berechnet</strong> (Bereich „Gewichtsziel“) und bei neuem Gewicht angepasst.' : ''}</p><p>Eiweiß und Fett rechnet die App aus deinem Körpergewicht: <strong>${state.profile.weight != null ? r1(state.profile.weight) + ' kg' : 'noch nicht eingetragen'}</strong> – änderbar unter „Schlaf &amp; Körper“.</p>` });
@@ -1960,7 +2046,7 @@ function renderSettingsInner() {
   const fmtD = (iso) => new Date(iso + 'T12:00:00').toLocaleDateString('de-DE');
   const hist = state.goalHistory.slice().reverse();
   $('#view').innerHTML = `
-    <div class="set-top"><button class="set-back" id="setBack" aria-label="Zurück">‹</button><h1>Einstellungen</h1></div>
+    <div class="topbar v2"><div><div class="sub">Ziele, Tracker &amp; Daten</div><div class="day">Ich</div></div></div>
     <div class="card">
       <h2>Tagesziel</h2>
       <label for="sGoal">Kalorien pro Tag (kcal) ${infoBtn('goalSrc')}</label><input id="sGoal" inputmode="decimal" value="${s.goal ?? ''}" placeholder="z. B. Tagesbedarf aus Garmin">
@@ -2018,6 +2104,13 @@ function renderSettingsInner() {
       <div class="seg three" id="dietType">${[['all', 'Alles'], ['veg', 'Vegetarisch'], ['vegan', 'Vegan']].map(([k, l]) => `<button type="button" data-d="${k}" class="${state.diet.type === k ? 'active' : ''}">${l}</button>`).join('')}</div>
       <label>Allergien / Unverträglichkeiten ausschließen ${infoBtn('diet')}</label>
       <div class="chips" id="dietAll">${ALLERGENS.map(([k, l]) => `<label class="chip"><input type="checkbox" value="${k}" ${state.diet.allergens.includes(k) ? 'checked' : ''}> ${l}</label>`).join('')}</div>
+    </div>
+    <div class="card">
+      <h2>Erscheinungsbild</h2>
+      <label>Farben</label>
+      <div class="seg three" id="themeSeg">${[['auto', 'Wie iPhone'], ['dark', 'Dunkel'], ['light', 'Hell']].map(([k, l]) => `<button type="button" data-th="${k}" class="${(state.theme || 'auto') === k ? 'active' : ''}">${l}</button>`).join('')}</div>
+      <label class="switch"><input type="checkbox" id="companionOn" ${state.companion !== false ? 'checked' : ''}> Begleiter im Journal zeigen (Tagesabschluss, leerer Tag)</label>
+      <p class="small muted" style="margin:6px 0 0">Die Schriftgröße folgt der Textgröße in den iPhone-Einstellungen (Anzeige &amp; Helligkeit → Textgröße).</p>
     </div>
     <div class="card">
       <h2>Lebensmittel teilen</h2>
@@ -2260,6 +2353,9 @@ async function exportBackup() {
 }
 
 /* ---------- Start ---------- */
+applyTheme();
+applyTextSize();
+renderTabbar();
 render();
 loadBls();
 // Koffein-Pegel altert mit der Zeit: Tagebuch (heute) jede Minute und beim Zurückkehren in die App auffrischen

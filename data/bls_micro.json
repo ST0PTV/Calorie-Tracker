@@ -1,0 +1,1 @@
+{"meta": {"source": "Max Rubner-Institut (2025). Bundeslebensmittelschlüssel (BLS), Version 4.0. Karlsruhe.", "doi": "10.25826/Data20251217-134202-0", "note": "Platzhalter: noch nicht erzeugt. Erzeugen mit: python3 tools/convert_bls.py <BLS-Excel> data/bls.json data/bls_micro.json", "keys": ["ca", "mg", "fe", "zn", "io", "se", "b12", "d", "fol"], "units": {}}, "foods": {}}
