@@ -2,7 +2,8 @@
 """Erzeugt die Level-UI-Entwürfe (U1–U6) als .dc.html-Artboards. Beispieldaten, keine echten Nutzerdaten."""
 import json, re, sys, os
 
-REPO = '/home/claude/calorie-tracker'
+import os
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OUT = sys.argv[1]
 src = open(f'{REPO}/docs/gemuesemonster.html', encoding='utf-8').read()
 T = dict(re.findall(r'<template id="(t\d+)">(.*?)</template>', src, re.S))

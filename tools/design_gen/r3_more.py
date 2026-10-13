@@ -3,7 +3,7 @@ import re, math
 from r3kit import *
 from anim import L
 
-src = open('/home/claude/calorie-tracker/docs/gemuesemonster.html', encoding='utf-8').read()
+src = open(__import__('os').path.join(__import__('os').path.dirname(__import__('os').path.abspath(__file__)), '..', '..', 'docs', 'gemuesemonster.html'), encoding='utf-8').read()
 SCN = dict(re.findall(r'<template id="(s\d+)">(.*?)</template>', src, re.S))
 
 

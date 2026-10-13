@@ -145,7 +145,7 @@ Beschlossen (13.10.2026) – Entwürfe EZ0–EZ8 im Level-Canvas, noch nicht umg
 
 Beschlossen (13.10.2026, Teil 2) – Entwürfe BM0–BM8 im Level-Canvas:
 9. **Besucher A + B kombiniert:** Gemüse im Journal → Besuch (max. 1/Tag) → einladen (40 Samen) → Ei im Beet → schlüpft nach 3 getrackten Tagen → wächst mit 3 weiteren Tagen desselben Typs. Nicht eingeladene Besucher kommen wieder. Säen 60 Samen (Überraschung, gewichtet nach Gemüse der Woche). Beet 6 Plätze, letzter ab Rang Kartograf; Deko als Samen-Ausgabe.
-10. **6 Bonus-Monster (je Typ eins, 2 Formen, nur über Besuche/Beet):** Ingi→Ingwar (Wurzel), Knobi→Graf Knobula (Zwiebel), Kichi→Kicheron (Hülse), Maisi→Kolbrix (Spross), Kohli→Kohlossus (Blatt), Morchi→Morchelor (Pilz). SVGs + Animation in `tools/monster_bonus.py` (t45–t56, nutzt `tools/monster_anim.py`). Pool: 23 Monster.
+10. **6 Bonus-Monster (je Typ eins, 2 Formen, nur über Besuche/Beet):** Ingi→Ingwar (Wurzel), Knobi→Graf Knobula (Zwiebel), Kichi→Kicheron (Hülse), Maisi→Kolbrix (Spross), Kohli→Kohlossus (Blatt), Morchi→Morchelor (Pilz). SVGs + Animation in `tools/design_gen/bonus.py` (t45–t56, nutzt `tools/design_gen/anim.py`). Pool: 23 Monster.
 11. **Weitere Vorschläge (noch nicht entschieden):** Begleiter im Journal (reagiert nur auf Uhrzeit/Eintragen/Pause), Mitbringsel von Beet-Monstern (max. 1/Tag), Monatspostkarte zum Teilen (ohne kcal/Gewicht), Saison-Events mit Saisonkalender (Typ-Bonus je Monat, Saison-Deko ab 10 Tagen), Feldnotizen pro Monster, Typ-Zuordnung über Stichwörter/BLS-Gruppe (BM8).
 
 Runde 3 (13.10.2026, alles nur Entwurf im Level-Canvas, Übersicht-Board „OV“ ganz oben):

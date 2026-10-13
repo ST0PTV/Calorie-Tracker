@@ -3,7 +3,8 @@
 Ruhe-Animationen (Klassen i-*) laufen dauerhaft, typische Bewegung (Klasse sg + s-*) einmal pro Zyklus --d."""
 import re, random
 
-REPO = '/home/claude/calorie-tracker'
+import os
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _src = open(f'{REPO}/docs/gemuesemonster.html', encoding='utf-8').read()
 T = dict(re.findall(r'<template id="(t\d+)">(.*?)</template>', _src, re.S))
 
