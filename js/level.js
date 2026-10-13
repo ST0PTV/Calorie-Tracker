@@ -221,6 +221,14 @@ const LV_DEKO = [
   ['windrad', 'Windrad', 150], ['bank', 'Bank', 200], ['teich', 'Teich', 250],
   ['giesskanne', 'Gießkanne', 0, true], ['gluehwuermchen', 'Glühwürmchen', 0, true], // nur als seltenes Mitbringsel
 ].map(([id, name, cost, gift]) => ({ id, name, cost, gift: !!gift }));
+// Saisonkalender (BM6, grob nach deutschem Saisonkalender – Trainingswissen, nicht geprüft). Der Bonus verschiebt nur,
+// wer zu Besuch kommt (Typ doppelt gewichtet, Schillernd-Chance bei Freundschaftsbesuchen doppelt) – nie eine Menge.
+const LV_SEASONS = [
+  ['Kohlzeit', 'Blatt', 'Schneemann'], ['Wurzelwinter', 'Wurzel', 'Rübenschlitten'], ['Bärlauch', 'Zwiebel', 'Bärlauch-Büschel'], ['Spargelzeit', 'Spross', 'Spargelbund'],
+  ['Radieschen', 'Wurzel', 'Radieschen-Topf'], ['Erbsenzeit', 'Hülse', 'Erbsen-Rankgitter'], ['Beerensommer', 'Frucht', 'Beerenstrauch'], ['Tomatenzeit', 'Frucht', 'Tomatenstab'],
+  ['Pilzsaison', 'Pilz', 'Fliegenpilz'], ['Kürbiszeit', 'Frucht', 'Kürbislaterne'], ['Lauch & Kohl', 'Zwiebel', 'Vogelscheuche'], ['Linsenwinter', 'Hülse', 'Lichterkette'],
+].map(([name, type, deko], i) => ({ m: i + 1, name, type, deko: { id: 's' + String(i + 1).padStart(2, '0'), name: deko, cost: 150 } }));
+const lvSeasonOf = (iso) => LV_SEASONS[+iso.slice(5, 7) - 1];
 // Gemüse-Typ eines Lebensmittels über Stichwörter im Namen (BM8). Grob und bewusst einfach; unklare bleiben ohne Typ.
 const LV_FOOD_RX = [
   ['Blatt', /spinat|salat|grünkohl|(?<!blumen)kohl(?!rabi|enhydrat)|brokkoli|broccoli|mangold|rucola|rauke|wirsing|pak.?choi|kresse/],
@@ -299,11 +307,13 @@ function levelGarden(src, lv, today, r, hook) { // hook(d, lage) → Entscheidun
   const byId = (id) => all.find((m) => m.id === id);
   let samen = 0, earned = 0;
   const ledger = lvSamenLedger(src, r.start, today);
+  const counted = lvCountedDays(src, r.start, today).counted, monthCount = {}, visits = [];
   const plots = [], deko = [], log = [], hist = [];
   let visitor = null, gift = null;
   for (const d of lvRange(r.start, today)) {
     const types = lvDayTypes(src, d), tracked = (src.days[d] || []).length > 0;
     hist.push(types); if (hist.length > 7) hist.shift();
+    if (counted.has(d)) monthCount[d.slice(0, 7)] = (monthCount[d.slice(0, 7)] || 0) + 1;
     const sd = ledger.byDay[d];
     if (sd) { samen += sd.n; earned += sd.n; }
     const month = lvMonthIdx(r.start, d);
@@ -322,16 +332,18 @@ function levelGarden(src, lv, today, r, hook) { // hook(d, lage) → Entscheidun
     // Besuch: 40 % der Tage mit Gemüse; Typ gewichtet nach den letzten 7 Tagen
     let vis = null;
     if (tracked && types.length && lvHash(seed, 'v' + d) < LV_GARDEN.visitP) {
-      const w = types.map((t) => hist.reduce((a, h) => a + (h.includes(t) ? 1 : 0), 0));
+      const sea = lvSeasonOf(d).type;
+      const w = types.map((t) => hist.reduce((a, h) => a + (h.includes(t) ? 1 : 0), 0) * (t === sea ? 2 : 1));
       let x = lvHash(seed, 'vt' + d) * w.reduce((a, b) => a + b, 0), t = types[0];
       for (let k = 0; k < types.length; k++) { x -= w[k]; if (x < 0) { t = types[k]; break; } }
       const fresh = unlocked.find((b) => b.type === t && !owned[b.id] && !inBeet.has(b.id));
       if (fresh) vis = { id: fresh.id, type: t, kind: 'new', cost: LV_GARDEN.invite };
       else {
         const known = Object.keys(owned).map(byId).filter((m) => m && m.type === t && !LV_STARTERS.includes(m));
-        if (known.length) { const m = known[Math.floor(lvHash(seed, 'vk' + d) * known.length)]; vis = { id: m.id, type: t, kind: 'friend', cost: 0, shiny: !owned[m.id].shiny && lvHash(seed, 'vs' + d) < 1 / LV_GARDEN.friendShiny }; }
+        if (known.length) { const m = known[Math.floor(lvHash(seed, 'vk' + d) * known.length)]; vis = { id: m.id, type: t, kind: 'friend', cost: 0, shiny: !owned[m.id].shiny && lvHash(seed, 'vs' + d) < (t === sea ? 2 : 1) / LV_GARDEN.friendShiny }; }
       }
     }
+    if (vis) visits.push({ d, id: vis.id, kind: vis.kind });
     if (hook) { const add = hook(d, { visitor: vis, gift: gd, samen, plots, maxPlots, deko }) || []; add.forEach((x) => { const act = Object.assign({ d }, x); acts.push(act); (byDay[d] = byDay[d] || []).push(act); if (gd && x.a === 'gift' && !gifts[d]) { gifts[d] = 1; if (gd.n) { samen += gd.n; earned += gd.n; } else deko.push(gd.deko); } }); }
     // Entscheidungen des Tages (in Reihenfolge); ungültige werden ignoriert
     (byDay[d] || []).forEach((a) => {
@@ -347,6 +359,9 @@ function levelGarden(src, lv, today, r, hook) { // hook(d, lage) → Entscheidun
         const k = plots.length + log.length;
         if (pool.length) { const m = pool[Math.floor(lvHash(seed, 's' + d + k) * pool.length)]; plots.push({ id: m.id, kind: 'sow', at: d, stage: 'egg', t: 0, grow: 0 }); log.push({ d, kind: 'sow', id: m.id }); }
         else plots.push({ id: null, kind: 'sow', at: d, stage: 'egg', t: 0, grow: 0, surprise: lvHash(seed, 'ss' + d + k) < 1 / LV_GARDEN.friendShiny ? 'shiny' : 'seeds' });
+      } else if (a.a === 'deko' && /^s\d\d$/.test(a.m || '')) { // Saison-Deko: nur im eigenen Monat, ab 10 gezählten Tagen, 150 Samen
+        const se = LV_SEASONS[+a.m.slice(1) - 1], key = d.slice(0, 7);
+        if (se && +d.slice(5, 7) === se.m && (monthCount[key] || 0) >= 10 && !deko.includes(a.m) && samen >= se.deko.cost) { samen -= se.deko.cost; deko.push(a.m); log.push({ d, kind: 'deko', id: a.m }); }
       } else if (a.a === 'deko') {
         const it = LV_DEKO.find((x) => x.id === a.m);
         if (it && !it.gift && !deko.includes(it.id) && samen >= it.cost) { samen -= it.cost; deko.push(it.id); log.push({ d, kind: 'deko', id: it.id }); }
@@ -374,7 +389,7 @@ function levelGarden(src, lv, today, r, hook) { // hook(d, lage) → Entscheidun
   }
   const resident = LV_BONUS.filter((b) => owned[b.id] && owned[b.id].via === 'garden' && !plots.some((p) => p.id === b.id) && owned[b.id].forms >= 2).map((b) => b.id);
   const unlocked = LV_BONUS.filter((b) => earned >= LV_UNLOCK[b.id][0] || r.curMonth >= LV_UNLOCK[b.id][1]).map((b) => b.id);
-  return { ledger, acts: hook ? acts.filter((x) => x.a !== 'gift') : undefined, gifts: hook ? gifts : undefined, samen, earned, rank: lvRank(earned), plots, maxPlots: earned >= LV_GARDEN.plot6 ? LV_GARDEN.plots : LV_GARDEN.plots - 1, deko, owned, resident, unlocked, visitor, gift, log, todayTypes: lvDayTypes(src, today) };
+  return { ledger, visits, monthCount, acts: hook ? acts.filter((x) => x.a !== 'gift') : undefined, gifts: hook ? gifts : undefined, samen, earned, rank: lvRank(earned), plots, maxPlots: earned >= LV_GARDEN.plot6 ? LV_GARDEN.plots : LV_GARDEN.plots - 1, deko, owned, resident, unlocked, visitor, gift, log, todayTypes: lvDayTypes(src, today) };
 }
 /* ---------- Sammlung (Etappe 3): Monster-Verzeichnis, Begegnungen, Feldnotizen, Kostüme ---------- */
 // Reihenfolge im Album: Starter, Monatsmonster, Bonus, Legendäre. Nummern wie auf den Sammelkarten.
@@ -473,6 +488,66 @@ function levelGiftCode(id, nonce) {
   const b = []; lvBitsPush(b, 2, 4); lvBitsPush(b, i, 5); lvBitsPush(b, nonce >>> 0 & 0xFFFFFF, 24);
   return lvEncode(b);
 }
+/* ---------- Monatspostkarte (BM5): nur Monster und Zähler fürs Dranbleiben, nie Kalorien, Mengen oder Gewicht ---------- */
+function levelPostcard(src, lv, key, r, g) {
+  if (!r || !g || key < r.start.slice(0, 7)) return null;
+  const inM = (d) => d.slice(0, 7) === key;
+  const m = r.months.find((x) => x.key === key && x.form >= 0);
+  const k1 = r.start.slice(0, 7) === key;
+  const lead = m ? { id: m.monster.id, tpl: m.monster.tpl + m.form, name: m.monster.forms[m.form], shiny: m.shiny, type: m.monster.type }
+    : k1 && r.starter ? { id: r.starter.id, tpl: r.starter.tpl + r.starterStage, name: r.starter.forms[r.starterStage], shiny: r.starterShiny, type: r.starter.type } : null;
+  const vis = g.visits.filter((v) => inM(v.d));
+  const guests = [...new Set(vis.map((v) => v.id))].slice(0, 2);
+  let done = 0; Object.entries(g.ledger.byDay).forEach(([d, x]) => { if (inM(d)) done += ['own', 'fill', 'slice'].reduce((a, k) => a + Math.round((x.parts[k] || 0) / LV_SAMEN[k]), 0); });
+  const shinies = g.log.filter((x) => x.kind === 'shiny' && inM(x.d)).length + (m && m.shiny ? 1 : 0);
+  return { key, lead, guests, days: g.monthCount[key] || 0, visits: vis.length, done, shinies, season: LV_SEASONS[+key.slice(5, 7) - 1] };
+}
+
+/* ---------- Arena-Duell (AD1/AD2): Stärke nur aus Form und Typ; Sieg vergoldet nur das Emblem – keine XP, keine Samen ---------- */
+// Typenrad: jeder Typ ist stark (×1,5) gegen den nächsten im Rad und schwach (×0,75) gegen den vorigen; Legendäre ohne Typ
+function lvTypeMult(att, def) {
+  const a = LV_TYPES.indexOf(att), b = LV_TYPES.indexOf(def);
+  if (a < 0 || b < 0) return 1;
+  if ((a + 1) % LV_TYPES.length === b) return 1.5;
+  if ((b + 1) % LV_TYPES.length === a) return 0.75;
+  return 1;
+}
+function lvFighter(m, f, nForms, shiny) {
+  const lvl = nForms <= 1 ? 2 : Math.round(f / (nForms - 1) * 2); // 0 Baby · 1 Normal · 2 Super
+  const hp = 60 + 25 * lvl;
+  return { id: m.id, tpl: m.tpl + f, name: m.forms ? m.forms[f] : m.name, type: m.type || 'Legendär', lvl, hp, max: hp, atk: 12 + 6 * lvl, special: true, guard: false, shiny: !!shiny, skip: false };
+}
+// Arena-Leitung: Monster der Lieblingstypen der Arena, Form wächst mit der Arena-Nummer
+function levelArenaLeader(i) {
+  const a = LV_ARENAS[i]; if (!a) return [];
+  const pool = [].concat(LV_MONTHLY, LV_BONUS).filter((m) => a.fav.includes(m.type));
+  const n = Math.min(a.slots - 1, 3), out = [];
+  const picks = pool.map((_, k) => pool[(i * 2 + k) % pool.length]).slice(0, Math.min(n, pool.length)); // Pool je Arena gedreht, keine Doppelten
+  for (let k = 0; k < picks.length; k++) {
+    const m = picks[k];
+    const f = Math.min(m.forms.length - 1, i < 2 ? 1 : 2) - (k === n - 1 && i < 4 ? 1 : 0);
+    out.push(lvFighter(m, Math.max(0, f), m.forms.length));
+  }
+  if (a.fav.includes('legendär')) return LV_LEGENDS.map((l) => lvFighter({ id: l.id, tpl: l.tpl, name: l.name, type: 'Legendär' }, 0, 1));
+  return out;
+}
+// Ein Zug: 'attack' | 'special' | 'guard'. rnd() ∈ [0,1). Gibt Text-Ereignisse zurück.
+function lvDuelHit(att, def, rnd, power = 1) {
+  const mult = lvTypeMult(att.type, def.type);
+  let dmg = Math.round(att.atk * mult * power * (0.9 + 0.2 * rnd()));
+  if (def.guard) { dmg = Math.round(dmg / 2); def.guard = false; }
+  def.hp = Math.max(0, def.hp - dmg);
+  return { dmg, mult };
+}
+function lvDuelMove(att, def, move, rnd) {
+  if (att.skip) { att.skip = false; return { who: att.name, move: 'skip' }; }
+  if (move === 'guard') { att.guard = true; return { who: att.name, move }; }
+  if (move === 'special' && att.special) { att.special = false; const h = lvDuelHit(att, def, rnd, 1.2); def.skip = true; return Object.assign({ who: att.name, move }, h); }
+  return Object.assign({ who: att.name, move: 'attack' }, lvDuelHit(att, def, rnd));
+}
+// Einfache Gegner-Taktik: Spezial bei halber Kraft, sonst angreifen, ab und zu abwehren
+function lvDuelAI(me, foe, rnd) { return me.special && me.hp <= me.max / 2 ? 'special' : rnd() < 0.15 ? 'guard' : 'attack'; }
+
 // Aktion mit Lebensmittel-Bezug merken (für Samen erst nach dem ersten Eintrag). Zählt zusätzlich wie levelEvent für die XP.
 function levelFoodEvent(s, kind, iso, foodId) {
   if (!s.level) return;
@@ -491,5 +566,5 @@ function levelGardenAct(s, act, iso) {
 const LEVEL_DEFAULTS = () => ({ enabled: false, startDate: null, starter: null, theme: 'veg', arenas: {}, ev: {}, toasts: true, seed: null, seen: null, lively: true, garden: { acts: [], gifts: {} }, fx: {}, trades: { given: [], got: [] }, friend: null });
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { LV_CFG, LV_STARTERS, LV_MONTHLY, LV_LEGENDS, LV_BONUS, LV_ARENAS, levelCompute, levelCollection, levelEvent, lvCountedDays, lvMonthIdx, lvMonthOrder, lvShinyList, LEVEL_DEFAULTS, LV_GARDEN, LV_RANKS, LV_UNLOCK, LV_DEKO, lvFoodTypes, lvDayTypes, levelGarden, levelGardenAct, lvRank, levelDex, levelCostumes, LV_COSTUMES, lvSamenLedger, levelFoodEvent, LV_SAMEN, levelCollectionCode, levelParseCode, levelGiftCode };
+  module.exports = { LV_CFG, LV_STARTERS, LV_MONTHLY, LV_LEGENDS, LV_BONUS, LV_ARENAS, levelCompute, levelCollection, levelEvent, lvCountedDays, lvMonthIdx, lvMonthOrder, lvShinyList, LEVEL_DEFAULTS, LV_GARDEN, LV_RANKS, LV_UNLOCK, LV_DEKO, lvFoodTypes, lvDayTypes, levelGarden, levelGardenAct, lvRank, levelDex, levelCostumes, LV_COSTUMES, lvSamenLedger, levelFoodEvent, LV_SAMEN, levelCollectionCode, levelParseCode, levelGiftCode, LV_SEASONS, levelPostcard, lvTypeMult, lvFighter, levelArenaLeader, lvDuelMove, lvDuelAI };
 }

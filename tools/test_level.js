@@ -151,6 +151,30 @@ eq('Typ Tomate+Zwiebel', L.lvFoodTypes('Tomaten-Zwiebel-Salat').sort(), ['Blatt'
   eq('Kleinbuchstaben ok', L.levelParseCode(gc.toLowerCase()).id, 'tomi');
 }
 
+// 11) Saison, Postkarte, Duell
+{
+  eq('Typenrad Frucht→Blatt', [L.lvTypeMult('Frucht', 'Blatt'), L.lvTypeMult('Blatt', 'Frucht'), L.lvTypeMult('Hülse', 'Frucht'), L.lvTypeMult('Frucht', 'Pilz')], [1.5, 0.75, 1.5, 1]);
+  eq('Saison Oktober', L.LV_SEASONS[9].name, 'Kürbiszeit');
+  const lead = L.levelArenaLeader(0);
+  ok('Arena 0: Leitung aus Blatt/Spross', lead.length >= 2 && lead.every((f) => ['Blatt', 'Spross'].includes(f.type)));
+  ok('Leitung ohne doppelte Monster', [0, 1, 2, 3, 4, 5, 6].every((i) => { const l = L.levelArenaLeader(i).map((f) => f.id); return new Set(l).size === l.length; }));
+  const a = L.lvFighter(L.LV_MONTHLY[1], 2, 3), b = L.lvFighter(L.LV_MONTHLY[0], 2, 3); // Kürbrock (Frucht) gegen Brokkolos (Blatt)
+  const e = L.lvDuelMove(a, b, 'attack', () => 0.5);
+  eq('Treffer sehr effektiv', [e.mult, e.dmg, b.hp], [1.5, 36, 74]);
+  b.guard = true; const e2 = L.lvDuelMove(a, b, 'special', () => 0.5);
+  eq('Spezial halbiert durch Abwehr, Gegner setzt aus', [e2.dmg, b.skip, a.special], [22, true, false]);
+  eq('Aussetzen', L.lvDuelMove(b, a, 'attack', () => 0.5).move, 'skip');
+  const days = {}; let d = '2026-09-01'; while (d <= '2026-10-13') { days[d] = [{ n: 'Kürbis', k: 1 }]; d = new Date(new Date(d + 'T12:00:00Z').getTime() + 864e5).toISOString().slice(0, 10); }
+  const S = src(days), lv = { startDate: '2026-09-01', starter: 'tomi', seed: 5, garden: { acts: [{ d: '2026-10-05', a: 'deko', m: 's10' }, { d: '2026-10-05', a: 'deko', m: 's09' }], gifts: {} } };
+  const S2 = src(days, { ev: { '2026-10-01': { scan: 4 }, '2026-10-02': { scan: 4 }, '2026-10-03': { scan: 4 } } });
+  const r = L.levelCompute(S2, lv, '2026-10-13'), g = L.levelGarden(S2, lv, '2026-10-13', r);
+  eq('Saison-Deko nur im eigenen Monat ab 10 Tagen', g.deko, []);
+  lv.garden.acts = [{ d: '2026-10-12', a: 'deko', m: 's10' }];
+  eq('Saison-Deko Oktober nach 10 Tagen', L.levelGarden(S2, lv, '2026-10-13', r).deko, ['s10']);
+  const pc = L.levelPostcard(S2, lv, '2026-09', r, g);
+  eq('Postkarte September: Starter, 30 Tage', [pc.lead.id, pc.days], ['tomi', 30]);
+}
+
 // 7) Start in der Zukunft oder fehlend
 eq('ohne Start', L.levelCompute(src({}), {}, '2026-10-12'), null);
 

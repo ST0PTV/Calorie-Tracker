@@ -97,10 +97,11 @@ function lvOpenDex(id, f) {
       ${notes.map((t, k) => `<div class="lvd-note ${e.notes[k] ? 'on' : ''}"><span>${e.notes[k] ? '✓' : '?'}</span><p>${e.notes[k] ? esc(t) : `Schalte frei: ${esc(need[k])}`}</p></div>`).join('')}</div>
     ${e.kind !== 'legend' ? `<div class="card"><div class="lv-sh"><h2>Lockt an</h2><span class="small muted">${esc(e.type)}</span></div><div class="lvd-lure">${(LV_LURE[e.type] || '').split(', ').map((x) => `<span>${esc(x)}</span>`).join('')}</div>
       <p class="small muted" style="margin:8px 0 0">Begegnungen zählen Tage, an denen so etwas im Journal stand – nur ob, nie wie viel.</p></div>` : ''}
-    ${e.kind === 'starter' && e.have > 1 ? '<button class="btn secondary block" id="lvdEvo">Entwicklung ansehen</button>' : ''}
+    <div class="row"><button class="btn secondary" id="lvdShare">Als Bild teilen</button>${e.kind === 'starter' && e.have > 1 ? '<button class="btn secondary" id="lvdEvo">Entwicklung ansehen</button>' : ''}</div>
     <div style="height:20px"></div>`);
   $('#lvdBack').onclick = () => lvOpenCollection();
   document.querySelectorAll('.lvd-forms [data-f]').forEach((b) => b.onclick = () => lvOpenDex(id, +b.dataset.f));
+  const sh = $('#lvdShare'); if (sh) sh.onclick = () => lvShareCard(id, f);
   const ev = $('#lvdEvo'); if (ev) ev.onclick = () => lvShowEvo(e.tpl + e.have - 2, e.tpl + e.have - 1, e.forms[e.have - 1], 'Dein Starter', e.shiny, true);
 }
 

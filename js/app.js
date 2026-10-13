@@ -502,6 +502,7 @@ function renderDiary() {
   html += empty;
   html += trackerCardsHtml(currentDate);
   if (typeof lvVisitorHtml === 'function') html += lvVisitorHtml(currentDate);
+  if (typeof lvIntroCardHtml === 'function') html += lvIntroCardHtml(currentDate);
   if (currentDate === isoDate(new Date())) html += insWeekCardHtml(currentDate); // Wochenrückblick Mo–Mi
   html += suggestionCardHtml(currentDate);
   if (!empty) html += dayTimelineHtml(currentDate);
@@ -516,6 +517,7 @@ function renderDiary() {
   insBindWeek(currentDate, rerender);
   bindTrackerCards(currentDate, rerender);
   if (typeof lvBindVisitor === 'function' && v.querySelector('#lvgVisCard')) lvBindVisitor(null, rerender, v);
+  if (typeof lvBindIntroCard === 'function') lvBindIntroCard(rerender);
   bindDayTimeline(currentDate, rerender);
   bindClosingCard(currentDate, rerender);
   bindEntrySwipe(currentDate, rerender);

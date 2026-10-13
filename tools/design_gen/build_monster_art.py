@@ -45,7 +45,8 @@ js = ('/* Gemüsemonster – generiert von tools/design_gen/build_monster_art.py
       f'const MONSTER_HATS = {json.dumps(hats, ensure_ascii=False)};\n'
       f'const GARDEN_SCENES = {json.dumps(garden, ensure_ascii=False)};\n'
       f'const MONSTER_ANCHOR = {json.dumps(anchors)};\n'
-      "if (typeof module !== 'undefined' && module.exports) module.exports = { MONSTER_ART, MONSTER_PLAIN, MONSTER_NAMES, MONSTER_HATS, MONSTER_ANCHOR, GARDEN_SCENES, MONSTER_SIG };\n")
+      f'const ARENA_SCENES = {json.dumps({k: re.sub(r"\\s+", " ", v.strip()).replace('class="scene"', 'class="lva-scn"', 1) for k, v in r3_more.SCN.items()}, ensure_ascii=False)};\n'
+      "if (typeof module !== 'undefined' && module.exports) module.exports = { MONSTER_ART, MONSTER_PLAIN, MONSTER_NAMES, MONSTER_HATS, MONSTER_ANCHOR, GARDEN_SCENES, MONSTER_SIG, ARENA_SCENES };\n")
 open(os.path.join(REPO, 'js/monster_art.js'), 'w', encoding='utf-8').write(js)
 
 css = ('/* Gemüsemonster-Animationen – generiert (build_monster_art.py) */\n' + anim.css_lib(tap=True) + '\n'

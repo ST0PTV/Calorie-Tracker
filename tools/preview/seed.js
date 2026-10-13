@@ -88,6 +88,7 @@
       make: () => garden((g) => g.visitor && g.visitor.kind === 'new' && !g.gift && g.samen >= 40 && g.plots.length, 'maisi') },
     gift: { t: 'Mitbringsel heute', d: 'Wie oben, aber ein Monster hat heute etwas mitgebracht (erscheint beim Öffnen).',
       make: () => garden((g) => g.gift && !g.gift.claimed && g.plots.length, null) },
+    intro: { t: 'Bestehende App, Spiel noch aus', d: 'Daten seit Juli, Level-System ausgeschaltet → Hinweiskarte im Journal mit Einführung.', make: () => base(START, add(TODAY, -1), () => rnd() < 0.12) },
     fresh: { t: 'Neu ohne Daten', d: 'Leere App, Level-System an → Ei wählen und ausbrüten.', make: () => ({ days: {}, level: { enabled: true } }) },
   };
   let cur = localStorage.getItem(SKEY) || 'visit';

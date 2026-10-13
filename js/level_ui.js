@@ -163,6 +163,7 @@ function lvOpenProgress() {
       <button class="card lv-tile" id="lvWard">${typeof LVC_HAT_ICON === 'function' ? LVC_HAT_ICON(state.level.costume || 'kuerbis') : ''}<span><small>Kleiderschrank</small><b>${typeof lvWear === 'function' && lvWear(r).costume ? 'Kostüm an' : 'Kostüme'}</b></span></button>
       <button class="card lv-tile" id="lvColl"><span class="lv-cnt">${coll.monsters}/${coll.totalMonsters || 23}</span><span><small>Sammlung</small><b>${coll.forms} Formen</b></span></button>
     </div>
+    ${typeof lvExtrasTiles === 'function' ? lvExtrasTiles(r) : ''}
     ${typeof lvGardenTeaser === 'function' ? lvGardenTeaser(r) : ''}
     ${nextM ? `<div class="card lv-next">${lvEgg(46)}<div><b>Nächstes Monatsei</b><div class="small muted">schlüpft am ${nextM} – welches Monster, entscheidet der Zufall.</div></div></div>` : ''}
     <p class="small muted" style="margin:10px 4px 24px">Hier zählt nur, dass du einträgst – nicht, wie viel du isst. Ausgelassene Tage kosten nichts.</p>`);
@@ -171,6 +172,7 @@ function lvOpenProgress() {
   $('#lvWard').onclick = () => lvOpenWardrobe();
   if (typeof lvBindGardenTeaser === 'function') lvBindGardenTeaser();
   if (typeof lvBindExplorerCard === 'function') lvBindExplorerCard();
+  if (typeof lvBindExtras === 'function') lvBindExtras();
   $('#lvBig').onclick = (ev) => { const b = ev.currentTarget; b.classList.remove('lv-boing'); void b.offsetWidth; b.classList.add('lv-boing'); };
 }
 
@@ -258,6 +260,7 @@ function lvAfterRender() {
   if (!lv || !lv.enabled || !lv.starter || document.getElementById('lvOv')) return;
   const r = lvNow(); if (!r) return;
   if (typeof lvGardenEvents === 'function' && lvGardenEvents(r)) return;
+  if (typeof lvPostcardNotice === 'function') lvPostcardNotice(r);
   const now = lvSnap(r), was = lv.seen;
   if (!was) { lv.seen = now; save(); return; }
   const c = lvCurrent(r);
@@ -276,6 +279,7 @@ function lvAfterRender() {
 }
 
 /* ---------- Einstellungen ---------- */
+let lvResetAsk = false;
 function lvSettingsCard() {
   const lv = state.level;
   return `<div class="card" id="lvSet"><h2>Level-System</h2>
@@ -283,12 +287,23 @@ function lvSettingsCard() {
     <label class="switch"><input type="checkbox" id="lvOn" ${lv.enabled ? 'checked' : ''}> Level-System anzeigen</label>
     <label class="switch"><input type="checkbox" id="lvLively" ${lv.lively !== false ? 'checked' : ''}> Lebhafte Monster (typische Aktionen)</label>
     <label class="switch"><input type="checkbox" id="lvToasts" ${lv.toasts !== false ? 'checked' : ''}> Meldungen beim Eintragen</label>
+    <label class="switch"><input type="checkbox" id="lvVisit" ${lv.visitorCard !== false ? 'checked' : ''}> Besucher-Karte im Journal</label>
     ${lv.enabled && lv.starter ? '<button class="btn secondary block" id="lvOpen" style="margin-top:10px">Fortschritt öffnen</button>' : lv.enabled ? '<button class="btn block" id="lvPick" style="margin-top:10px">Starter wählen</button>' : ''}
-    <p class="small muted" style="margin:8px 0 0">„Bewegung reduzieren“ auf dem iPhone hält alle Monster an.</p></div>`;
+    <button class="btn ghost block" id="lvIntro" style="margin-top:4px">Einführung ansehen</button>
+    <p class="small muted" style="margin:8px 0 0">„Bewegung reduzieren“ auf dem iPhone hält alle Monster an. Alle Spieldaten liegen nur auf diesem iPhone und sind im Backup enthalten.</p>
+    ${lv.starter ? `<div id="lvResetBox" style="margin-top:10px">${lvResetAsk ? `<p class="small" style="margin:0 0 8px"><b>Wirklich zurücksetzen?</b> Starter, Garten, Sammlung, Embleme und Tausch werden gelöscht. Deine Journal-Daten bleiben unverändert.</p><div class="row"><button class="btn danger" id="lvResetYes">Zurücksetzen</button><button class="btn secondary" id="lvResetNo">Abbrechen</button></div>` : '<button class="btn danger block" id="lvReset">Level-System zurücksetzen</button>'}</div>` : ''}</div>`;
 }
 function lvBindSettings() {
   const on = $('#lvOn'); if (!on) return;
-  on.onchange = () => { state.level.enabled = on.checked; save(); render(); if (on.checked && !state.level.starter) lvOpenStart(); };
+  on.onchange = () => { state.level.enabled = on.checked; save(); render(); if (on.checked && !state.level.starter) { if (typeof lvOpenIntro === 'function' && !state.level.intro) lvOpenIntro(1); else lvOpenStart(); } };
+  $('#lvVisit').onchange = (e) => { state.level.visitorCard = e.target.checked; save(); };
+  $('#lvIntro').onclick = () => lvOpenIntro(0);
+  const rs = $('#lvReset'); if (rs) rs.onclick = () => { lvResetAsk = true; render(); setOpen.add('Level-System'); render(); };
+  const rn = $('#lvResetNo'); if (rn) rn.onclick = () => { lvResetAsk = false; render(); };
+  const ry = $('#lvResetYes'); if (ry) ry.onclick = () => {
+    const keep = { ev: state.level.ev, fx: state.level.fx, lively: state.level.lively, toasts: state.level.toasts, intro: state.level.intro, enabled: true };
+    state.level = Object.assign(LEVEL_DEFAULTS(), keep); lvResetAsk = false; save(); render(); toast('Level-System zurückgesetzt');
+  };
   $('#lvLively').onchange = (e) => { state.level.lively = e.target.checked; save(); };
   $('#lvToasts').onchange = (e) => { state.level.toasts = e.target.checked; save(); };
   const o = $('#lvOpen'); if (o) o.onclick = lvOpenProgress;

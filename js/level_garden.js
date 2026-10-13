@@ -58,6 +58,7 @@ function lvgPct(x, y, size) { return `left:${(x / LVG_W * 100).toFixed(2)}%;top:
 function lvGardenScene(r, g, o = {}) {
   const season = o.season || lvSeasonKey(), night = season === 'nacht';
   let deko = g.deko.map((id) => LVG_DEKO_ART[id] || '').join('');
+  if (typeof lvSeasonDekoSvg === 'function') deko += lvSeasonDekoSvg(g);
   if (night && g.deko.includes('laterne')) deko += '<circle class="i-glow" cx="328" cy="314" r="38" fill="#FFE08A" opacity=".25"/>';
   const plotHtml = LVG_PLOTS.map(([x, y], i) => {
     const p = g.plots[i];
@@ -116,7 +117,7 @@ function lvOpenGarden(scrollTo) {
     ${vis}
     <div class="card" id="lvgBeet"><div class="lv-sh"><h2>Beet</h2><span class="small muted">Eier schlüpfen nach ${LV_GARDEN.hatchDays} getrackten Tagen</span></div><div class="lvg-plots">${plots}</div>
       <p class="small muted" style="margin:8px 0 0">Eingeladene Besucher kommen als Ei ins Beet. Säen bringt eine Überraschung – gewichtet nach den Gemüsen deiner Woche. Ist ein Monster ausgewachsen, zieht es in den Garten.</p></div>
-    <div class="card"><div class="lv-sh"><h2>Deko</h2><span class="small muted">mit Samen</span></div><div class="lvg-dks">${deko}</div></div>
+    <div class="card"><div class="lv-sh"><h2>Deko</h2><span class="small muted">mit Samen</span></div><div class="lvg-dks">${deko}${typeof lvSeasonIcon === 'function' ? (() => { const se = lvSeasonOf(today); const own = g.deko.includes(se.deko.id); return `<button class="lvg-dk ${own ? 'own' : ''}" id="lvgSea">${lvSeasonIcon(se.deko.id, 40)}<b>${esc(se.deko.name)}</b><small>${own ? 'Saison · im Garten' : `Saison · ${se.deko.cost} Samen`}</small></button>`; })() : ''}</div></div>
     <div class="card"><div class="lv-sh"><h2>Entdecker-Rang</h2><span class="small muted">${g.earned} Samen gesammelt</span></div>
       <div class="lvg-rank"><b>${rk.name}</b>${nxt ? `<span class="small muted">noch ${nxt.need - g.earned} bis ${nxt.name}</span>` : '<span class="small muted">höchster Rang</span>'}</div>
       <div class="lv-bar"><span style="width:${Math.round(Math.min(1, pct) * 100)}%;background:#B9E07A"></span></div>
@@ -127,6 +128,7 @@ function lvOpenGarden(scrollTo) {
     <div style="height:16px"></div>`);
   $('#lvgClose').onclick = closeSheet;
   const ge = $('#lvgExpl'); if (ge) ge.onclick = () => lvOpenExplorer();
+  const gs = $('#lvgSea'); if (gs) gs.onclick = () => lvOpenSeason();
   lvBindVisitor(g, () => lvOpenGarden(), $('#sheet'));
   document.querySelectorAll('[data-sow]').forEach((b) => b.onclick = () => {
     if (g.samen < LV_GARDEN.sow) { toast(`Noch ${LV_GARDEN.sow - g.samen} Samen bis zum Säen`); return; }
@@ -174,7 +176,7 @@ function lvVisitorCard(g, inGarden) {
 function lvMonName(id, g) { const m = lvMon(id), o = g.owned[id]; return m.forms[Math.max(0, Math.min(m.forms.length - 1, ((o && o.forms) || 1) - 1))]; }
 function lvVisitorHtml(iso) {
   const lv = state.level;
-  if (!lv || !lv.enabled || !lv.starter || iso !== lvToday() || (lv.garden && lv.garden.later === iso)) return '';
+  if (!lv || !lv.enabled || !lv.starter || lv.visitorCard === false || iso !== lvToday() || (lv.garden && lv.garden.later === iso)) return '';
   const g = lvG(); if (!g || !g.visitor || g.visitor.done) return '';
   return lvVisitorCard(g, false);
 }
