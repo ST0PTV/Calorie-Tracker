@@ -811,22 +811,10 @@ input, select { font-size: max(16px, 1rem); }
 .welcome { display: flex; gap: 14px; align-items: center; border-color: rgba(var(--accent-rgb), 0.3); }
 .welcome > div { flex: 1; }
 
-/* Tracker-Kacheln */
-.tk-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 0 0 12px; }
-.tk-tiles.n3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } .tk-tiles.n2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tk-tiles.n1 { grid-template-columns: 1fr; }
-.tk-tile { --tc: var(--water); --tr: var(--water-rgb); border-radius: 18px; border: 1px solid rgba(var(--tr), 0.30); background: rgba(var(--tr), 0.07); padding: 4px 4px 8px; display: flex; flex-direction: column; align-items: center; min-width: 0; }
-.tk-tile.t-caf { --tc: var(--caf); --tr: var(--caf-rgb); } .tk-tile.t-supp { --tc: var(--good); --tr: var(--good-rgb); } .tk-tile.t-alc { --tc: var(--alc); --tr: var(--alc-rgb); }
-.tk-tile.warn.t-supp { border-color: rgba(var(--warn-rgb), 0.6); background: rgba(var(--warn-rgb), 0.10); }
-.tk-tile.warn.t-caf b { color: var(--warn); }
-.tk-open { width: 100%; border: 0; background: none; color: var(--ink); font: inherit; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 8px 2px 4px; cursor: pointer; min-width: 0; }
-.tk-open .ic { color: var(--tc); width: 20px; height: 20px; }
-.tk-open b { font-size: 0.9375rem; font-weight: 600; margin-top: 3px; white-space: nowrap; }
-.tk-open span { font-size: 0.6875rem; color: var(--muted); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-.tk-act { width: 46px; height: 34px; border-radius: 12px; border: 0; background: rgba(var(--tr), 0.18); color: var(--tc); display: grid; place-items: center; cursor: pointer; position: relative; }
-.tk-act::before { content: ''; position: absolute; inset: -5px -4px; }
-.tk-act .ic { width: 19px; height: 19px; stroke-width: 2.3; }
-.tk-tile.done .tk-act { background: var(--tc); color: var(--on-col); }
-.tk-tile.pulse { animation: tkPulse .7s ease-out; }
+/* Tracker-Karten im Journal (seit 2.2.0 wieder ganze Karten) */
+.tk-wrap { --tr: var(--water-rgb); border-radius: 22px; }
+.tk-wrap[data-tkc="caf"] { --tr: var(--caf-rgb); } .tk-wrap[data-tkc="supp"] { --tr: var(--good-rgb); } .tk-wrap[data-tkc="alc"] { --tr: var(--alc-rgb); }
+.tk-wrap.pulse > .card { animation: tkPulse .7s ease-out; }
 @keyframes tkPulse { 0% { box-shadow: 0 0 0 0 rgba(var(--tr), 0.55); } 100% { box-shadow: 0 0 0 14px rgba(var(--tr), 0); } }
 .tk-sheet .card { margin-top: 4px; }
 

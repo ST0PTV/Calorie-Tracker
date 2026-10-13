@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '2.1.1';
+const APP_VERSION = '2.2.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -497,7 +497,7 @@ function renderDiary() {
     </div>`;
   const empty = emptyDayHtml(currentDate);
   html += empty;
-  html += trackerTilesHtml(currentDate);
+  html += trackerCardsHtml(currentDate);
   if (currentDate === isoDate(new Date())) html += insWeekCardHtml(currentDate); // Wochenrückblick Mo–Mi
   html += suggestionCardHtml(currentDate);
   if (!empty) html += dayTimelineHtml(currentDate);
@@ -506,11 +506,11 @@ function renderDiary() {
   }
   v.innerHTML = html;
   justAdded.clear();
-  if (pulseKey) { const el = v.querySelector(`.tk-tile.t-${pulseKey}`); if (el) el.classList.add('pulse'); pulseKey = null; }
+  if (pulseKey) { const el = v.querySelector(`[data-tkc="${pulseKey}"]`); if (el) el.classList.add('pulse'); pulseKey = null; }
   heroAnimate(currentDate);
   bindSuggestionCard(currentDate, rerender);
   insBindWeek(currentDate, rerender);
-  bindTrackerTiles(currentDate, rerender);
+  bindTrackerCards(currentDate, rerender);
   bindDayTimeline(currentDate, rerender);
   bindClosingCard(currentDate, rerender);
   bindEntrySwipe(currentDate, rerender);

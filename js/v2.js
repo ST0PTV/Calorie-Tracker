@@ -72,45 +72,27 @@ function bindDayHeader(onDay) {
   const p = $('#dayPick'); if (p) p.onchange = () => { if (/^\d{4}-\d{2}-\d{2}$/.test(p.value)) onDay(p.value); };
 }
 
-/* ---------- Tracker-Kacheln (Wasser, Koffein, Supplements, Alkohol) ---------- */
-function trackerTilesHtml(iso) {
-  const tiles = [];
-  const isToday = iso === isoDate(new Date()), nowH = Date.now() / 36e5;
-  if (state.water.enabled) {
-    const ml = waterOf(iso), g = waterGoalFor(iso);
-    tiles.push({ k: 'water', icon: 'drop', v: `${(ml / 1000).toLocaleString('de-DE', { maximumFractionDigits: 1, minimumFractionDigits: 1 })} l`, s: `von ${(g / 1000).toLocaleString('de-DE', { maximumFractionDigits: 1 })} l`, act: 'plus', lab: `${state.water.step || 250} ml Wasser eintragen`, done: ml >= g });
-  }
-  if (state.caffeine.enabled) {
-    const c = state.caffeine, ke = caffKe(c), doses = caffDoses(c, iso), { bed } = caffBedWake(c, iso);
-    const v = isToday ? caffLevel(doses, nowH, ke) : caffSum(c, iso);
-    const bedL = caffLevel(doses, bed, ke);
-    tiles.push({ k: 'caf', icon: 'cup', v: `${r0(v)} mg`, s: isToday ? `Bett ~${r0(bedL)} mg` : 'aufgenommen', act: 'plus', lab: 'Koffein eintragen', warn: bedL >= c.threshold });
-  }
-  if (state.supp.enabled && suppItemsFor(iso).length) {
-    const items = suppItemsFor(iso), done = items.filter((x) => suppTaken(iso, x.id)).length;
-    const due = done < items.length && state.supp.remind && isToday && Date.now() >= suppSnoozeUntil;
-    tiles.push({ k: 'supp', icon: 'pill', v: `${done} / ${items.length}`, s: 'Supplements', act: 'check', lab: 'Supplements abhaken', warn: due, done: done === items.length });
-  }
-  if (state.alcohol.enabled) {
-    const grams = (state.alcohol.log[iso] || []).reduce((s, e) => s + alcGrams(e.ml, e.vol), 0);
-    let v = `${r0(grams)} g`;
-    if (alcW() && isToday) v = `${alcFmt(alcLevelAt(alcDoses(iso), nowH))} ‰`;
-    tiles.push({ k: 'alc', icon: 'glass', v, s: 'Alkohol', act: 'plus', lab: 'Getränk eintragen' });
-  }
-  if (!tiles.length) return '';
-  return `<div class="tk-tiles n${tiles.length}">${tiles.map((t) => `<div class="tk-tile t-${t.k} ${t.warn ? 'warn' : ''} ${t.done ? 'done' : ''}">
-      <button type="button" class="tk-open" data-tile="${t.k}" aria-label="${t.s} – Details">${ic(t.icon)}<b>${t.v}</b><span>${t.s}</span></button>
-      <button type="button" class="tk-act" data-tile-act="${t.k}" aria-label="${t.lab}">${ic(t.act)}</button></div>`).join('')}</div>`;
+/* ---------- Tracker-Karten im Journal (Supplements, Wasser, Koffein, Alkohol) ----------
+   Seit 2.2.0 wieder als ganze Karten wie in 1.x (Nutzerwunsch); die Kacheln aus 2.0 sind entfernt. */
+const TK_ORDER = ['supp', 'water', 'caf', 'alc'];
+function trackerCardsHtml(iso) {
+  const fn = { water: waterCardHtml, caf: caffCardHtml, alc: alcCardHtml, supp: suppCardHtml };
+  return TK_ORDER.map((k) => { const h = fn[k](iso); return h ? `<div class="tk-wrap" data-tkc="${k}">${h}</div>` : ''; }).join('');
 }
-function bindTrackerTiles(iso, rerender) {
-  document.querySelectorAll('[data-tile]').forEach((b) => b.onclick = () => openTrackerSheet(b.dataset.tile, iso));
-  document.querySelectorAll('[data-tile-act]').forEach((b) => b.onclick = () => {
-    const k = b.dataset.tileAct;
-    if (k === 'water') { const st = state.water.step || 250; waterAdd(iso, st); toast(`${fmt(st)} ml Wasser eingetragen`); pulse('water'); rerender(); }
-    else if (k === 'caf') openCaffeine(iso);
-    else if (k === 'alc') { if (alcW()) openAlcohol(iso); else openTrackerSheet('alc', iso); }
-    else openTrackerSheet('supp', iso);
-  });
+function bindTrackerCards(iso, rerender) {
+  // Bearbeiten-Blätter (z. B. Wasser-Eintrag) schließen beim Zurück; sonst nur das Journal neu zeichnen
+  const rr = () => { if (!$('#sheet').hidden) closeSheet(); else rerender(); };
+  bindWaterCard(iso, rr);
+  caffBindCard(iso);
+  alcBindCard(iso);
+  suppBind(iso, rr);
+}
+// Zur Karte im Journal springen; nur wenn sie dort nicht steht, das Blatt öffnen (vermeidet doppelte IDs)
+function showTracker(kind, iso) {
+  const el = tab === 'diary' && currentDate === iso ? document.querySelector(`#view [data-tkc="${kind}"]`) : null;
+  if (!el) { openTrackerSheet(kind, iso); return; }
+  el.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'center' });
+  el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse');
 }
 let pulseKey = null;
 function pulse(k) { pulseKey = k; }
@@ -170,8 +152,8 @@ function openPlus() {
     const k = b.dataset.pq; closePlus();
     if (k === 'water') { const st = state.water.step || 250; waterAdd(iso, st); toast(`${fmt(st)} ml Wasser eingetragen`); pulse('water'); render(); }
     else if (k === 'caf') openCaffeine(iso);
-    else if (k === 'alc') { if (alcW()) openAlcohol(iso); else openTrackerSheet('alc', iso); }
-    else if (k === 'supp') openTrackerSheet('supp', iso);
+    else if (k === 'alc') { if (alcW()) openAlcohol(iso); else showTracker('alc', iso); }
+    else if (k === 'supp') showTracker('supp', iso);
     else if (k === 'weight') insOpenWeight(() => render());
     else if (k === 'quick') { addTab = 'search'; openQuick(addMeal); }
     else { addTab = 'search'; addQuery = ''; openAdd(addMeal); }
@@ -429,8 +411,8 @@ function bindDayTimeline(iso, rerender) {
   const v = $('#view');
   v.querySelectorAll('[data-tcaf]').forEach((b) => b.onclick = () => { const e = (state.caffeine.log[iso] || []).find((x) => x.id === b.dataset.tcaf); if (e) openCaffeine(iso, e); });
   v.querySelectorAll('[data-talc]').forEach((b) => b.onclick = () => { const e = (state.alcohol.log[iso] || []).find((x) => x.id === b.dataset.talc); if (e) openAlcohol(iso, e); });
-  v.querySelectorAll('[data-twater]').forEach((b) => b.onclick = () => openTrackerSheet('water', iso));
-  v.querySelectorAll('[data-tsupp]').forEach((b) => b.onclick = () => openTrackerSheet('supp', iso));
+  v.querySelectorAll('[data-twater]').forEach((b) => b.onclick = () => showTracker('water', iso));
+  v.querySelectorAll('[data-tsupp]').forEach((b) => b.onclick = () => showTracker('supp', iso));
   const open = () => { tab = 'timeline'; render(); };
   const m = $('#tlModel'); if (m) m.onclick = open;
   const o = $('#tlOpen'); if (o) o.onclick = open;
