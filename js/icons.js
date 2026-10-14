@@ -63,7 +63,7 @@ function foodIconName(f) {
   if (f.quick) return 'bolt';
   const id = String(f.ref || f.id || '');
   if (id.startsWith('bls:')) return BLS_GROUP_ICON[id.charAt(4)] || 'food';
-  if (f.src === 'rcp' || f.src === 'recipe' || id.startsWith('rcp:')) return 'pot';
+  if (f.src === 'recipe') return 'pot';
   if (f.src === 'custom') return 'star';
   if (f.liq) return 'cup';
   return null; // unbekannt: Anfangsbuchstabe

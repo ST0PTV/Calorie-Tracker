@@ -26,15 +26,11 @@ Ein schlanker Kalorien-Tracker als Web-App (PWA) fürs iPhone. Er läuft komplet
 - Gewichtsziel: Bedarf aus Uhr (Gesamtverbrauch oder Grundumsatz × PAL) oder geschätzt (DGE-Formel × PAL); Tempo-Vorschläge mit Dauer und kcal (Abnahme höchstens 1 %/Woche, Zunahme höchstens 0,5 %/Woche); Kalorien-Untergrenze 1.200 kcal (Frauen, ohne Angabe) bzw. 1.500 kcal (Männer) nach Harvard Health, mit Warnhinweis; passt sich bei neuem Gewicht automatisch an (7.700 kcal/kg)
 - Reiter „Essen“: alle eigenen Lebensmittel (Vorgemerkt, Favoriten, Eigene, Zuletzt) mit Makro-Balken und „+“ ins Journal; „Einkauf erfassen“ merkt Lebensmittel per Barcode oder Suche vor, ohne sie einzutragen
 - Supplement-Tracker: eine Karte im Journal (Tippen = genommen), offene Supplements werden hervorgehoben („Alle genommen“, „Später“ = 1 Stunde); Auswahl aus 30 Supplements (inkl. vegan- und frauenrelevanter wie D3, Jod, Algenöl, Mönchspfeffer, Cranberry, Isoflavone) mit vorbelegter Menge, Icon (Form + Kürzel) und ⓘ: „Keine Empfehlung“, Studienlage (gut / teilweise / nicht belegt), BfR-Höchstmenge, Vorsicht, Quellen (BfR, EMA, Cochrane, NIH, NCCIH, ISSN …); Hinweis bei Menge über BfR-Höchstmenge; Koffein-Tabletten zählen im Koffein-Tracker mit. Keine Benachrichtigung bei geschlossener App (ohne Server nicht möglich)
-- Abend-Vorschläge ab einstellbarer Uhrzeit: 1–3 Lebensmittel mit Mengen, die die offenen Ziele treffen (Priorität Kalorien / Eiweiß / ausgewogen), bevorzugt aus eigenen Einträgen, bewertbar mit 👍/👎
-- Ernährungsform (vegetarisch, vegan) und Allergie-Filter für die Vorschläge
 - Lebensmittelsuche im Bundeslebensmittelschlüssel (offline)
 - Portions-Schnellwahl im Mengen-Dialog (Standardportionen nach SINU LARN 2024, Stückgewichte, Packungsportion, zuletzt verwendete Menge; mehrfach tippen = mehrere Portionen)
 - Barcode-Scan über die Kamera (Open Food Facts)
 - Favoriten, zuletzt verwendete und eigene Lebensmittel
 - Rezepte: Erstellung vorerst ausgeblendet (später Import aus einer anderen App); vorhandene eigene Rezepte bleiben nutzbar
-- Hinterlegte Rezepte für die Abend-Vorschläge (data/recipes.json, 42 Gerichte + 15 Snacks, vegan/vegetarisch/mit Fleisch oder Fisch, Allergene markiert): eigene Zusammenstellung, Nährwerte aus dem BLS berechnet (tools/recipes_src.py → tools/build_recipes.py); kein eigener Reiter, nicht änderbar
-- Abend-Vorschläge kompakt: eine Zeile je Lebensmittel/Gericht, Bewertung über „⋯“ (öfter / seltener / nie mehr), Details mit Zutaten und Kurzanleitung
 - Schnelleintrag (nur kcal)
 - Mahlzeit oder ganzen Tag vom Vortag übernehmen
 - Version 2.0 („Glas 2.0“): Plus-Knopf in der Tab-Leiste (Suche, Scanner, Wasser, Koffein, Gewicht, Supplements, Alkohol), Journal als Tagesverlauf mit Wochenleiste, Tracker-Kacheln, Wischen zum Löschen/Nochmal-Eintragen mit Rückgängig, Mengen-Lineal, Tagesabschluss am Abend, Analytics-Übersicht mit Detailseiten und Jahresansicht, Hell-Modus, Schriftgröße nach iPhone-Einstellung, eigene Icons
@@ -73,13 +69,6 @@ Eiweiß und Fett = Faktor (g/kg Körpergewicht) × Gewicht; Kohlenhydrate = (Kal
 | Fettabbau | 2,2 g/kg | 0,8 g/kg | 15–30 % | Helms et al. 2014, [doi:10.1123/ijsnem.2013-0054](https://doi.org/10.1123/ijsnem.2013-0054); Longland et al. 2016, [doi:10.3945/ajcn.115.119339](https://doi.org/10.3945/ajcn.115.119339); Helms, Aragon & Fitschen 2014, [doi:10.1186/1550-2783-11-20](https://doi.org/10.1186/1550-2783-11-20) |
 
 Die Presets ändern nur die Verteilung der Makros, nicht das Kalorienziel.
-
-## Abend-Vorschläge: Methode
-
-- **Offene Ziele:** Tagesziel (kcal und, falls gesetzt, Eiweiß/KH/Fett) minus bereits Gegessenes.
-- **Kandidaten:** zuerst Lebensmittel aus früheren Einträgen (abends Gegessenes bevorzugt), sonst eine Basisliste gängiger Kochzutaten aus dem BLS (`BASICS` in `tools/convert_bls.py`). Ausgeschlossen: Getränke, Süßwaren, Fertiggerichte, Brot/Backwaren, Gewürze, Öle sowie Lebensmittel mit zweimal 👎.
-- **Mengen:** Für jede Kombination werden die Grammzahlen per Gittersuche (5- bzw. 10-g-Schritte, realistische Portionsgrenzen je Lebensmittelart) so gewählt, dass die gewichtete quadratische Abweichung der Summe von den offenen Zielen minimal ist. Überschreiten der kcal wird stärker bestraft als Unterschreiten; bei „Eiweiß zuerst“ wird fehlendes Eiweiß stark gewichtet.
-- **Rangfolge:** Abweichung plus kleine Präferenzterme (Bewertung, Häufigkeit, neu vs. bekannt, keine zwei Beilagen/Gemüse).
 
 ## Ernährungsform und Allergene
 
