@@ -1,6 +1,6 @@
 /* Service Worker: macht die App offline nutzbar. Speichert nur die App-Dateien,
    keine Nutzerdaten. Bei jeder Änderung an den Dateien CACHE-Version erhöhen. */
-const CACHE = 'ct-cache-v96';
+const CACHE = 'ct-cache-v97';
 const ASSETS = [
   './',
   'index.html',
@@ -37,7 +37,8 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      // Nur eigene Caches löschen: Die Origin st0ptv.github.io teilen sich mehrere Apps (v2.3.1).
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('ct-cache-') && k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
