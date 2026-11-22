@@ -80,12 +80,12 @@ function foodBadge(f, size = '') {
 }
 const MEAL_ICON = { breakfast: 'sunrise', lunch: 'sun', dinner: 'moon', snack: 'apple' };
 
-/* Begleiter: das Starter-Monster aus dem Level-System (falls gewählt), sonst Möhri.
+/* Begleiter im Journal: Möhri. Nur wer im alten Level-Entwurf Erbsi oder Tomi gewählt hatte, sieht diese.
    Reagiert nur auf das Eintragen (wach / schläft), nie auf die Menge des Essens. */
+const COMPANION_NAME = { moehri: 'Möhri', erbsi: 'Erbsi', tomi: 'Tomi' };
 function companionName() {
   const st = state.level && state.level.starter;
-  const s = typeof LV_STARTERS !== 'undefined' && LV_STARTERS.find((x) => x.id === st);
-  return s ? s.forms[0] : 'Möhri';
+  return COMPANION_NAME[st] || 'Möhri';
 }
 function monsterSvg(mood = 'awake', size = 96) {
   const st = (state.level && state.level.starter) || 'moehri';

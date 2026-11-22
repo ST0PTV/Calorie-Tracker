@@ -39,6 +39,10 @@ Ein schlanker Kalorien-Tracker als Web-App (PWA) fürs iPhone. Er läuft komplet
 - Backup-Export und -Import mit Erinnerung nach 7 Tagen
 - Lebensmittel teilen: alle gescannten, im Journal getrackten, eigenen und vorgemerkten Lebensmittel (nur Name, Marke, Nährwerte pro 100 g, Barcode-Daten, Scheibengewichte) als JSON-Datei über das Teilen-Menü weitergeben; beim Import landen eigene unter „Eigene“, alle anderen unter „Vorgemerkt“. Ohne Favoriten, Datum, Mengen, Gewicht, Ziele oder Einstellungen
 
+## Level-System
+
+Das Level-System „Gemüsemonster“ war hier nur als Entwurf (nie in einer veröffentlichten Version sichtbar). Seit 2.4.0 liegt es mit allen Grafiken, Animationen, Entwürfen und Tests als eigenständiges Labor in [The Tracker](https://github.com/ST0PTV/The-Tracker-) unter `labor/gemuesemonster/`. Der Begleiter im Journal (Möhri) bleibt.
+
 ## Installation auf dem iPhone
 
 1. Die App-Adresse in **Safari** öffnen.

@@ -3,7 +3,7 @@
    nach außen: Barcode-Abfrage bei Open Food Facts (nur der Barcode wird übertragen). */
 'use strict';
 
-const APP_VERSION = '2.3.1';
+const APP_VERSION = '2.4.0';
 const STORE_KEY = 'ct.v1';
 const BACKUP_REMIND_DAYS = 7;
 const MEALS = [
@@ -37,7 +37,6 @@ function emptyState() {
     companion: true, // Begleiter (Gemüsemonster) im Journal
     dayDone: null, // Tag, an dem „Fertig für heute“ getippt wurde
     alcohol: ALC_DEFAULTS(),
-    level: LEVEL_DEFAULTS(), // Level-System: nur Auswahl + Aktionszähler (js/level.js)
     caffeine: CAFF_DEFAULTS(), // log: { 'JJJJ-MM-TT': [{ id, min (Minuten seit 0 Uhr), mg, n, dur (Minuten) }] }
   };
 }
@@ -124,9 +123,7 @@ function normalizeState(data) {
   if (!s.alcohol.log || typeof s.alcohol.log !== 'object') s.alcohol.log = {};
   s.caffeine = Object.assign(CAFF_DEFAULTS(), data.caffeine || {});
   if (!s.caffeine.log || typeof s.caffeine.log !== 'object') s.caffeine.log = {};
-  s.level = Object.assign(LEVEL_DEFAULTS(), data.level || {});
-  if (!s.level.ev || typeof s.level.ev !== 'object') s.level.ev = {};
-  if (!s.level.arenas || typeof s.level.arenas !== 'object') s.level.arenas = {};
+  // Level-System seit 2.4.0 ausgelagert (Labor in The Tracker). Alte Daten unter s.level bleiben unangetastet.
   // Übernahme aus Versionen ohne Ziel-Historie: bisheriges Ziel gilt ab dem ersten Tagebuch-Tag
   if (!s.goalHistory.length && s.settings.goal != null) {
     const first = Object.keys(s.days).filter((d) => (s.days[d] || []).length).sort()[0] || isoDate(new Date());
@@ -1304,7 +1301,7 @@ async function lookupBarcode(code) {
     };
     const cafG = num(nm.caffeine_100g); // OFF speichert Koffein in g pro 100 g/ml
     if (cafG != null && cafG >= 0 && cafG <= 5) food.cf = Math.round(cafG * 10000) / 10;
-    state.offCache[code] = food; levelEvent(state, 'scan', isoDate(new Date())); save();
+    state.offCache[code] = food; save();
     openAmount(food);
   } catch (e) {
     out.innerHTML = '<p class="muted">Keine Verbindung zu Open Food Facts. Bitte später erneut versuchen.</p>';
@@ -1371,7 +1368,7 @@ function openFoodForm(existing) {
   $('#cSave').onclick = () => {
     const n = $('#cName').value.trim(); const k = num($('#cK').value);
     if (!n || k == null) { toast('Name und kcal sind Pflicht.'); return; }
-    const miss = ['cP', 'cC', 'cF', 'cFi', 'cSu'].filter((id) => $('#' + id).value.trim() === ''); // für Level-XP: leere Pflichtwerte
+    const miss = ['cP', 'cC', 'cF', 'cFi', 'cSu'].filter((id) => $('#' + id).value.trim() === ''); // leere Pflichtwerte bleiben beim Bearbeiten leer
     const food = {
       src: 'custom', id: e.id || 'custom:' + uid(), n, brand: $('#cBrand').value.trim(), k,
       p: num($('#cP').value) || 0, c: num($('#cC').value) || 0, f: num($('#cF').value) || 0,
@@ -1386,9 +1383,6 @@ function openFoodForm(existing) {
     if (cfv != null && (cfv < 0 || cfv > 1000)) { toast('Bitte Koffein zwischen 0 und 1.000 mg pro 100 eingeben.'); return; }
     if (cfv != null) food.cf = cfv;
     delete state.cafFoods[food.id]; // Wert im Lebensmittel gilt
-    const today = isoDate(new Date());
-    if (!isEdit && !miss.length) levelEvent(state, 'own', today);
-    else if (isEdit && miss.length < (e.miss || []).length) levelEvent(state, 'fill', today);
     saveOwnFood(food);
     if (isEdit) { toast('Gespeichert'); openAmount(food); } else openAmount(food);
   };
@@ -2034,7 +2028,7 @@ async function exportFoods() {
   const p = foodsPayload();
   const n = p.custom.length + p.foods.length;
   if (!n) { toast('Noch keine Lebensmittel zum Teilen.'); return; }
-  await shareJson(p, `lebensmittel-${isoDate(new Date())}.json`, () => { levelEvent(state, 'share', isoDate(new Date())); save(); toast(`${n} Lebensmittel exportiert`); });
+  await shareJson(p, `lebensmittel-${isoDate(new Date())}.json`, () => { save(); toast(`${n} Lebensmittel exportiert`); });
 }
 function importFoods(data) {
   if (!data || typeof data !== 'object' || !Array.isArray(data.custom)) { toast('Keine Lebensmittel-Datei.'); return; }
